@@ -1,0 +1,14 @@
+# Semua file teks disimpan dengan akhir baris LF supaya file dari Windows
+# tidak memunculkan perubahan palsu di seluruh baris.
+* text=auto eol=lf
+
+# File biner
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,19 @@
+# Dependensi
+node_modules/
+
+# Rahasia: jangan pernah di-commit (yang boleh hanya .env.example)
+.env
+.env.*
+!.env.example
+
+# Log
+*.log
+npm-debug.log*
+
+# Sistem operasi & editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
