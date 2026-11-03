@@ -1,0 +1,291 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Tema "Lime kuitansi" (Figma: KosBagi Desain UI, koleksi variabel "Tema").
+ * Nama variabel = nama variabel CSS shadcn/ui. Mode Terang = :root, Gelap = .dark.
+ * Aturan: lime (--success) HANYA untuk bukti (lunas, tercatat, cap TERCATAT,
+ * garis grafik). Tombol memakai tinta (--primary).
+ */
+
+/* Varian dark: aktif di dalam elemen ber-class "dark" (html atau bagian halaman). */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Font dari next/font (lihat src/app/layout.tsx) */
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist);
+  --font-display: var(--font-archivo);
+
+  /* Warna dasar shadcn */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Token tambahan KosBagi: bukti dan status */
+  --color-destructive-muted: var(--destructive-muted);
+  --color-destructive-muted-foreground: var(--destructive-muted-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-muted: var(--success-muted);
+  --color-success-muted-foreground: var(--success-muted-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-muted: var(--warning-muted);
+  --color-warning-muted-foreground: var(--warning-muted-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-muted: var(--info-muted);
+  --color-info-muted-foreground: var(--info-muted-foreground);
+
+  /* Sidebar app shell (selalu tinta di kedua tema) */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Radius (Figma koleksi "Ukuran"): sm 8, md 12, lg 16 (= --radius), xl 20, 2xl 28 */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: var(--radius);
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.75rem;
+
+  /* Skala tipografi (gaya teks Figma). Display = Archivo Black huruf kapital. */
+  --text-display-number: 8rem; /* Display/Angka 128/104 */
+  --text-display-number--line-height: 6.5rem;
+  --text-display-number--letter-spacing: -0.04em;
+  --text-display-hero: 6.5rem; /* Display/Hero 104/96 */
+  --text-display-hero--line-height: 6rem;
+  --text-display-hero--letter-spacing: -0.04em;
+  --text-display-section: 4rem; /* Display/Bagian 64/60 */
+  --text-display-section--line-height: 3.75rem;
+  --text-display-section--letter-spacing: -0.03em;
+  --text-display-page: 3.5rem; /* Display/Halaman 56/52 */
+  --text-display-page--line-height: 3.25rem;
+  --text-display-page--letter-spacing: -0.03em;
+  --text-display-mobile: 3rem; /* Display/Ponsel 48/46 */
+  --text-display-mobile--line-height: 2.875rem;
+  --text-display-mobile--letter-spacing: -0.03em;
+  --text-display-section-mobile: 2.25rem; /* Display/Bagian ponsel 36/36 */
+  --text-display-section-mobile--line-height: 2.25rem;
+  --text-display-section-mobile--letter-spacing: -0.02em;
+
+  /* Judul dan angka antarmuka (Geist SemiBold) */
+  --text-h1: 2.5rem; /* Judul/H1 40/44 */
+  --text-h1--line-height: 2.75rem;
+  --text-h1--letter-spacing: -0.025em;
+  --text-h2: 2rem; /* Judul/H2 32/38 */
+  --text-h2--line-height: 2.375rem;
+  --text-h2--letter-spacing: -0.02em;
+  --text-h3: 1.5rem; /* Judul/H3 24/30 */
+  --text-h3--line-height: 1.875rem;
+  --text-h3--letter-spacing: -0.015em;
+  --text-h4: 1.25rem; /* Judul/H4 20/26 */
+  --text-h4--line-height: 1.625rem;
+  --text-h4--letter-spacing: -0.01em;
+  --text-h5: 1rem; /* Judul/H5 16/22 */
+  --text-h5--line-height: 1.375rem;
+  --text-h5--letter-spacing: -0.005em;
+  --text-number-lg: 2.25rem; /* Angka/Besar 36/40 */
+  --text-number-lg--line-height: 2.5rem;
+  --text-number-lg--letter-spacing: -0.03em;
+  --text-number-md: 1.25rem; /* Angka/Sedang 20/26 */
+  --text-number-md--line-height: 1.625rem;
+  --text-number-md--letter-spacing: -0.01em;
+  --text-button: 0.9375rem; /* Teks/Tombol 15/20 */
+  --text-button--line-height: 1.25rem;
+
+  /* Bayangan hanya untuk elemen yang melayang (mockup, kuitansi, dialog) */
+  --shadow-float:
+    0 6px 16px 0 rgb(14 15 12 / 0.1), 0 32px 64px -12px rgb(14 15 12 / 0.22);
+}
+
+:root {
+  --radius: 1rem;
+
+  --background: #ecede8;
+  --foreground: #0e0f0c;
+  --card: #fbfbf8;
+  --card-foreground: #0e0f0c;
+  --popover: #fbfbf8;
+  --popover-foreground: #0e0f0c;
+  --primary: #0e0f0c;
+  --primary-foreground: #f3f4ef;
+  --secondary: #e2e3dd;
+  --secondary-foreground: #0e0f0c;
+  --muted: #e2e3dd;
+  --muted-foreground: #5d6058;
+  --accent: #e2e3dd;
+  --accent-foreground: #0e0f0c;
+  --destructive: #c0392b;
+  --destructive-foreground: #f3f4ef;
+  --destructive-muted: #f5dcd8;
+  --destructive-muted-foreground: #7a1d14;
+  --success: #d4f55a;
+  --success-foreground: #0e0f0c;
+  --success-muted: #e3f59b;
+  --success-muted-foreground: #2c3604;
+  --warning: #9c5f0b;
+  --warning-foreground: #f3f4ef;
+  --warning-muted: #f4e4c1;
+  --warning-muted-foreground: #5e3a05;
+  --info: #3d58a6;
+  --info-foreground: #f3f4ef;
+  --info-muted: #dfe5f4;
+  --info-muted-foreground: #1f2f63;
+  --border: #d3d5cd;
+  --input: #82857c;
+  --ring: #0e0f0c;
+
+  --sidebar: #0e0f0c;
+  --sidebar-foreground: #e4e6dd;
+  --sidebar-muted-foreground: #9a9d93;
+  --sidebar-primary: #d4f55a;
+  --sidebar-primary-foreground: #0e0f0c;
+  --sidebar-accent: #24261f;
+  --sidebar-accent-foreground: #f3f4ef;
+  --sidebar-border: #24261f;
+  --sidebar-ring: #e4e6dd;
+}
+
+.dark {
+  --background: #0e0f0c;
+  --foreground: #edeee8;
+  --card: #181a15;
+  --card-foreground: #edeee8;
+  --popover: #181a15;
+  --popover-foreground: #edeee8;
+  --primary: #edeee8;
+  --primary-foreground: #0e0f0c;
+  --secondary: #22241e;
+  --secondary-foreground: #edeee8;
+  --muted: #22241e;
+  --muted-foreground: #a3a69b;
+  --accent: #22241e;
+  --accent-foreground: #edeee8;
+  --destructive: #f0796a;
+  --destructive-foreground: #0e0f0c;
+  --destructive-muted: #3a1512;
+  --destructive-muted-foreground: #f4aaa0;
+  --success: #d4f55a;
+  --success-foreground: #0e0f0c;
+  --success-muted: #2b3410;
+  --success-muted-foreground: #d4f55a;
+  --warning: #e0a646;
+  --warning-foreground: #0e0f0c;
+  --warning-muted: #33260d;
+  --warning-muted-foreground: #f0c77a;
+  --info: #8ea4e8;
+  --info-foreground: #0e0f0c;
+  --info-muted: #1c2540;
+  --info-muted-foreground: #b9c7f2;
+  --border: #2e3029;
+  --input: #6b6e64;
+  --ring: #edeee8;
+
+  --sidebar: #080907;
+  --sidebar-foreground: #e4e6dd;
+  --sidebar-muted-foreground: #9a9d93;
+  --sidebar-primary: #d4f55a;
+  --sidebar-primary-foreground: #0e0f0c;
+  --sidebar-accent: #22241e;
+  --sidebar-accent-foreground: #f3f4ef;
+  --sidebar-border: #22241e;
+  --sidebar-ring: #e4e6dd;
+}
+
+/* Kontainer halaman publik: isi maks. 1200 px (Figma layout/kontainer). */
+@utility container-page {
+  /* content-box: lebar maks. 1200 px berlaku untuk isi, padding di luarnya. */
+  box-sizing: content-box;
+  margin-inline: auto;
+  max-width: 75rem;
+  padding-inline: 1rem;
+
+  @media (width >= 48rem) {
+    padding-inline: 2rem;
+  }
+
+  @media (width >= 80rem) {
+    padding-inline: 2.5rem;
+  }
+}
+
+/* Judul display: Archivo Black huruf kapital, hanya untuk halaman publik. */
+@utility font-display-black {
+  font-family: var(--font-archivo);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+/* Garis putus-putus 6/6 px (garis sobek kuitansi, penghubung grafik). */
+@utility dash-line {
+  background-image: linear-gradient(
+    to right,
+    currentColor 50%,
+    transparent 50%
+  );
+  background-size: 12px 100%;
+  background-repeat: repeat-x;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply bg-background font-sans;
+    scroll-padding-top: 5.5rem;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Cincin fokus tinta 2 px dengan jarak 2 px (Figma Fokus/Ring), muncul instan. */
+  :where(a, button, [role="button"], [tabindex], summary):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
