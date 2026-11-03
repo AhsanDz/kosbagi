@@ -1,0 +1,20 @@
+# Dependensi
+node_modules/
+
+# Hasil build Hardhat (dibuat ulang dengan `npx hardhat build`)
+/artifacts/
+/cache/
+/types/
+
+# Laporan coverage dan snapshot gas
+/coverage/
+/.gas-snapshot
+/snapshots/
+
+# Rahasia: jangan pernah di-commit (yang boleh hanya .env.example)
+.env
+.env.*
+!.env.example
+
+# Deploy Ignition ke node lokal (chain 31337) tidak perlu disimpan
+/ignition/deployments/chain-31337/
