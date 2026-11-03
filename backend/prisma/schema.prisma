@@ -1,0 +1,148 @@
+// Skema basis data KosBagi v1 (progress 1): pengguna, properti, kamar, tagihan sewa.
+//
+// Konvensi:
+// - Semua nilai uang dalam rupiah bilangan bulat (BigInt), tanpa pecahan.
+// - Jumlah token dalam token utuh (Int); satuan desimal on-chain diurus kontrak.
+// - Nama model dan field camelCase di kode; tabel dan kolom PostgreSQL snake_case
+//   lewat @@map dan @map.
+// - ID memakai UUID v7: acak sehingga tidak bisa ditebak, tetapi terurut waktu.
+//
+// Setelah mengubah file ini: npm run prisma:generate, lalu buat migrasi baru
+// dengan npm run db:migrate (butuh PostgreSQL yang sedang jalan).
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Peran pengguna. Menentukan menu yang tampil dan hak akses tiap endpoint.
+enum Role {
+  INVESTOR /// investor pembeli token
+  TENANT /// penghuni kos
+  MANAGER /// pengelola kos
+  ADMIN /// admin platform
+}
+
+/// Status hunian kamar.
+enum RoomStatus {
+  OCCUPIED /// terisi
+  VACANT /// kosong
+  MAINTENANCE /// dalam perbaikan, tidak disewakan
+}
+
+/// Status tagihan sewa. Perubahan UNPAID menjadi PAID hanya lewat webhook Midtrans.
+/// Pembayaran yang gagal, batal, atau kedaluwarsa tidak mengubah status tagihan.
+enum BillStatus {
+  UNPAID /// belum dibayar
+  PAID /// lunas
+}
+
+/// Akun pengguna aplikasi (data dummy). Data pribadi hanya disimpan di sini, tidak pernah on-chain.
+model User {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  name         String
+  /// Email login, unik. Akun dummy memakai domain kosbagi.test.
+  email        String   @unique
+  /// Hash kata sandi (scrypt), dibuat dengan hashPassword() di src/lib/password.ts.
+  passwordHash String   @map("password_hash")
+  role         Role
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  /// Properti yang dikelola pengguna ini (peran MANAGER).
+  managedProperties Property[]
+  /// Kamar yang sedang ditempati (peran TENANT).
+  room              Room?
+  /// Tagihan sewa atas nama pengguna ini (peran TENANT).
+  bills             Bill[]
+
+  @@map("users")
+}
+
+/// Properti kos yang ditokenisasi, mis. Kos Sumbersari 01 dengan token KB-SMR01.
+model Property {
+  id                   String   @id @default(uuid(7)) @db.Uuid
+  /// Kode singkat properti, dipakai di order_id dan data on-chain, mis. SMR01.
+  code                 String   @unique
+  /// Penanda URL halaman publik, mis. sumbersari-01 untuk /kos/sumbersari-01.
+  slug                 String   @unique
+  name                 String
+  address              String
+  /// Nilai properti hasil penilaian (rupiah), mis. 1.800.000.000.
+  valuationIdr         BigInt   @map("valuation_idr")
+  /// Simbol token ERC-20 properti ini, mis. KB-SMR01.
+  tokenSymbol          String   @unique @map("token_symbol")
+  /// Jumlah seluruh token yang diterbitkan, mis. 18.000.
+  totalTokens          Int      @map("total_tokens")
+  /// Harga satu token (rupiah), mis. 100.000.
+  tokenPriceIdr        BigInt   @map("token_price_idr")
+  /// Token yang tetap dipegang pemilik lama, mis. 5.400 (30%). Sisanya dijual ke investor.
+  ownerTokens          Int      @map("owner_tokens")
+  /// Batas kepemilikan per investor, mis. 1.800 token (10%). Juga ditegakkan di KosToken.
+  maxTokensPerInvestor Int      @map("max_tokens_per_investor")
+  /// Pengguna berperan MANAGER yang mengelola properti ini.
+  managerId            String?  @map("manager_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  manager User?  @relation(fields: [managerId], references: [id], onDelete: SetNull)
+  rooms   Room[]
+
+  @@index([managerId])
+  @@map("properties")
+}
+
+/// Kamar di sebuah properti, mis. K03 di Kos Sumbersari 01.
+model Room {
+  id             String     @id @default(uuid(7)) @db.Uuid
+  propertyId     String     @map("property_id") @db.Uuid
+  /// Nomor kamar, unik dalam satu properti: K01 sampai K10.
+  number         String
+  /// Sewa per bulan (rupiah), mis. 1.500.000.
+  monthlyRentIdr BigInt     @map("monthly_rent_idr")
+  status         RoomStatus @default(VACANT)
+  /// Penghuni saat ini (boleh kosong). Unik: satu penghuni menempati satu kamar.
+  tenantId       String?    @unique @map("tenant_id") @db.Uuid
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  tenant   User?    @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  bills    Bill[]
+
+  @@unique([propertyId, number])
+  @@map("rooms")
+}
+
+/// Tagihan sewa satu kamar untuk satu periode bulan. Satu kamar hanya punya satu tagihan per periode.
+model Bill {
+  id        String     @id @default(uuid(7)) @db.Uuid
+  roomId    String     @map("room_id") @db.Uuid
+  /// Penghuni yang ditagih, dicatat saat tagihan dibuat.
+  tenantId  String     @map("tenant_id") @db.Uuid
+  /// Periode sewa berformat YYYY-MM, mis. 2026-11.
+  period    String     @db.Char(7)
+  /// Nominal tagihan (rupiah). Webhook menolak pembayaran yang nominalnya berbeda.
+  amountIdr BigInt     @map("amount_idr")
+  status    BillStatus @default(UNPAID)
+  /// Tanggal jatuh tempo (tanpa jam).
+  dueDate   DateTime   @map("due_date") @db.Date
+  /// Waktu tagihan menjadi lunas; kosong selama belum dibayar.
+  paidAt    DateTime?  @map("paid_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  room   Room @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  tenant User @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([roomId, period])
+  @@index([tenantId])
+  @@index([period, status])
+  @@map("bills")
+}

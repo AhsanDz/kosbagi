@@ -1,0 +1,11 @@
+# Tambahan khusus backend (node_modules/ dan .env sudah diatur .gitignore di root repo)
+
+# Hasil build TypeScript
+dist/
+*.tsbuildinfo
+
+# Klien Prisma hasil `prisma generate`; dibuat ulang otomatis saat npm install
+src/generated/
+
+# Laporan cakupan test
+coverage/
