@@ -1,0 +1,52 @@
+# Layanan pendukung untuk pengembangan lokal KosBagi: PostgreSQL (basis data) dan
+# Redis (antrean job blockchain BullMQ). Hanya untuk laptop sendiri, bukan produksi.
+#
+# Menjalankan (butuh Docker Desktop), dari folder backend/:
+#   npm run db:up     sama dengan: docker compose up -d --wait
+#   npm run db:down   menghentikan layanan; data tetap tersimpan di volume
+#
+# Bila port 5432 atau 6379 sudah dipakai aplikasi lain, pilih port lain sebelum db:up,
+# mis. di PowerShell: $env:POSTGRES_PORT=5433, lalu sesuaikan DATABASE_URL di backend/.env.
+
+name: kosbagi
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      # Kredensial khusus pengembangan lokal; samakan dengan DATABASE_URL di backend/.env.example.
+      POSTGRES_USER: kosbagi
+      POSTGRES_PASSWORD: kosbagi
+      POSTGRES_DB: kosbagi
+    ports:
+      # Hanya terbuka untuk laptop ini (127.0.0.1), tidak untuk perangkat lain di Wi-Fi yang sama.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kosbagi -d kosbagi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    # appendonly: isi antrean ditulis ke disk, jadi job yang belum selesai tidak hilang saat Redis restart.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      # Redis lokal tanpa kata sandi, jadi juga hanya dibuka untuk 127.0.0.1.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
