@@ -15,20 +15,22 @@ Semua perubahan masuk ke `main` lewat Pull Request. Tidak ada yang push langsung
    ```
 3. Kerjakan perubahan hanya di wilayah file jalurmu, lalu commit.
 4. Push branch dan buka Pull Request ke `main` dengan judul `[P2][J2] Webhook Midtrans`.
-5. Koordinator memeriksa tab **Files changed**, lalu merge dengan **Create a merge commit** dan menghapus branch.
+5. Koordinator repo (Ahsan Faqih) memeriksa tab **Files changed**, lalu merge dengan **Create a merge commit** dan menghapus branch.
 
 Satu pekerjaan = satu branch = satu Pull Request. Progress berikutnya dimulai setelah semua Pull Request progress sebelumnya di-merge.
 
 ## Wilayah file per jalur
 
-| Jalur | Wilayah utama |
-|---|---|
-| 1 Bisnis & Keuangan | file root repo, `docs/bisnis`, `docs/regulasi`, `docs/log-ide`, `docs/presentasi`, `docs/pernyataan-ai.md`, seed data, `backend/src/finance`, modul & halaman rekonsiliasi |
-| 2 Backend & Pembayaran | `backend/` (selain wilayah jalur 1 dan 3), `docker-compose.yml`, `.github/`, `docs/api`, laporan uji pembayaran |
-| 3 Kontrak & Blockchain | `contracts/`, `backend/src/blockchain`, `backend/src/worker.ts`, `docs/kontrak`, laporan uji kontrak |
-| 4 Frontend & Desain | `frontend/` (selain halaman rekonsiliasi), `docs/desain` |
+| Jalur | Anggota | Wilayah utama |
+|---|---|---|
+| 1 Bisnis & Keuangan | Nofita Rahma Sabillah | file root repo, `docs/bisnis`, `docs/regulasi`, `docs/log-ide`, `docs/presentasi`, seed data, `backend/src/finance`, modul & halaman rekonsiliasi |
+| 2 Backend & Pembayaran | Alya Hamidah Izzatul Laili | `backend/` (selain wilayah jalur 1 dan 3), `docker-compose.yml`, `.github/`, `docs/api`, laporan uji pembayaran |
+| 3 Kontrak & Blockchain | Ahsan Faqih | `contracts/`, `backend/src/blockchain`, `backend/src/worker.ts`, `docs/kontrak`, laporan uji kontrak |
+| 4 Frontend & Desain | Azzahra Callysta Putri Aditya | `frontend/` (selain halaman rekonsiliasi), `docs/desain` |
 
 Kalau perlu mengubah file di wilayah jalur lain, sampaikan ke pemilik jalur itu supaya tidak terjadi konflik.
+
+Langkah memasang dan menjalankan aplikasi hanya ditulis di [`README.md`](README.md) root. README di tiap folder hanya menjelaskan isi folder itu. Kalau cara menjalankan berubah, sampaikan ke jalur 1 sebagai pemilik README root.
 
 ## Pesan commit
 
