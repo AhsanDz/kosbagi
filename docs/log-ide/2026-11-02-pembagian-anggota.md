@@ -23,8 +23,8 @@
 
 | Jalur | Bidang | Anggota |
 |---|---|---|
-| 1 | Bisnis & Keuangan | Nofita Rahma Sabillah |
-| 2 | Backend & Pembayaran | Alya Hamidah Izzatul Laili |
+| 1 | Bisnis & Keuangan | Alya Hamidah Izzatul Laili |
+| 2 | Backend & Pembayaran | Nofita Rahma Sabillah |
 | 3 | Kontrak & Blockchain | Ahsan Faqih |
 | 4 | Frontend & Desain | Azzahra Callysta Putri Aditya |
 
