@@ -161,8 +161,8 @@ Frontend belum terhubung ke backend: data halaman masih statis dan hash transaks
 
 | Jalur | Tanggung jawab | Anggota |
 |---|---|---|
-| 1 | Bisnis & keuangan: model bisnis, regulasi, proyeksi keuangan, rekonsiliasi, koordinasi | Nofita Rahma Sabillah |
-| 2 | Backend & pembayaran: API, basis data, Midtrans, webhook, antrean | Alya Hamidah Izzatul Laili |
+| 1 | Bisnis & keuangan: model bisnis, regulasi, proyeksi keuangan, rekonsiliasi, koordinasi | Alya Hamidah Izzatul Laili |
+| 2 | Backend & pembayaran: API, basis data, Midtrans, webhook, antrean | Nofita Rahma Sabillah |
 | 3 | Kontrak & blockchain: smart contract, test Hardhat, deploy Sepolia, layanan blockchain | Ahsan Faqih |
 | 4 | Frontend & desain: antarmuka, ERD, arsitektur, user stories | Azzahra Callysta Putri Aditya |
 
