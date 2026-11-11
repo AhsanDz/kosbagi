@@ -60,5 +60,7 @@ Alasan: <alasan yang disepakati>
 |---|---|---|
 | 29 Oktober 2026 | [Keputusan pengembangan setelah proposal](2026-10-29-keputusan-pengembangan.md) | Proposal dikumpulkan; rencana 5 progress dan 4 jalur; alur branch dan Pull Request; transparansi AI; arah desain "Lime kuitansi", rute publik, dan aktor pemilik kos; persiapan Docker |
 | 2 November 2026 | [Pembagian anggota per jalur dan panduan menjalankan](2026-11-02-pembagian-anggota.md) | Nama anggota tiap jalur ditetapkan; langkah menjalankan aplikasi dipusatkan di README root |
+| 2 November 2026 | [Keputusan sebelum progress 2](2026-11-02-keputusan-progress-2.md) | Sewa ganda ditolak di backend dan kontrak; bagi hasil pro-rata dengan sisa masuk cadangan; state "Memeriksa pembayaran" |
+| 3 November 2026 | [Keputusan dari hasil QA progress 2](2026-11-03-keputusan-qa-progress-2.md) | Angka eksak di situs publik; teks pengalihan sertifikat; nota ganda ditolak; defisit tidak dibawa; pernyataan AI masuk di progress 5 |
 
 Diskusi sebelum 29 Oktober 2026 (pemilihan topik dan penyusunan proposal) belum tercatat di folder ini. Bila tim memiliki catatannya, misalnya riwayat percakapan grup, tambahkan sebagai entri dengan tanggal sesuai kejadiannya.
