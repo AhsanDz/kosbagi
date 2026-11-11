@@ -113,7 +113,7 @@ Aliran uang, token, dan data (disederhanakan dari Gambar 2.1 proposal):
 
  Pengelola mencatat biaya + nota ──▶ backend ──▶ KosLedger (hash nota)
  Admin menutup periode ──▶ KosLedger menyimpan sewa bersih dan nilai per token
- Bagi hasil investor = nilai per token × saldo token, masuk saldo akun investor,
+ Bagi hasil investor = sewa bersih × saldo token ÷ total suplai, masuk saldo akun investor,
  dan dibayarkan dari rekening penampungan kustodian saat investor menarik dana
 ```
 
@@ -248,9 +248,9 @@ Semua angka dihitung ulang dengan pecahan eksak, tanpa pembulatan di tengah jala
 ### 8.8 Catatan penerapan di prototipe
 
 - Uang dihitung dalam bilangan bulat rupiah, bukan bilangan pecahan (float), supaya tidak ada selisih pembulatan tersembunyi.
-- Pembulatan dilakukan sekali di akhir. Aturan pastinya (arah pembulatan, satuan nilai per token, dan pencatatan sisa) ditetapkan bersama fixture perhitungan manual pada P2, supaya hasil backend sama persis dengan kontrak `KosLedger`. Contoh dampaknya: bila nilai per token dibulatkan ke bawah menjadi Rp438, ada sisa Rp7.897.500 − 18.000 × Rp438 = Rp13.500 per bulan yang harus dicatat, misalnya dibawa ke periode berikutnya.
+- Pembulatan dilakukan sekali per pemegang: `floor(sewa bersih × saldo ÷ total suplai)`. Nilai per token disimpan dalam sen (`43875` berarti Rp438,75), dan sisa pembulatan masuk cadangan per periode tanpa dibawa ke periode berikutnya. Aturan lengkap dan contohnya ada di [perhitungan distribusi](perhitungan-distribusi.md), ditetapkan 2 November 2026.
 - Setiap periode, prototipe memakai angka nyata: sewa yang benar-benar lunas lewat Midtrans dan biaya yang dicatat pengelola beserta notanya, bukan persentase asumsi 20%.
-- Bagian setiap pemegang = nilai per token × saldo token pada blok penutupan periode. Saldo ini dibaca dari checkpoint di `KosToken`.
+- Saldo token yang menjadi dasar bagian tiap pemegang dibaca dari checkpoint di `KosToken` pada blok snapshot penutupan periode.
 - Bagi hasil diakumulasi di saldo akun investor dan baru dicairkan saat investor menarik dana, sehingga platform tidak perlu mentransfer dana ke ratusan rekening setiap bulan (proposal bagian 2.10).
 
 ### 8.9 Yang belum termasuk ilustrasi

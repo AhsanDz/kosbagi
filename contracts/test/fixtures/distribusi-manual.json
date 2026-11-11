@@ -1,0 +1,144 @@
+{
+  "description": "Angka perhitungan manual distribusi bagi hasil KB-SMR01 (skenario uji 12). Langkah hitungnya ada di docs/bisnis/perhitungan-distribusi.md. Dibuat di P2; test closePeriod mulai membacanya di P3. Semua nominal dalam rupiah bilangan bulat, nama field mengikuti PeriodRecord di KosLedger.",
+  "parameters": {
+    "platformFeeBps": 500,
+    "taxBps": 2200,
+    "totalSupply": 18000
+  },
+  "cases": [
+    {
+      "id": "dasar-november-2026",
+      "description": "Skenario dasar proposal: 9 kamar lunas, biaya operasional tepat 20%. Semua pembagian habis, jadi tidak ada sisa pembulatan.",
+      "period": 202611,
+      "rents": [
+        { "room": 1, "amount": 1500000 },
+        { "room": 2, "amount": 1500000 },
+        { "room": 3, "amount": 1500000 },
+        { "room": 4, "amount": 1500000 },
+        { "room": 5, "amount": 1500000 },
+        { "room": 7, "amount": 1500000 },
+        { "room": 8, "amount": 1500000 },
+        { "room": 9, "amount": 1500000 },
+        { "room": 10, "amount": 1500000 }
+      ],
+      "grossRent": 13500000,
+      "totalExpenses": 2700000,
+      "platformFee": 675000,
+      "taxableProfit": 10125000,
+      "tax": 2227500,
+      "netRent": 7897500,
+      "valuePerTokenSen": 43875,
+      "deficit": 0,
+      "holders": [
+        { "label": "Pemilik lama", "balance": 5400, "share": 2369250 },
+        { "label": "Investor 01", "balance": 1800, "share": 789750 },
+        { "label": "Investor 02", "balance": 1800, "share": 789750 },
+        { "label": "Investor 03", "balance": 1800, "share": 789750 },
+        { "label": "Investor 04", "balance": 1800, "share": 789750 },
+        { "label": "Investor 05", "balance": 1800, "share": 789750 },
+        { "label": "Investor 06", "balance": 1800, "share": 789750 },
+        { "label": "Investor 07", "balance": 1500, "share": 658125 },
+        { "label": "Investor 08", "balance": 200, "share": 87750 },
+        { "label": "Investor 09", "balance": 100, "share": 43875 }
+      ],
+      "totalShares": 7897500,
+      "reserve": 0
+    },
+    {
+      "id": "sisa-pembulatan-dua-belas-pemegang",
+      "description": "8 kamar lunas dan biaya mengikuti nota, sehingga pembagiannya tidak habis. Bagian dua belas pemegang dibulatkan ke bawah satu per satu dan sisanya Rp3 masuk cadangan.",
+      "period": 202612,
+      "rents": [
+        { "room": 1, "amount": 1500000 },
+        { "room": 2, "amount": 1500000 },
+        { "room": 3, "amount": 1500000 },
+        { "room": 4, "amount": 1500000 },
+        { "room": 5, "amount": 1500000 },
+        { "room": 8, "amount": 1500000 },
+        { "room": 9, "amount": 1500000 },
+        { "room": 10, "amount": 1500000 }
+      ],
+      "grossRent": 12000000,
+      "totalExpenses": 2345678,
+      "platformFee": 600000,
+      "taxableProfit": 9054322,
+      "tax": 1991950,
+      "netRent": 7062372,
+      "valuePerTokenSen": 39235,
+      "deficit": 0,
+      "holders": [
+        { "label": "Pemilik lama", "balance": 5400, "share": 2118711 },
+        { "label": "Investor 01", "balance": 1800, "share": 706237 },
+        { "label": "Investor 02", "balance": 1800, "share": 706237 },
+        { "label": "Investor 03", "balance": 1800, "share": 706237 },
+        { "label": "Investor 04", "balance": 1800, "share": 706237 },
+        { "label": "Investor 05", "balance": 1800, "share": 706237 },
+        { "label": "Investor 06", "balance": 1800, "share": 706237 },
+        { "label": "Investor 07", "balance": 777, "share": 304859 },
+        { "label": "Investor 08", "balance": 523, "share": 205201 },
+        { "label": "Investor 09", "balance": 300, "share": 117706 },
+        { "label": "Investor 10", "balance": 100, "share": 39235 },
+        { "label": "Investor 11", "balance": 100, "share": 39235 }
+      ],
+      "totalShares": 7062369,
+      "reserve": 3
+    },
+    {
+      "id": "biaya-melebihi-sewa",
+      "description": "Hanya 2 kamar lunas pada bulan ada perbaikan besar. Biaya melebihi sewa setelah fee, jadi pajak dan sewa bersih bernilai 0. Fee tetap dihitung dari sewa kotor. Defisit Rp1.650.000 tidak dibawa ke periode berikutnya.",
+      "period": 202701,
+      "rents": [
+        { "room": 3, "amount": 1500000 },
+        { "room": 5, "amount": 1500000 }
+      ],
+      "grossRent": 3000000,
+      "totalExpenses": 4500000,
+      "platformFee": 150000,
+      "taxableProfit": 0,
+      "tax": 0,
+      "netRent": 0,
+      "valuePerTokenSen": 0,
+      "deficit": 1650000,
+      "holders": [
+        { "label": "Pemilik lama", "balance": 5400, "share": 0 },
+        { "label": "Investor 01", "balance": 1800, "share": 0 },
+        { "label": "Investor 02", "balance": 1800, "share": 0 },
+        { "label": "Investor 03", "balance": 1800, "share": 0 },
+        { "label": "Investor 04", "balance": 1800, "share": 0 },
+        { "label": "Investor 05", "balance": 1800, "share": 0 },
+        { "label": "Investor 06", "balance": 1800, "share": 0 },
+        { "label": "Investor 07", "balance": 1800, "share": 0 }
+      ],
+      "totalShares": 0,
+      "reserve": 0
+    },
+    {
+      "id": "pembulatan-di-setiap-langkah",
+      "description": "Nominal buatan supaya fee, pajak, nilai per token, dan semua bagian sama-sama dibulatkan. Membedakan pembulatan ke bawah dari pembulatan biasa. Sisa Rp7 tetap lebih kecil dari jumlah pemegang (8).",
+      "period": 202702,
+      "rents": [
+        { "room": 1, "amount": 1234567 }
+      ],
+      "grossRent": 1234567,
+      "totalExpenses": 123456,
+      "platformFee": 61728,
+      "taxableProfit": 1049383,
+      "tax": 230864,
+      "netRent": 818519,
+      "valuePerTokenSen": 4547,
+      "deficit": 0,
+      "holders": [
+        { "label": "Pemilik lama", "balance": 5400, "share": 245555 },
+        { "label": "Investor 01", "balance": 1800, "share": 81851 },
+        { "label": "Investor 02", "balance": 1800, "share": 81851 },
+        { "label": "Investor 03", "balance": 1800, "share": 81851 },
+        { "label": "Investor 04", "balance": 1800, "share": 81851 },
+        { "label": "Investor 05", "balance": 1800, "share": 81851 },
+        { "label": "Investor 06", "balance": 1800, "share": 81851 },
+        { "label": "Investor 07", "balance": 1800, "share": 81851 }
+      ],
+      "totalShares": 818512,
+      "reserve": 7
+    }
+  ]
+}
