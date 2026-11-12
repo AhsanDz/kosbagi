@@ -25,15 +25,22 @@ function isClientHttpError(error: unknown): error is { status: number; type?: st
   );
 }
 
+/** AppError VALIDATION_ERROR dengan `details` per field. Bawaan status 400. */
+export function validationError(error: z.ZodError, status = 400): AppError {
+  const details = error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message }));
+  return new AppError(status, 'VALIDATION_ERROR', 'Data yang dikirim tidak valid.', details);
+}
+
 /** Menerjemahkan error apa pun menjadi AppError yang aman dikirim ke klien. */
 export function toAppError(error: unknown): AppError {
   if (error instanceof AppError) return error;
 
   // Validasi input dengan zod: schema.parse(req.body) melempar ZodError.
-  if (error instanceof z.ZodError) {
-    const details = error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message }));
-    return new AppError(400, 'VALIDATION_ERROR', 'Data yang dikirim tidak valid.', details);
-  }
+  if (error instanceof z.ZodError) return validationError(error);
+
+  // URL dengan percent-encoding rusak, mis. /api/bills/%E0%A4%A. Express melemparnya saat
+  // membaca parameter rute, tanpa penanda body-parser atau http-errors.
+  if (error instanceof URIError) return new AppError(400, 'BAD_REQUEST', 'Alamat permintaan tidak valid.');
 
   if (isClientHttpError(error)) {
     switch (error.type) {
