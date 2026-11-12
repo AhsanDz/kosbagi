@@ -1,5 +1,6 @@
 import type { Icon } from "@phosphor-icons/react";
 import {
+  ArrowsClockwiseIcon,
   CheckCircleIcon,
   ClockIcon,
   HourglassIcon,
@@ -10,11 +11,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { BillStatus } from "@/lib/types";
 
-type BadgeVariant = "secondary" | "warning" | "success" | "destructive";
+type BadgeVariant = "secondary" | "warning" | "info" | "success" | "destructive";
 
 const statusMap: Record<BillStatus, { label: string; variant: BadgeVariant; icon: Icon }> = {
   UNPAID: { label: "Belum dibayar", variant: "secondary", icon: ReceiptIcon },
   PENDING: { label: "Menunggu pembayaran", variant: "warning", icon: HourglassIcon },
+  CHECKING: { label: "Memeriksa pembayaran", variant: "info", icon: ArrowsClockwiseIcon },
   PAID: { label: "Lunas", variant: "success", icon: CheckCircleIcon },
   EXPIRED: { label: "Kedaluwarsa", variant: "destructive", icon: ClockIcon },
   FAILED: { label: "Gagal", variant: "destructive", icon: XCircleIcon },
