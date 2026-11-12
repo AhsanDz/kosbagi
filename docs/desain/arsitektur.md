@@ -2,11 +2,11 @@
 
 Dokumen ini menggambarkan cara komponen KosBagi bekerja sama: siapa memakai apa, bagaimana pembayaran sewa sampai tercatat di blockchain, bagaimana investor membeli token, status apa yang tampil di layar, dan di mana aplikasi dijalankan. Semua diagram ditulis dengan Mermaid sehingga tampil langsung di GitHub.
 
-Status: versi P1 (29 Okt 2026). Dokumen ini diperbarui bila alurnya berubah, paling lambat saat prototipe lengkap di P4.
+Status: versi P2 (2 Nov 2026). Dokumen ini diperbarui bila alurnya berubah, paling lambat saat prototipe lengkap di P4.
 
 Rincian teknis yang dimiliki dokumen lain:
 
-- Endpoint, payload, dan alur webhook: [`docs/api/`](../api/) (mulai P2).
+- Endpoint, payload, dan alur webhook: [`docs/api/`](../api/).
 - Fungsi, peran, dan aturan smart contract: [`docs/kontrak/`](../kontrak/).
 - Struktur tabel basis data: [ERD](erd.md).
 
@@ -101,7 +101,7 @@ flowchart TB
     ES["Etherscan Sepolia"]
 
     USR -->|"membuka halaman"| FE
-    FE -->|"REST JSON + JWT"| API
+    FE -->|"REST JSON, JWT dari cookie httpOnly"| API
     FE -->|"Snap.js + client key"| MT
     API -->|"buat transaksi, cek status<br/>dengan server key"| MT
     MT -.->|"notifikasi HTTP"| API
@@ -126,7 +126,7 @@ flowchart TB
 
 | Komponen | Tugas | Teknologi | Jalur |
 |---|---|---|---|
-| Frontend | Halaman publik, halaman empat peran, popup Snap. Hanya memegang client key Midtrans dan URL API | Next.js App Router, Tailwind CSS, shadcn/ui | 4 |
+| Frontend | Halaman publik, halaman empat peran, popup Snap, route handler sesi dan penerus API. Peramban hanya memegang client key Midtrans dan URL API | Next.js App Router, Tailwind CSS, shadcn/ui | 4 |
 | Backend API | Login dan peran, KYC dummy, tagihan, pembayaran, webhook, penawaran, biaya, periode, portofolio | Express 5, TypeScript, Prisma 7 | 2 (rekonsiliasi dan kalkulator keuangan: jalur 1) |
 | PostgreSQL | Data operasional: pengguna, kamar, tagihan, pembayaran, outbox, tx hash | PostgreSQL | 2 |
 | Redis + BullMQ | Antrean job blockchain dengan percobaan ulang | Redis, BullMQ | 2 (definisi antrean) |
@@ -136,7 +136,7 @@ flowchart TB
 | RPC Alchemy atau Infura | Pintu masuk ke jaringan Sepolia, dengan penyedia cadangan bila satu gagal | Layanan luar | - |
 | Etherscan Sepolia | Penjelajah blok publik untuk mengecek transaksi dan kontrak | Layanan luar | - |
 
-Panah Frontend ke Backend API berarti kode frontend (yang berjalan di peramban) memanggil API dengan token JWT. Backend tidak pernah memanggil frontend. Satu-satunya pihak luar yang memulai panggilan ke backend adalah Midtrans lewat notifikasi HTTP.
+Panah Frontend ke Backend API melewati route handler Next.js. Peramban memanggil `/api/backend/...` di server Next.js, lalu route handler mengambil JWT dari cookie httpOnly dan meneruskan permintaan ke backend. Token tidak pernah sampai ke JavaScript peramban (keputusan K9). Backend tidak pernah memanggil frontend. Satu-satunya pihak luar yang memulai panggilan ke backend adalah Midtrans lewat notifikasi HTTP.
 
 ## 3. Dompet dan token
 
@@ -199,9 +199,9 @@ sequenceDiagram
     P->>FE: Tekan Bayar sewa pada tagihan K03 November 2026
     FE->>API: Minta pembayaran tagihan (JWT penghuni)
     API->>DB: Pastikan tagihan milik penghuni dan belum lunas
+    API->>DB: Simpan percobaan pembayaran berstatus menunggu
     API->>MT: Buat transaksi Snap dengan server key<br/>order_id RENT-SMR01-K03-2026-11, Rp1.500.000, batas 5 menit
     MT-->>API: snap token
-    API->>DB: Simpan percobaan pembayaran berstatus menunggu
     API-->>FE: snap token
     FE->>MT: snap.pay(token) memakai client key
     P->>MT: Bayar di simulator sandbox (VA, QRIS, atau e-wallet)
@@ -227,21 +227,24 @@ sequenceDiagram
             API-->>MT: HTTP 200
         end
     end
-    MT-->>FE: Callback Snap, hanya memicu muat ulang
-    FE->>API: Muat ulang status tagihan
-    API-->>FE: Lunas, menunggu pencatatan on-chain
+    MT-->>FE: Callback Snap onSuccess, hanya memicu pemeriksaan
+    FE-->>P: Lencana Memeriksa pembayaran
+    loop Tiap 3 detik, paling lama 60 detik
+        FE->>API: Ambil status tagihan
+        API-->>FE: Status terbaru dari basis data
+    end
     FE-->>P: Lencana Lunas dan Menunggu pencatatan
 ```
 
 Hal yang perlu diperhatikan (nomor mengikuti angka pada diagram):
 
-- **Langkah 2 sampai 4.** Backend memeriksa bahwa tagihan memang milik penghuni yang masuk dan belum lunas, lalu membuat transaksi Snap dengan server key. Nominalnya tepat Rp1.500.000 karena penghuni tidak dikenai biaya tambahan. Batas bayar 5 menit dipakai supaya skenario kedaluwarsa bisa didemokan.
+- **Langkah 2 sampai 6.** Backend memeriksa bahwa tagihan memang milik penghuni yang masuk dan belum lunas, menyimpan percobaan lebih dulu supaya kegagalan Midtrans tidak meninggalkan keadaan yang tidak dikenal, lalu membuat transaksi Snap dengan server key. Nominalnya tepat Rp1.500.000 karena penghuni tidak dikenai biaya tambahan. Batas bayar 5 menit dipakai supaya skenario kedaluwarsa bisa didemokan.
 - **Langkah 8 dan 9.** Snap.js di peramban hanya memakai client key. Penghuni membayar di simulator sandbox Midtrans, bukan di halaman KosBagi.
 - **Langkah 10 dan 11.** Notifikasi dari Midtrans adalah satu-satunya pemicu perubahan status. Signature dihitung ulang dengan server key yang hanya diketahui backend dan Midtrans, sehingga notifikasi palsu langsung ditolak (skenario 6).
 - **Langkah 13 dan 14.** Walau signature cocok, backend tetap bertanya ulang ke API status transaksi Midtrans (`GET /v2/{order_id}/status`). Status dan nominal yang dipakai adalah jawaban API itu.
 - **Langkah 15 sampai 22.** Lima cabang hasil: nominal tidak cocok dicatat sebagai anomali (skenario 7), notifikasi ganda diabaikan dengan HTTP 200 (skenario 5), pembayaran sah ditandai lunas (skenario 1 dan 2), status pending dibiarkan menunggu, sedangkan batal, ditolak, atau kedaluwarsa tidak mengubah tagihan (skenario 3 dan 4).
 - **Langkah 18.** Status lunas dan baris outbox untuk job `recordRent` ditulis dalam satu transaksi basis data: keduanya tersimpan, atau tidak satu pun.
-- **Langkah 23 sampai 26.** Callback Snap di peramban tidak pernah menandai lunas. Callback itu hanya memicu frontend memuat ulang status dari backend.
+- **Langkah 23 sampai 27.** Callback Snap di peramban tidak pernah menandai lunas. Callback itu hanya memicu state klien Memeriksa pembayaran: frontend meminta status tagihan tiap 3 detik sampai 60 detik. Tanpa state ini penghuni melihat tagihan belum dibayar padahal baru membayar. Bila 60 detik habis tanpa konfirmasi, polling berhenti dan tampilan kembali mengikuti status dari backend.
 
 Kode balasan HTTP untuk notifikasi yang ditolak ditetapkan di dokumentasi API (P2).
 
@@ -271,7 +274,7 @@ sequenceDiagram
         W->>DB: Status mengikuti catatan yang sudah ada
     else RPC gagal atau waktu habis
         W->>Q: Job diulang dengan jeda bertahap
-        Note over Q,W: Bila percobaan habis, status menjadi gagal dicatat.<br/>Tombol Coba lagi memasukkan job yang sama ke antrean.
+        Note over Q,W: Bila percobaan habis, status menjadi gagal dicatat.<br/>Tombol Coba lagi di antrean admin (P4) memasukkan job yang sama.
     end
     P->>FE: Buka tagihan atau kuitansi
     FE->>API: Ambil status tagihan
@@ -284,7 +287,7 @@ sequenceDiagram
 - **Langkah 4.** Referensi on-chain adalah `keccak256(order_id)`: angka 32 byte yang bisa dicocokkan dengan basis data, tanpa nama penghuni.
 - **Langkah 5.** Data yang dikirim hanya kamar, periode, nominal, dan referensi. Transaksi ditandatangani dompet operator; hanya alamat dengan peran operator yang boleh memanggil `recordRent` (skenario 11).
 - **Langkah 8.** Bila job terulang, KosLedger menolak referensi yang sudah tercatat. Ini lapis ketiga pencegahan transaksi ganda (skenario 5).
-- **Langkah 10.** Kegagalan RPC atau jaringan dicoba ulang dengan jeda yang makin panjang. Bila tetap gagal, antarmuka menampilkan "Pencatatan on-chain gagal" dan tombol Coba lagi. Mengulang aman karena kontrak menolak catatan ganda. Pembayaran tetap lunas di sistem selama menunggu.
+- **Langkah 10.** Kegagalan RPC atau jaringan dicoba ulang dengan jeda yang makin panjang. Bila tetap gagal, halaman penghuni menampilkan "Pencatatan on-chain gagal" tanpa tombol, karena pengulangan adalah tugas operator di antrean admin (P4). Mengulang aman karena kontrak menolak catatan ganda. Pembayaran tetap lunas di sistem selama menunggu.
 - **Langkah 15.** Tautan Etherscan berbentuk `https://sepolia.etherscan.io/tx/<tx hash>`, dan hash ditampilkan disingkat 6+4 karakter.
 
 ## 5. Alur pembelian token
@@ -354,6 +357,7 @@ stateDiagram-v2
     direction LR
     state "Belum dibayar" as Belum
     state "Menunggu pembayaran" as Menunggu
+    state "Memeriksa pembayaran" as Memeriksa
     state "Kedaluwarsa" as Kedaluwarsa
     state "Gagal" as Gagal
     state Lunas {
@@ -363,11 +367,14 @@ stateDiagram-v2
         [*] --> Antre
         Antre --> Tercatat: recordRent berhasil
         Antre --> GagalCatat: percobaan otomatis habis
-        GagalCatat --> Antre: Coba lagi
+        GagalCatat --> Antre: Coba lagi oleh admin
     }
     [*] --> Belum: tagihan periode dibuat
     Belum --> Menunggu: Bayar sewa
+    Menunggu --> Memeriksa: Snap onSuccess
     Menunggu --> Lunas: settlement terverifikasi
+    Memeriksa --> Lunas: settlement terverifikasi
+    Memeriksa --> Menunggu: 60 detik tanpa konfirmasi
     Menunggu --> Kedaluwarsa: 5 menit habis
     Menunggu --> Gagal: dibatalkan atau ditolak
     Kedaluwarsa --> Menunggu: Bayar ulang
@@ -377,18 +384,19 @@ stateDiagram-v2
     class Tercatat bukti
 ```
 
-Di basis data, tagihan hanya punya dua status: belum dibayar dan lunas. Menunggu pembayaran, Kedaluwarsa, dan Gagal adalah status percobaan pembayaran terakhir yang ditampilkan pada baris tagihan. Tombol Bayar ulang membuat percobaan baru dengan `order_id` baru (Midtrans menolak `order_id` yang sama dipakai dua kali), sedangkan tagihannya tetap satu. Format `order_id` percobaan ulang ditetapkan di dokumentasi API (P2).
+Di basis data, tagihan hanya punya dua status: belum dibayar dan lunas. Menunggu pembayaran, Kedaluwarsa, dan Gagal adalah status percobaan pembayaran terakhir yang ditampilkan pada slip tagihan. Memeriksa pembayaran tidak ada di basis data sama sekali: state ini hanya hidup di klien, dari Snap `onSuccess` sampai webhook masuk, jadi hilang bila halaman dimuat ulang. Tombol Lanjutkan pembayaran membuka Snap dengan token yang sama, sedangkan Bayar ulang membuat percobaan baru dengan `order_id` bersufiks `-2`, `-3` (Midtrans menolak `order_id` yang sama dipakai dua kali). Tagihannya tetap satu.
 
 | Kelompok | Label di layar | Warna lencana | Teks pendukung atau aksi |
 |---|---|---|---|
 | Tagihan | Belum dibayar | Abu | Jatuh tempo, tombol Bayar sewa |
-| Tagihan | Menunggu pembayaran | Kunyit, dengan hitung mundur (mis. 04:12) | "Selesaikan di halaman Midtrans sebelum waktu habis", tombol Lanjutkan pembayaran |
-| Tagihan | Lunas | Lime | Waktu dan metode bayar, mis. "Dibayar 9 Nov 2026, 10.42 lewat Virtual Account" |
-| Tagihan | Kedaluwarsa | Saga | "Waktu pembayaran 5 menit habis. Tagihan belum dibayar.", tombol Bayar ulang |
-| Tagihan | Gagal | Saga | "Pembayaran ditolak atau dibatalkan. Tagihan belum dibayar.", tombol Bayar ulang |
+| Tagihan | Menunggu pembayaran | Kunyit | "Selesaikan di halaman Midtrans sebelum waktu habis", kotak Sisa waktu (mis. 04:12), tombol Lanjutkan pembayaran |
+| Tagihan | Memeriksa pembayaran | Nila | "Menunggu konfirmasi Midtrans. Biasanya beberapa detik. Halaman ini diperbarui sendiri.", tanpa tombol |
+| Tagihan | Lunas | Lime | Waktu dan metode bayar, mis. "Dibayar 9 Nov 2026, 10.42 lewat virtual account" |
+| Tagihan | Kedaluwarsa | Saga | "Batas 5 menit terlewat. Tagihan tetap belum dibayar.", tombol Bayar ulang |
+| Tagihan | Gagal | Saga | "Midtrans menolak atau kamu membatalkan pembayaran. Tagihan tetap belum dibayar.", tombol Bayar ulang |
 | On-chain | Menunggu pencatatan | Nila | "Transaksi sedang dikirim ke jaringan Sepolia. Biasanya selesai dalam 1 menit." |
 | On-chain | Tercatat | Lime | Tx hash 6+4, nomor blok, tautan "Lihat di Etherscan" |
-| On-chain | Gagal dicatat | Saga | "Jaringan Sepolia tidak merespons. Pembayaranmu tetap lunas di sistem.", tombol Coba lagi |
+| On-chain | Gagal dicatat | Saga | "Jaringan Sepolia tidak merespons. Pembayaranmu tetap lunas di sistem." Penghuni tidak punya tombol; Coba lagi ada di antrean admin (P4) |
 | KYC | Belum mengajukan, Diajukan, Disetujui, Ditolak | Abu, nila, lime, saga | Disetujui memicu whitelist di KosToken |
 
 Lime hanya muncul pada status yang menjadi bukti: Lunas, Tercatat, dan Disetujui.
@@ -490,6 +498,7 @@ flowchart TB
 | Kunci atau konfigurasi | Disimpan di | Boleh sampai ke peramban |
 |---|---|---|
 | Client key Midtrans sandbox | Environment frontend (`NEXT_PUBLIC_*`) | Ya, memang dipakai Snap.js |
+| JWT sesi pengguna | Cookie httpOnly `kosbagi_session`, diatur route handler Next.js | Terkirim otomatis, tetapi tidak bisa dibaca JavaScript |
 | URL API | Environment frontend (`NEXT_PUBLIC_*`) | Ya |
 | Server key Midtrans sandbox | Environment backend | Tidak |
 | Secret JWT | Environment backend | Tidak |
@@ -550,3 +559,9 @@ Repositori hanya berisi `.env.example` dengan nilai contoh. Semua yang diawali `
 
 - **Keputusan:** hanya Midtrans sandbox dan Ethereum Sepolia, dengan data dummy.
 - **Alasan:** aturan tugas akhir. Tidak ada uang nyata, token bernilai, KTP, atau nomor rekening asli. Antarmuka menegaskannya lewat banner "Mode sandbox: data dummy, tanpa uang nyata".
+
+### K9. Sesi disimpan di cookie httpOnly, peramban tidak pernah memegang JWT
+
+- **Keputusan:** `POST /api/session` di Next.js meneruskan login ke backend dan menyimpan JWT di cookie httpOnly `kosbagi_session`. Semua panggilan data dari peramban lewat `/api/backend/[...path]`, yang menempelkan header `Authorization`. Halaman peran dijaga `proxy.ts` sebelum dirender, lalu sesi diverifikasi ke backend lewat `GET /auth/me`.
+- **Alasan:** token di `localStorage` bisa dibaca skrip apa pun yang berjalan di halaman, termasuk pustaka pihak ketiga. Cookie httpOnly tidak bisa dibaca JavaScript, dan `SameSite=Lax` ditambah pemeriksaan `Origin` menutup CSRF pada permintaan yang mengubah data.
+- **Akibat:** ada satu lompatan tambahan lewat server Next.js. `proxy.ts` hanya membaca isi token tanpa memverifikasi tanda tangan, karena `JWT_SECRET` hanya ada di backend, jadi hasilnya dipakai untuk mengarahkan halaman saja. Keputusan akses data tetap di backend.
