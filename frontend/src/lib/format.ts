@@ -30,6 +30,24 @@ const periodFormatter = new Intl.DateTimeFormat("id-ID", {
   timeZone: TIME_ZONE,
 });
 
+const monthYearFormatter = new Intl.DateTimeFormat("id-ID", {
+  month: "short",
+  year: "numeric",
+  timeZone: TIME_ZONE,
+});
+
+const monthNameFormatter = new Intl.DateTimeFormat("id-ID", {
+  month: "long",
+  timeZone: TIME_ZONE,
+});
+
+const timeFormatter = new Intl.DateTimeFormat("id-ID", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: TIME_ZONE,
+});
+
 /** 1500000 -> "Rp1.500.000" ("Rp" menempel tanpa spasi, tanpa desimal). */
 export function formatRupiah(value: number): string {
   return rupiahFormatter.format(value).replace(/Rp\s+/u, "Rp");
@@ -81,6 +99,38 @@ export function formatDate(value: string | Date): string {
 /** "2026-11" -> "November 2026". */
 export function formatPeriod(period: string): string {
   return periodFormatter.format(new Date(`${period}-01T00:00:00+07:00`));
+}
+
+/** "2026-11-09T03:42:00.000Z" -> "9 Nov 2026, 10.42" (zona Asia/Jakarta). */
+export function formatDateTime(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return `${dateFormatter.format(date)}, ${timeFormatter.format(date)}`;
+}
+
+/** "2026-08" -> "Agu 2026". */
+export function formatMonthYear(period: string): string {
+  return monthYearFormatter.format(new Date(`${period}-01T00:00:00+07:00`));
+}
+
+/** Date -> "November". */
+export function formatMonthName(value: Date): string {
+  return monthNameFormatter.format(value);
+}
+
+/** "2026-11" -> "1 sampai 30 Nov 2026". */
+export function formatPeriodRange(period: string): string {
+  const [year, month] = period.split("-").map(Number);
+  // Hari ke-0 bulan berikutnya = hari terakhir bulan ini.
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `1 sampai ${formatDate(`${period}-${lastDay}`)}`;
+}
+
+/** Sisa waktu dalam milidetik -> "04:12". */
+export function formatCountdown(remainingMs: number): string {
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
 }
 
 /** Hash atau alamat disingkat 6+4: "0x8f3a…c21d". */

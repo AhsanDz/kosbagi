@@ -8,14 +8,14 @@ Folder ini berisi dokumen desain KosBagi yang dikelola jalur 4 (Frontend & Desai
 |---|---|
 | [arsitektur.md](arsitektur.md) | Diagram konteks, komponen, dompet dan token, sekuens pembayaran sewa dan pembelian token, status di layar, deployment, dan keputusan arsitektur |
 | [user-stories.md](user-stories.md) | 41 user stories per aktor dengan kriteria penerimaan Given/When/Then, prioritas, progress, serta kaitannya dengan demo wajib dan skenario uji |
-| [erd.md](erd.md) | ERD basis data dari `backend/prisma/schema.prisma`: skema v1 (P1) dengan penjelasan kolom, relasi, constraint, dan enum, ditambah rencana entitas P2 sampai P4. Diperbarui setiap kali skema berubah |
+| [erd.md](erd.md) | ERD basis data dari `backend/prisma/schema.prisma`: skema v2 (P2) dengan penjelasan kolom, relasi, constraint, dan enum, ditambah rencana entitas P4. Diperbarui setiap kali skema berubah |
 | Alur demo | Storyboard video demo, menyusul di P5 |
 
 ## Desain antarmuka di Figma
 
 File: [KosBagi Desain UI](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI). Bila Figma meminta izin, minta akses lihat ke koordinator.
 
-Seluruh layar P1 disetujui pada 29 Okt 2026. Layar P2 sampai P4 (tagihan penghuni, kuitansi, KYC, penawaran, portofolio, pengelola, admin) menyusul di file yang sama, jadi tautan file tidak berubah.
+Seluruh layar P1 disetujui pada 29 Okt 2026 dan layar P2 pada 2 Nov 2026. Layar P3 dan P4 (kuitansi, KYC, penawaran, portofolio, pengelola, admin) menyusul di file yang sama, jadi tautan file tidak berubah.
 
 ### Frame P1
 
@@ -42,6 +42,32 @@ Seluruh layar P1 disetujui pada 29 Okt 2026. Layar P2 sampai P4 (tagihan penghun
 | App shell penghuni | `/penghuni` | [25-2](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=25-2) |
 | App shell pengelola | `/pengelola` | [25-123](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=25-123) |
 | App shell admin | `/admin` | [25-240](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=25-240) |
+
+### Frame P2
+
+Frame penghuni belum punya versi mode gelap di Figma. Warnanya memakai variabel tema, jadi hasil gelapnya diperiksa langsung di aplikasi.
+
+| Layar | Rute | Desktop | Ponsel |
+|---|---|---|---|
+| Ringkasan, belum dibayar | `/penghuni` | [73-368](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-368) | [74-2547](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=74-2547) |
+| Ringkasan, lunas tercatat | `/penghuni` | [73-606](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-606) | - |
+| Tagihan, belum dibayar | `/penghuni/tagihan` | [73-861](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-861) | [74-2767](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=74-2767) |
+| Tagihan, menunggu pembayaran | `/penghuni/tagihan` | [73-1095](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-1095) | [74-2887](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=74-2887) |
+| Tagihan, memeriksa pembayaran | `/penghuni/tagihan` | [73-1338](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-1338) | - |
+| Tagihan, lunas menunggu pencatatan | `/penghuni/tagihan` | [73-1579](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-1579) | - |
+| Tagihan, lunas tercatat | `/penghuni/tagihan` | [73-1870](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-1870) | [74-3015](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=74-3015) |
+| Tagihan, lunas gagal dicatat | `/penghuni/tagihan` | [73-2147](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-2147) | - |
+| Tagihan, kedaluwarsa | `/penghuni/tagihan` | [73-2430](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-2430) | [74-3153](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=74-3153) |
+| Tagihan, gagal | `/penghuni/tagihan` | [73-2676](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=73-2676) | - |
+| Tagihan, memuat | `/penghuni/tagihan` | [74-2244](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=74-2244) | - |
+| Tagihan, kosong | `/penghuni/tagihan` | [74-2353](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=74-2353) | - |
+| Tagihan, error | `/penghuni/tagihan` | [74-2457](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=74-2457) | - |
+| Menu ponsel terbuka | `/penghuni` | - | [74-3280](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=74-3280) |
+| Untuk pemilik kos, halaman penuh | `/pemilik` | - | [76-1752](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=76-1752) |
+| Untuk pemilik kos, form error | `/pemilik` | - | [76-2153](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=76-2153) |
+| Untuk pemilik kos, pengajuan terkirim | `/pemilik` | - | [76-2267](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=76-2267) |
+
+Komponen baru P2 ada di frame main component: [Slip tagihan](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=70-1033), [Slip ringkas](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=70-1258), [Cap tercatat](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=70-699), [Jejak pembayaran](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1044), [Baris riwayat](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1155), [Kartu riwayat](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1335), [Kartu kamar](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1350), [Kartu bukti](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=75-1026), [Header ponsel](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1403).
 
 ## Arah visual: Lime kuitansi
 
@@ -78,9 +104,10 @@ Pada mode gelap, latar menjadi `#0E0F0C`, kartu `#181A15`, teks dan tombol utama
 | Peran | Font | Gaya di Figma |
 |---|---|---|
 | Judul display huruf kapital, hanya di halaman publik | Archivo Black | Display/Hero 104/96, Display/Bagian 64/60, Display/Halaman 56/52, Display/Ponsel 48/46 |
+| Cap TERCATAT, satu-satunya Archivo di dalam aplikasi | Archivo Black | Display/Cap 26/30 kapital |
 | Wordmark logo | Archivo ExtraBold | |
-| Antarmuka dan teks | Geist | Judul/H1 40/44 sampai Judul/H5 16/22, Teks/Default 16/24, Teks/Tombol SemiBold 15/20 |
-| Hash, `order_id`, dan kolom angka | Geist Mono | Mono/Default 14/20, Mono/Kecil 12/16 |
+| Antarmuka dan teks | Geist | Judul/H1 40/44 sampai Judul/H5 16/22, Teks/Default 16/24, Teks/Tombol SemiBold 15/20, Angka/Hero SemiBold 56/60 untuk nominal slip |
+| Hash, `order_id`, dan kolom angka | Geist Mono | Mono/Default 14/20, Mono/Kecil 12/16, Mono/Besar Medium 32/38 untuk hitung mundur |
 
 Semua font dimuat dengan `next/font`. Angka memakai `tabular-nums` supaya kolom rupiah sejajar.
 
@@ -107,7 +134,7 @@ Ikon memakai Phosphor (`@phosphor-icons/react`, weight regular), bukan lucide. I
 ### Mode gelap
 
 - Mode gelap berupa tombol toggle (`next-themes`, class `.dark`). Layar didesain dalam mode terang, ditambah satu contoh beranda gelap.
-- Pengecualian yang disengaja: bagian "Dari sewa ke bagi hasil" di beranda dan panel penawaran di detail kos selalu gelap. Di kode, keduanya dibungkus `class="dark"`.
+- Pengecualian yang disengaja: bagian "Dari sewa ke bagi hasil" di beranda, panel penawaran di detail kos, dan Kartu bukti di halaman penghuni selalu gelap. Di kode, ketiganya memakai `class="dark"`.
 
 ### Teks dan format
 
@@ -127,7 +154,12 @@ Ikon memakai Phosphor (`@phosphor-icons/react`, weight regular), bukan lucide. I
 | Kartu kos | Ringkasan satu kos di beranda dan daftar kos |
 | Navigasi publik, Footer publik, Tab, Item FAQ | Kerangka halaman publik |
 | Banner sandbox | Penanda mode sandbox di semua layar setelah masuk |
-| Status tagihan, Status on-chain, Status KYC | Lencana dan baris status wajib (lihat arsitektur bagian 6) |
+| Slip tagihan dan Slip ringkas | Tagihan bulan berjalan sebagai kuitansi dengan garis sobek dan takik. Slip ringkas mendatar di `/penghuni` mulai 1024 px, Slip tagihan tegak di bawahnya dan di `/penghuni/tagihan` |
+| Cap tercatat | Cap miring 8 derajat, hanya tampil bila status on-chain Tercatat |
+| Jejak pembayaran | Empat tahap dari Midtrans sampai Sepolia. Tahap selesai tinta, hanya tahap Tercatat yang lime. Tidak tampil di ponsel |
+| Baris riwayat dan Kartu riwayat | Riwayat tagihan lunas. Bentuk tabel atau daftar mengikuti lebar kartu |
+| Kartu kamar dan Kartu bukti | Data kamar dan penjelasan apa yang dicatat di blockchain |
+| Status tagihan, Status on-chain, Status KYC | Lencana dan baris status wajib (lihat arsitektur bagian 6). Status on-chain punya ukuran Ringkas untuk tabel dan Tumpuk untuk slip |
 | Input jumlah token | Isian pembelian dengan sisa penawaran, sisa kuota, dan pesan skenario 8 serta 9 |
 | Unggah file, Tabel transaksi, Kartu statistik, Dialog konfirmasi | Komponen data untuk halaman peran |
 
@@ -155,14 +187,14 @@ Semua akun memakai email berpola `*.dummy@kosbagi.test`. Domain `.test` dicadang
 | `/` | Beranda | P1 | Hero investor, kos unggulan, bukti on-chain, cara kerja, dari sewa ke bagi hasil, ajakan pemilik kos, risiko dan pengaduan |
 | `/kos` | Daftar kos | P1 | Satu kartu Kos Sumbersari 01 dan empty state "Properti berikutnya sedang dinilai" |
 | `/kos/sumbersari-01` | Detail kos | P1 | Tab Ringkasan, Keuangan, Dokumen, Blockchain, Risiko dan panel penawaran. Setiap tab bisa ditautkan langsung dengan `?tab=`: `ringkasan` (bawaan), `keuangan`, `dokumen`, `blockchain`, `risiko` |
-| `/masuk` | Masuk | P1 tampilan, P2 berfungsi | Kartu akun demo, form email, state error, tautan Ajukan kos |
+| `/masuk` | Masuk | P1 tampilan, P2 berfungsi | Kartu akun demo (masuk dengan kata sandi `demo-kosbagi`), form email, state error dari server, tautan Ajukan kos |
 | `/pemilik` | Untuk pemilik kos | P2 (jalur 1) | Simulasi dana, alur 5 langkah, syarat dan dokumen, FAQ, form pengajuan |
 
 Navbar publik berisi Beranda, Daftar kos, Cara kerja (menuju bagian di beranda), Untuk pemilik, dan tombol Masuk. Tombol Beli token di detail kos menuju `/masuk` bila belum masuk, lalu ke halaman Penawaran investor. Data halaman publik di P1 masih statis di `frontend/src/lib/`.
 
 ### Halaman per peran
 
-Semua layar setelah masuk memakai app shell yang sama: sidebar tinta berisi menu peran, banner sandbox di atas header, judul halaman dengan periode berjalan (mis. November 2026), dan cip properti Kos Sumbersari 01 KB-SMR01. Di P1 isi setiap menu masih berupa skeleton.
+Semua layar setelah masuk memakai app shell yang sama: sidebar tinta berisi menu peran dan pengguna dari sesi, banner sandbox di atas header, judul halaman dengan keterangan, dan cip properti Kos Sumbersari 01 KB-SMR01. Di ponsel, header diganti Header ponsel dan menu dibuka lewat Sheet. Halaman penghuni terisi di P2; isi menu peran lain masih berupa skeleton sampai progressnya.
 
 | Peran | Menu di sidebar | Rute | Isi dibangun |
 |---|---|---|---|

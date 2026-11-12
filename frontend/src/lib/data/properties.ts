@@ -11,6 +11,8 @@ export const kosSumbersari01: Property = {
   name: "Kos Sumbersari 01",
   tokenSymbol: "KB-SMR01",
   address: "Jl. Sumbersari, Malang (dummy)",
+  shortAddress: "Jl. Sumbersari (dummy)",
+  city: "Malang",
   campusDistance: "±8 menit jalan kaki ke gerbang UB",
   roomCount: 10,
   roomLabel: "10 kamar eksklusif",

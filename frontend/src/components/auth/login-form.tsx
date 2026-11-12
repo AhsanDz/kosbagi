@@ -2,8 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { flushSync } from "react-dom";
-import { useRouter } from "next/navigation";
-import { InfoIcon, WarningCircleIcon } from "@phosphor-icons/react/ssr";
+import { CircleNotchIcon, InfoIcon, WarningCircleIcon } from "@phosphor-icons/react/ssr";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,9 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { findDemoAccountByEmail } from "@/lib/data/demo-accounts";
+import { toApiError, type ApiError } from "@/lib/api/client";
+import { signIn } from "@/lib/api/session";
+import { DEMO_PASSWORD } from "@/lib/data/demo-accounts";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CREDENTIAL_HINT = "Periksa email dan kata sandi.";
@@ -26,29 +27,30 @@ interface FieldErrors {
 }
 
 /**
- * Form masuk dengan email (Figma: Masuk / Default dan Masuk / Error).
- * Progress 1 belum punya login sungguhan: email akun demo langsung membuka
- * app shell perannya, email lain menampilkan state error. Mulai progress 2
- * form ini memanggil POST /api/auth/login dan menyimpan sesi.
+ * Form masuk dengan email (Figma: Masuk / Default dan Masuk / Error). Kolom
+ * diperiksa di klien, lalu backend memutuskan lewat POST /api/session. Salah
+ * email atau kata sandi menandai kedua kolom; galat lain (backend mati, terlalu
+ * banyak percobaan) tampil sebagai pesan dari server.
  */
 export function LoginForm() {
-  const router = useRouter();
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [credentialError, setCredentialError] = useState(false);
+  const [failure, setFailure] = useState<ApiError | null>(null);
+  const [pending, setPending] = useState(false);
   const alertRef = useRef<HTMLDivElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
+  const credentialError = failure?.code === "INVALID_CREDENTIALS";
   const emailError = errors.email ?? (credentialError ? CREDENTIAL_HINT : undefined);
   const passwordError = errors.password ?? (credentialError ? CREDENTIAL_HINT : undefined);
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const name = event.target.name as keyof FieldErrors;
     if (errors[name]) setErrors((current) => ({ ...current, [name]: undefined }));
-    if (credentialError) setCredentialError(false);
+    if (failure) setFailure(null);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const email = String(data.get("email") ?? "").trim();
@@ -61,24 +63,25 @@ export function LoginForm() {
     if (!password) next.password = "Isi kata sandi.";
 
     if (next.email || next.password) {
-      setCredentialError(false);
+      setFailure(null);
       setErrors(next);
       (next.email ? emailRef : passwordRef).current?.focus();
       return;
     }
 
-    const account = findDemoAccountByEmail(email);
-    if (!account) {
+    setErrors({});
+    setFailure(null);
+    setPending(true);
+    try {
+      await signIn(email, password);
+    } catch (error) {
       // flushSync memastikan Alert sudah dirender sebelum fokus dipindahkan ke sana.
       flushSync(() => {
-        setErrors({});
-        setCredentialError(true);
+        setPending(false);
+        setFailure(toApiError(error));
       });
       alertRef.current?.focus();
-      return;
     }
-
-    router.push(account.homeHref);
   }
 
   return (
@@ -90,12 +93,16 @@ export function LoginForm() {
         Atau masuk dengan email
       </h2>
 
-      {credentialError ? (
+      {failure ? (
         <Alert variant="destructive" ref={alertRef} tabIndex={-1} className="outline-none">
           <WarningCircleIcon aria-hidden />
-          <AlertTitle>Email atau kata sandi salah</AlertTitle>
+          <AlertTitle>
+            {credentialError ? "Email atau kata sandi salah" : "Belum bisa masuk"}
+          </AlertTitle>
           <AlertDescription>
-            Periksa lagi data akun demo, atau pilih salah satu kartu peran.
+            {credentialError
+              ? "Periksa lagi data akun demo, atau pilih salah satu kartu peran."
+              : failure.message}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -142,13 +149,16 @@ export function LoginForm() {
               <FieldError id="password-bantuan">{passwordError}</FieldError>
             ) : (
               <FieldDescription id="password-bantuan">
-                Akun demo: kata sandi boleh diisi apa saja untuk saat ini.
+                Kata sandi semua akun demo: {DEMO_PASSWORD}
               </FieldDescription>
             )}
           </Field>
         </FieldGroup>
 
-        <Button type="submit" className="w-full">
+        <Button type="submit" className="w-full" disabled={pending} aria-busy={pending}>
+          {pending ? (
+            <CircleNotchIcon aria-hidden data-icon="inline-start" className="animate-spin" />
+          ) : null}
           Masuk
         </Button>
       </form>

@@ -1,5 +1,11 @@
 import type { AppRole } from "@/lib/types";
 
+/**
+ * Kata sandi semua akun demo, sama dengan konstanta di seed backend. Sengaja
+ * tampil di antarmuka: akun ini hanya data dummy untuk prototipe.
+ */
+export const DEMO_PASSWORD = "demo-kosbagi";
+
 /** Akun demo per peran. Semua nama dan email fiktif (domain .test). */
 export interface DemoAccount {
   role: AppRole;

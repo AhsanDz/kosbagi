@@ -41,8 +41,8 @@ export const monthlyWaterfall = {
     },
   ] satisfies WaterfallStep[],
   totalTokens: 18_000,
-  /** 7.897.500 / 18.000 = 438,75, dibulatkan menjadi Rp439. */
-  payoutPerTokenIdr: 439,
+  /** 7.897.500 / 18.000 = 438,75, sama dengan nilai yang disimpan closePeriod (43875 sen). */
+  payoutPerTokenLabel: "Rp438,75",
 };
 
 export interface ProjectionRow {
@@ -70,9 +70,9 @@ export const annualProjection: ProjectionRow[] = [
 
 /** Hasil ringkas yang ditonjolkan di tab Keuangan. */
 export const projectionHighlights = [
-  { label: "Per token per bulan", value: "±Rp439" },
+  { label: "Per token per bulan", value: "±Rp438,75" },
   { label: "Imbal per tahun", value: "±5,3%" },
-  { label: "100 token per bulan", value: "±Rp43.900" },
+  { label: "100 token per bulan", value: "±Rp43.875" },
 ] as const;
 
 export const taxSensitivityNote =

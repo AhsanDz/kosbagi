@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 
-import { DemoAccountCard } from "@/components/auth/demo-account-card";
+import { DemoAccountList } from "@/components/auth/demo-account-list";
 import { LoginForm } from "@/components/auth/login-form";
 import { SkipLink } from "@/components/common/skip-link";
 import { TextLink } from "@/components/common/text-link";
 import { PublicNavbar } from "@/components/public/public-navbar";
-import { demoAccounts } from "@/lib/data/demo-accounts";
 
 export const metadata: Metadata = {
   title: "Masuk",
@@ -31,13 +30,7 @@ export default function LoginPage() {
             <p className="max-w-[560px] text-base leading-6 text-muted-foreground md:text-lg md:leading-7">
               Pilih peran untuk mencoba alur KosBagi. Semua akun dan transaksinya berisi data dummy.
             </p>
-            <ul className="grid max-w-[672px] gap-4 pt-2 sm:grid-cols-2">
-              {demoAccounts.map((account) => (
-                <li key={account.role} className="flex">
-                  <DemoAccountCard account={account} />
-                </li>
-              ))}
-            </ul>
+            <DemoAccountList />
             <p className="flex flex-wrap items-center gap-2 pt-2 text-sm leading-5 text-muted-foreground">
               Pemilik kos yang ingin bergabung?
               <TextLink href="/pemilik" className="text-foreground">
