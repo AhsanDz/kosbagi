@@ -14,6 +14,8 @@ export const logger = pino({
       '*.password',
       '*.passwordHash',
       '*.token',
+      '*.snapToken',
+      '*.signature_key',
       '*.serverKey',
       '*.privateKey',
       'req.headers.authorization',
