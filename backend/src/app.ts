@@ -21,6 +21,8 @@ const JSON_BODY_LIMIT = '100kb';
 /** Header X-Request-Id dari klien dipakai bila formatnya aman; selain itu dibuat baru. */
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/;
 
+const TRUSTED_PROXY_HOPS = 1;
+
 export interface CreateAppOptions {
   /** Folder modul yang dimuat; default src/modules (atau dist/modules setelah build). */
   modulesDir?: string;
@@ -31,6 +33,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
 
   // JSON tidak mengenal BigInt: nominal rupiah dikirim sebagai number (lihat lib/json.ts).
   app.set('json replacer', bigIntReplacer);
+  // Di balik ngrok atau hosting ada tepat satu proxy. Tanpa ini semua permintaan terlihat
+  // datang dari IP proxy, sehingga rate limit per IP tidak berarti.
+  app.set('trust proxy', TRUSTED_PROXY_HOPS);
 
   // 1. Log setiap permintaan + ID permintaan untuk menelusuri error.
   app.use(
