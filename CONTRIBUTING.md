@@ -23,10 +23,10 @@ Satu pekerjaan = satu branch = satu Pull Request. Progress berikutnya dimulai se
 
 | Jalur | Anggota | Wilayah utama |
 |---|---|---|
-| 1 Bisnis & Keuangan | Alya Hamidah Izzatul Laili | file root repo, `docs/bisnis`, `docs/regulasi`, `docs/log-ide`, `docs/presentasi`, seed data, `backend/src/finance`, modul & halaman rekonsiliasi |
-| 2 Backend & Pembayaran | Nofita Rahma Sabillah | `backend/` (selain wilayah jalur 1 dan 3), `docker-compose.yml`, `.github/`, `docs/api`, laporan uji pembayaran |
-| 3 Kontrak & Blockchain | Ahsan Faqih | `contracts/`, `backend/src/blockchain`, `backend/src/worker.ts`, `docs/kontrak`, laporan uji kontrak |
-| 4 Frontend & Desain | Azzahra Callysta Putri Aditya | `frontend/` (selain halaman rekonsiliasi), `docs/desain` |
+| 1 Bisnis & Keuangan | Nofita Rahma Sabillah | file root repo, `docs/bisnis`, `docs/regulasi`, `docs/log-ide`, `docs/presentasi`, seed data (`backend/prisma/seed*`), `backend/src/finance`, modul & halaman rekonsiliasi, halaman `/pemilik`, fixture `contracts/test/fixtures` |
+| 2 Backend & Pembayaran | Alya Hamidah Izzatul Laili | `backend/` (selain wilayah jalur 1 dan 3), `docker-compose.yml`, `.github/`, `docs/api`, laporan uji pembayaran |
+| 3 Kontrak & Blockchain | Ahsan Faqih | `contracts/` (selain fixture), `backend/src/blockchain`, `backend/src/worker.ts`, `docs/kontrak`, laporan uji kontrak |
+| 4 Frontend & Desain | Azzahra Callysta Putri Aditya | `frontend/` (selain halaman rekonsiliasi dan `/pemilik`), `docs/desain` |
 
 Kalau perlu mengubah file di wilayah jalur lain, sampaikan ke pemilik jalur itu supaya tidak terjadi konflik.
 
