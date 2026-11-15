@@ -17,7 +17,7 @@ const previewRows = ["K03", "K05", "K04"]
 export function InvestorPhoneMockup({ className }: { className?: string }) {
   return (
     <figure
-      aria-label="Pratinjau layar Portofolio investor dengan data dummy: perkiraan bagi hasil November Rp43.900 untuk 100 token."
+      aria-label="Pratinjau layar Portofolio investor dengan data dummy: perkiraan bagi hasil November Rp43.875 untuk 100 token."
       className={cn("relative h-[528px] w-[264px] lg:h-[600px] lg:w-[300px]", className)}
     >
       <div
@@ -33,10 +33,10 @@ export function InvestorPhoneMockup({ className }: { className?: string }) {
           <div className="flex flex-col gap-1">
             <span className="text-xs leading-4 text-muted-foreground">Perkiraan bagi hasil November</span>
             <span className="text-number-lg font-semibold tabular-nums">
-              {formatRupiah(43_900)}
+              {formatRupiah(43_875)}
             </span>
             <span className="text-xs leading-4 text-muted-foreground">
-              100 token KB-SMR01 × Rp439
+              100 token KB-SMR01 × Rp438,75
             </span>
           </div>
 

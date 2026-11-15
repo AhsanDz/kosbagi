@@ -1,7 +1,7 @@
 /**
  * Tipe data frontend KosBagi. Didefinisikan sendiri di sini (tidak mengimpor
- * kode backend). Nama enum mengikuti deskripsi komponen Figma dan akan
- * disesuaikan dengan kontrak API di docs/api/ begitu tersedia (progress 2).
+ * kode backend). Nama enum mengikuti deskripsi komponen Figma. Bentuk respons
+ * API backend ada di src/lib/api/types.ts.
  */
 
 /** Alamat atau hash heksadesimal Ethereum, mis. tx hash 0x + 64 karakter. */
@@ -10,10 +10,14 @@ export type HexString = `0x${string}`;
 /** Peran aplikasi, sekaligus segmen rute: /investor, /penghuni, /pengelola, /admin. */
 export type AppRole = "investor" | "penghuni" | "pengelola" | "admin";
 
-/** Status tagihan sewa atau pembelian token (Figma: komponen "Status tagihan"). */
+/**
+ * Status tagihan sewa atau pembelian token (Figma: komponen "Status tagihan").
+ * CHECKING hanya ada di klien: jeda setelah Snap selesai sampai webhook masuk.
+ */
 export type BillStatus =
   | "UNPAID"
   | "PENDING"
+  | "CHECKING"
   | "PAID"
   | "EXPIRED"
   | "FAILED"
@@ -43,6 +47,9 @@ export interface Property {
   /** Kode properti di kontrak dan simbol token, mis. KB-SMR01. */
   tokenSymbol: string;
   address: string;
+  /** Alamat tanpa kota, dipakai di Kartu kamar. */
+  shortAddress: string;
+  city: string;
   campusDistance: string;
   roomCount: number;
   roomLabel: string;
@@ -98,8 +105,7 @@ export interface Risk {
 }
 
 /**
- * Bentuk respons API backend (dipakai mulai progress 2, saat frontend memanggil
- * http://localhost:4000/api). Sukses: { data }. Galat: { error: { code, message,
+ * Bentuk respons API backend. Sukses: { data }. Galat: { error: { code, message,
  * details?, requestId } }. Nominal uang berupa bilangan bulat rupiah dengan nama
  * field berakhiran "Idr" (mis. amountIdr), sama dengan tipe di berkas ini.
  */

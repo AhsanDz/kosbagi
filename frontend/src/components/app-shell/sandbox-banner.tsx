@@ -8,7 +8,7 @@ export function SandboxBanner() {
   return (
     <div
       role="status"
-      className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b border-warning bg-warning-muted px-4 py-2 text-warning-muted-foreground md:px-6"
+      className="flex flex-wrap items-center justify-between gap-x-6 gap-y-0.5 border-b border-warning bg-warning-muted px-4 py-2 text-warning-muted-foreground min-[380px]:px-6"
     >
       <p className="flex items-center gap-2 text-sm leading-5 font-semibold">
         <FlaskIcon aria-hidden className="size-4 shrink-0" />

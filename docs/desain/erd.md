@@ -1,8 +1,8 @@
 # ERD KosBagi
 
-Diagram entitas dan relasi (ERD) basis data KosBagi. ERD ini disusun dari [`backend/prisma/schema.prisma`](../../backend/prisma/schema.prisma) dan migrasi [`20261029120000_init`](../../backend/prisma/migrations/20261029120000_init/migration.sql). Bila ada perbedaan, skema Prisma yang menjadi acuan dan ERD ini disesuaikan.
+Diagram entitas dan relasi (ERD) basis data KosBagi. ERD ini disusun dari [`backend/prisma/schema.prisma`](../../backend/prisma/schema.prisma) dan migrasinya, [`20261029120000_init`](../../backend/prisma/migrations/20261029120000_init/migration.sql) serta [`20261102120000_skema_v2`](../../backend/prisma/migrations/20261102120000_skema_v2/migration.sql). Bila ada perbedaan, skema Prisma yang menjadi acuan dan ERD ini disesuaikan.
 
-Status: skema v1 (P1, 29 Okt 2026) dengan empat tabel: `users`, `properties`, `rooms`, dan `bills`. Tabel lain masih berupa rencana dan dipisahkan di bagian [Rencana entitas P2 sampai P4](#rencana-entitas-p2-sampai-p4).
+Status: skema v2 (P2, 2 Nov 2026) dengan 13 tabel. Empat tabel v1 (`users`, `properties`, `rooms`, `bills`) tidak berubah; sembilan tabel baru mengurus pembayaran, antrean blockchain, KYC dummy, penawaran token, dan pengajuan pemilik kos. Tabel P4 masih berupa rencana dan dipisahkan di bagian [Rencana entitas P4](#rencana-entitas-p4).
 
 ## Cara membaca
 
@@ -33,8 +33,21 @@ Nama model di kode memakai camelCase, sedangkan nama tabel dan kolom di PostgreS
 | `Property` | `properties` | `valuationIdr` menjadi `valuation_idr` |
 | `Room` | `rooms` | `monthlyRentIdr` menjadi `monthly_rent_idr` |
 | `Bill` | `bills` | `amountIdr` menjadi `amount_idr` |
+| `Payment` | `payments` | `orderId` menjadi `order_id` |
+| `PaymentAnomaly` | `payment_anomalies` | `expectedAmountIdr` menjadi `expected_amount_idr` |
+| `OutboxJob` | `outbox_jobs` | `dedupeKey` menjadi `dedupe_key` |
+| `ChainTransaction` | `chain_transactions` | `txHash` menjadi `tx_hash` |
+| `KycSubmission` | `kyc_submissions` | `dummyIdNumber` menjadi `dummy_id_number` |
+| `CustodialWallet` | `custodial_wallets` | `derivationIndex` menjadi `derivation_index` |
+| `Offering` | `offerings` | `tokensOffered` menjadi `tokens_offered` |
+| `TokenPurchase` | `token_purchases` | `reservedUntil` menjadi `reserved_until` |
+| `OwnerApplication` | `owner_applications` | `applicationNumber` menjadi `application_number` |
 
-## Diagram ERD v1 (P1)
+## Diagram ERD v2 (P2)
+
+Agar tetap terbaca, diagram dibagi dua. Bagian A berisi data sewa dan pembayaran, bagian B berisi investor dan penawaran token. Tabel `users`, `properties`, dan `payments` muncul di kedua bagian dengan isi kolom yang sama.
+
+### A. Sewa, pembayaran, dan pencatatan on-chain
 
 ```mermaid
 erDiagram
@@ -43,6 +56,10 @@ erDiagram
     users |o..o{ properties : "mengelola (manager_id)"
     properties ||--o{ rooms : "memiliki (property_id)"
     rooms ||--o{ bills : "ditagihkan (room_id)"
+    bills |o..o{ payments : "dibayar lewat (bill_id)"
+    payments |o..o{ payment_anomalies : "memicu (payment_id)"
+    payments |o..o| outbox_jobs : "melahirkan (payment_id)"
+    outbox_jobs ||--o{ chain_transactions : "dikirim sebagai (outbox_job_id)"
 
     users {
         uuid id PK "UUID v7"
@@ -91,9 +108,150 @@ erDiagram
         timestamp(3) created_at
         timestamp(3) updated_at
     }
+    payments {
+        uuid id PK
+        text order_id UK "mis. RENT-SMR01-K03-2026-11"
+        uuid bill_id FK "unik bersama attempt, boleh kosong"
+        uuid token_purchase_id FK "unik bersama attempt, boleh kosong"
+        integer attempt "percobaan ke berapa, mulai 1"
+        bigint amount_idr
+        PaymentStatus status "bawaan PENDING"
+        text method "payment_type Midtrans, boleh kosong"
+        text snap_token "boleh kosong"
+        text snap_redirect_url "boleh kosong"
+        text provider_status "boleh kosong"
+        text provider_transaction_id "boleh kosong"
+        timestamp(3) expires_at "batas bayar"
+        timestamp(3) paid_at "boleh kosong"
+        timestamp(3) created_at
+        timestamp(3) updated_at
+    }
+    payment_anomalies {
+        uuid id PK
+        PaymentAnomalyType type "unik bersama order_id"
+        text order_id "teks apa adanya"
+        uuid payment_id FK "boleh kosong"
+        bigint expected_amount_idr "boleh kosong"
+        bigint received_amount_idr "boleh kosong"
+        text provider_status "boleh kosong"
+        text note "tanpa data pribadi, boleh kosong"
+        integer occurrences "bawaan 1"
+        timestamp(3) created_at
+        timestamp(3) updated_at
+    }
+    outbox_jobs {
+        uuid id PK
+        OutboxJobType type
+        text dedupe_key UK "mis. record-rent:<id tagihan>"
+        jsonb payload "tanpa data pribadi"
+        uuid payment_id FK, UK "boleh kosong"
+        OutboxJobStatus status "bawaan PENDING"
+        integer attempts "bawaan 0"
+        text last_error "boleh kosong"
+        timestamp(3) dispatched_at "boleh kosong"
+        timestamp(3) created_at
+        timestamp(3) updated_at
+    }
+    chain_transactions {
+        uuid id PK
+        uuid outbox_job_id FK
+        text reference "mis. keccak256(order_id)"
+        text tx_hash UK "boleh kosong"
+        bigint block_number "boleh kosong"
+        ChainTransactionStatus status "bawaan PENDING"
+        integer attempts "bawaan 0"
+        text last_error "boleh kosong"
+        timestamp(3) created_at
+        timestamp(3) updated_at
+    }
 ```
 
-Semua kolom wajib diisi kecuali yang bertanda "boleh kosong": `properties.manager_id`, `rooms.tenant_id`, dan `bills.paid_at`.
+### B. Investor, penawaran, dan pengajuan pemilik
+
+```mermaid
+erDiagram
+    users ||--o{ kyc_submissions : "mengajukan (user_id)"
+    users |o..o{ kyc_submissions : "meninjau (reviewed_by_id)"
+    users ||--o| custodial_wallets : "memiliki (user_id)"
+    users ||--o{ token_purchases : "memesan (investor_id)"
+    properties ||--o{ offerings : "ditawarkan lewat (property_id)"
+    offerings ||--o{ token_purchases : "dipesan lewat (offering_id)"
+    token_purchases |o..o{ payments : "dibayar lewat (token_purchase_id)"
+
+    users {
+        uuid id PK
+        text email UK
+        Role role
+    }
+    properties {
+        uuid id PK
+        text code UK
+    }
+    payments {
+        uuid id PK
+        text order_id UK "BUY- untuk pesanan token"
+        uuid token_purchase_id FK "boleh kosong"
+    }
+    kyc_submissions {
+        uuid id PK
+        uuid user_id FK
+        text full_name
+        text dummy_id_number "wajib berawalan DUMMY-"
+        KycStatus status "bawaan SUBMITTED"
+        text rejection_reason "boleh kosong"
+        uuid reviewed_by_id FK "boleh kosong"
+        timestamp(3) reviewed_at "boleh kosong"
+        timestamp(3) created_at
+        timestamp(3) updated_at
+    }
+    custodial_wallets {
+        uuid id PK
+        uuid user_id FK, UK
+        text address UK
+        integer derivation_index UK "indeks turunan HD"
+        timestamp(3) created_at
+    }
+    offerings {
+        uuid id PK
+        uuid property_id FK
+        integer tokens_offered "mis. 12.600"
+        integer tokens_sold "bawaan 0"
+        OfferingStatus status "bawaan OPEN"
+        timestamp(3) closes_at
+        timestamp(3) created_at
+        timestamp(3) updated_at
+    }
+    token_purchases {
+        uuid id PK
+        uuid offering_id FK
+        uuid investor_id FK
+        integer token_amount
+        bigint amount_idr
+        TokenPurchaseStatus status "bawaan PENDING_PAYMENT"
+        timestamp(3) reserved_until "boleh kosong"
+        timestamp(3) created_at
+        timestamp(3) updated_at
+    }
+    owner_applications {
+        uuid id PK
+        text application_number UK "mis. AJU-SMR-2026-0007"
+        integer year "unik bersama sequence"
+        integer sequence "mulai 1 setiap tahun"
+        text owner_name
+        text contact "email atau nomor WhatsApp"
+        text property_address
+        integer room_count
+        bigint monthly_rent_idr
+        double occupancy_percent "0 sampai 100"
+        OwnerApplicationStatus status "bawaan SUBMITTED"
+        timestamp(3) submitted_at
+        timestamp(3) updated_at
+    }
+```
+
+`owner_applications` berdiri sendiri tanpa foreign key karena pemilik kos tidak punya akun.
+
+Kolom yang wajib diisi adalah semua kolom yang tidak bertanda "boleh kosong".
 
 ## Entitas dan kolom penting
 
@@ -152,6 +310,123 @@ Tagihan sewa satu kamar untuk satu periode bulan.
 | `due_date` | `date` | Tanggal jatuh tempo, tanpa jam, mis. 10 Nov 2026 |
 | `paid_at` | `timestamp(3)` | Waktu tagihan menjadi lunas. Kosong selama belum dibayar |
 
+### `payments` (model `Payment`)
+
+Satu percobaan pembayaran Midtrans. Satu tagihan bisa punya beberapa percobaan karena Midtrans menolak `order_id` yang sama dipakai dua kali, sedangkan penghuni boleh membayar ulang.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `order_id` | `text` | Unik per percobaan: `RENT-SMR01-K03-2026-11`, lalu bersufiks `-2`, `-3`. Awalan `BUY-` untuk pesanan token |
+| `bill_id`, `token_purchase_id` | `uuid` | Sasaran pembayaran. Tepat satu terisi, dijaga constraint CHECK di SQL migrasi |
+| `attempt` | `integer` | Nomor percobaan untuk sasaran yang sama, mulai dari 1 |
+| `amount_idr` | `bigint` | Nominal yang ditagihkan ke Midtrans |
+| `status` | `PaymentStatus` | Status percobaan, lihat bagian Enum. `PENDING` yang melewati `expires_at` dibaca sebagai kedaluwarsa |
+| `method` | `text` | `payment_type` dari Midtrans, mis. `bank_transfer`, `qris`. Kosong sampai metode dipilih |
+| `snap_token`, `snap_redirect_url` | `text` | Kosong selama transaksi belum berhasil dibuat di Midtrans |
+| `provider_status`, `provider_transaction_id` | `text` | `transaction_status` terakhir dan `transaction_id` dari Midtrans, untuk telusur dan rekonsiliasi |
+| `expires_at` | `timestamp(3)` | Batas bayar, 5 menit sejak transaksi dibuat. Hitung mundur di layar membaca nilai ini |
+| `paid_at` | `timestamp(3)` | Waktu terbayar. Kosong selama belum dibayar |
+
+### `payment_anomalies` (model `PaymentAnomaly`)
+
+Notifikasi Midtrans bersignature sah yang tidak diproses normal dan perlu ditinjau manusia. Tagihan tidak berubah. Satu baris per order per jenis; notifikasi ulang hanya menaikkan `occurrences`.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `type` | `PaymentAnomalyType` | Jenis anomali, lihat bagian Enum |
+| `order_id` | `text` | Teks apa adanya, bukan foreign key, karena `UNKNOWN_ORDER` tidak punya baris pembayaran |
+| `payment_id` | `uuid` | Pembayaran terkait. Boleh kosong |
+| `expected_amount_idr`, `received_amount_idr` | `bigint` | Nominal yang diharapkan dan yang diterima |
+| `provider_status` | `text` | `transaction_status` menurut API status Midtrans |
+| `note` | `text` | Keterangan untuk peninjau, tanpa data pribadi |
+| `occurrences` | `integer` | Berapa kali notifikasi yang sama diterima |
+
+### `outbox_jobs` (model `OutboxJob`)
+
+Job blockchain yang ditulis dalam satu transaksi basis data dengan perubahan statusnya (pola outbox). Dispatcher memindahkannya ke antrean BullMQ, jadi job tidak hilang walau Redis sedang mati.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `type` | `OutboxJobType` | Jenis job blockchain |
+| `dedupe_key` | `text` | Unik. Mencegah job ganda untuk sumber yang sama, mis. `record-rent:<id tagihan>` |
+| `payload` | `jsonb` | Isi job sesuai `src/queue/jobs.ts`. Tidak boleh memuat data pribadi |
+| `payment_id` | `uuid` | Pembayaran asal job untuk `RECORD_RENT` dan `TRANSFER_TOKENS`. Boleh kosong dan unik |
+| `status` | `OutboxJobStatus` | Status pengiriman ke antrean, bukan status transaksi di blockchain |
+| `attempts`, `last_error` | `integer`, `text` | Berapa kali gagal masuk antrean dan galat terakhirnya |
+| `dispatched_at` | `timestamp(3)` | Waktu masuk antrean |
+
+### `chain_transactions` (model `ChainTransaction`)
+
+Transaksi di Sepolia. Satu job bisa menghasilkan beberapa percobaan transaksi. Baris ini sumber status on-chain yang tampil di layar.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `outbox_job_id` | `uuid` | Job asal. Wajib |
+| `reference` | `text` | Referensi on-chain, mis. `keccak256(order_id)` |
+| `tx_hash` | `text` | Unik. Kosong sampai transaksi berhasil dikirim ke jaringan |
+| `block_number` | `bigint` | Nomor blok tempat transaksi tercatat |
+| `status` | `ChainTransactionStatus` | Menunggu, tercatat, atau gagal |
+| `attempts`, `last_error` | `integer`, `text` | Jumlah percobaan dan galat terakhir |
+
+### `kyc_submissions` (model `KycSubmission`)
+
+Pengajuan KYC dummy. Investor yang ditolak boleh mengajukan lagi, jadi satu investor bisa punya banyak baris. Label "Belum mengajukan" di layar berarti belum ada baris.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `user_id` | `uuid` | Investor yang mengajukan. Wajib |
+| `full_name` | `text` | Nama sesuai isian |
+| `dummy_id_number` | `text` | Nomor identitas dummy, wajib berawalan `DUMMY-`. Bukan nomor KTP |
+| `status` | `KycStatus` | Bawaan `SUBMITTED` |
+| `rejection_reason` | `text` | Alasan penolakan. Boleh kosong |
+| `reviewed_by_id`, `reviewed_at` | `uuid`, `timestamp(3)` | Admin peninjau dan waktu peninjauan. Boleh kosong |
+
+### `custodial_wallets` (model `CustodialWallet`)
+
+Dompet kustodian investor. Kunci privat tidak disimpan di sini: diturunkan dari seed di environment memakai `derivation_index`.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `user_id` | `uuid` | Investor pemilik. Unik: satu investor punya nol atau satu dompet |
+| `address` | `text` | Unik. Alamat Ethereum |
+| `derivation_index` | `integer` | Unik. Indeks turunan HD, satu indeks hanya dipakai satu investor |
+
+### `offerings` (model `Offering`)
+
+Penawaran token satu properti, mis. 12.600 token KB-SMR01.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `property_id` | `uuid` | Properti yang ditawarkan. Wajib |
+| `tokens_offered`, `tokens_sold` | `integer` | Token yang ditawarkan dan yang sudah terjual |
+| `status` | `OfferingStatus` | Bawaan `OPEN` |
+| `closes_at` | `timestamp(3)` | Batas waktu penawaran |
+
+### `token_purchases` (model `TokenPurchase`)
+
+Pesanan token seorang investor. Dibayar lewat baris `payments` berawalan `BUY-` (P3).
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `offering_id`, `investor_id` | `uuid` | Penawaran dan investor pemesan. Wajib |
+| `token_amount` | `integer` | Jumlah token yang dipesan |
+| `amount_idr` | `bigint` | Nominal pesanan |
+| `status` | `TokenPurchaseStatus` | Bawaan `PENDING_PAYMENT` |
+| `reserved_until` | `timestamp(3)` | Pesanan belum dibayar ikut mengurangi sisa penawaran dan kuota investor sampai waktu ini |
+
+### `owner_applications` (model `OwnerApplication`)
+
+Pengajuan pemilik kos dari halaman publik `/pemilik`. Pemilik kos tidak punya akun, jadi tabel ini tidak punya foreign key.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `application_number` | `text` | Unik. Nomor untuk pemilik, mis. `AJU-SMR-2026-0007` |
+| `year`, `sequence` | `integer` | Pembentuk nomor. Urutan mulai lagi dari 1 setiap tahun |
+| `owner_name`, `contact`, `property_address` | `text` | Isian form. `contact` berisi email, atau nomor WhatsApp berisi angka saja |
+| `room_count`, `monthly_rent_idr`, `occupancy_percent` | `integer`, `bigint`, `double` | Data kos dummy. Okupansi 0 sampai 100 persen |
+| `status` | `OwnerApplicationStatus` | Lima tahap pengajuan, bawaan `SUBMITTED` |
+| `submitted_at` | `timestamp(3)` | Waktu pengajuan |
+
 ## Relasi
 
 | Relasi | Kardinalitas | Foreign key | Bila induk dihapus | Arti |
@@ -161,6 +436,17 @@ Tagihan sewa satu kamar untuk satu periode bulan.
 | `users` ke `bills` | Satu penghuni punya nol atau banyak tagihan; setiap tagihan tepat satu penghuni | `bills.tenant_id` | Ditolak (RESTRICT) | Riwayat siapa yang ditagih tetap terjaga |
 | `users` ke `rooms` | Satu pengguna menempati nol atau satu kamar; satu kamar ditempati nol atau satu penghuni | `rooms.tenant_id` (unik) | Dikosongkan (SET NULL) | Kamar menjadi kosong bila akun penghuni dihapus |
 | `users` ke `properties` | Satu pengelola mengelola nol atau banyak properti; satu properti punya nol atau satu pengelola | `properties.manager_id` | Dikosongkan (SET NULL) | Properti tetap ada walau pengelolanya dihapus |
+| `bills` ke `payments` | Satu tagihan punya nol atau banyak percobaan, paling banyak satu berstatus `PAID` | `payments.bill_id` | Ditolak (RESTRICT) | Jejak pembayaran tidak boleh hilang |
+| `token_purchases` ke `payments` | Satu pesanan punya nol atau banyak percobaan, paling banyak satu berstatus `PAID` | `payments.token_purchase_id` | Ditolak (RESTRICT) | Sama dengan tagihan |
+| `payments` ke `payment_anomalies` | Satu pembayaran punya nol atau banyak anomali; anomali boleh tanpa pembayaran | `payment_anomalies.payment_id` | Dikosongkan (SET NULL) | Catatan anomali tetap ada untuk ditinjau |
+| `payments` ke `outbox_jobs` | Satu pembayaran melahirkan nol atau satu job; job KYC, biaya, dan periode tanpa pembayaran | `outbox_jobs.payment_id` (unik) | Ditolak (RESTRICT) | Pembayaran yang sudah masuk antrean tidak bisa dihapus |
+| `outbox_jobs` ke `chain_transactions` | Satu job punya nol atau banyak percobaan transaksi; setiap transaksi tepat satu job | `chain_transactions.outbox_job_id` | Ditolak (RESTRICT) | Bukti transaksi selalu tertaut ke asalnya |
+| `users` ke `kyc_submissions` (pengaju) | Satu investor punya nol atau banyak pengajuan | `kyc_submissions.user_id` | Ditolak (RESTRICT) | Riwayat KYC tetap terjaga |
+| `users` ke `kyc_submissions` (peninjau) | Satu admin meninjau nol atau banyak pengajuan | `kyc_submissions.reviewed_by_id` | Dikosongkan (SET NULL) | Pengajuan tetap ada walau akun admin dihapus |
+| `users` ke `custodial_wallets` | Satu investor punya nol atau satu dompet | `custodial_wallets.user_id` (unik) | Ditolak (RESTRICT) | Dompet yang memegang token tidak boleh yatim |
+| `properties` ke `offerings` | Satu properti punya nol atau banyak penawaran | `offerings.property_id` | Ditolak (RESTRICT) | Properti dengan penawaran tidak bisa dihapus |
+| `offerings` ke `token_purchases` | Satu penawaran punya nol atau banyak pesanan | `token_purchases.offering_id` | Ditolak (RESTRICT) | Pesanan selalu punya penawaran |
+| `users` ke `token_purchases` | Satu investor punya nol atau banyak pesanan | `token_purchases.investor_id` | Ditolak (RESTRICT) | Riwayat pembelian tetap terjaga |
 
 Semua foreign key memakai `ON UPDATE CASCADE`. Karena primary key berupa UUID yang tidak pernah berubah, aturan ini praktis tidak pernah terpakai.
 
@@ -180,8 +466,33 @@ Semua foreign key memakai `ON UPDATE CASCADE`. Karena primary key berupa UUID ya
 | `properties_manager_id_idx` | `properties.manager_id` | Indeks | Mempercepat daftar properti milik satu pengelola |
 | `bills_tenant_id_idx` | `bills.tenant_id` | Indeks | Mempercepat halaman Tagihan penghuni |
 | `bills_period_status_idx` | `bills.period`, `bills.status` | Indeks gabungan | Mempercepat papan kamar dan rekap tagihan lunas per bulan |
+| `payments_order_id_key` | `payments.order_id` | Unik | Lapis pertama pencegahan transaksi ganda |
+| `payments_bill_id_attempt_key` | `payments.bill_id`, `payments.attempt` | Unik gabungan | Nomor percobaan tidak kembar dalam satu tagihan |
+| `payments_token_purchase_id_attempt_key` | `payments.token_purchase_id`, `payments.attempt` | Unik gabungan | Aturan yang sama untuk pesanan token |
+| `payments_bill_id_paid_key` | `payments.bill_id` bila `status = 'PAID'` | Unik parsial | Satu tagihan paling banyak punya satu pembayaran lunas |
+| `payments_token_purchase_id_paid_key` | `payments.token_purchase_id` bila `status = 'PAID'` | Unik parsial | Aturan yang sama untuk pesanan token |
+| `payments_exactly_one_target_check` | `bill_id`, `token_purchase_id` | CHECK | Tepat satu sasaran pembayaran terisi |
+| `payment_anomalies_order_id_type_key` | `payment_anomalies.order_id`, `.type` | Unik gabungan | Notifikasi ulang tidak menambah baris, hanya menaikkan `occurrences` |
+| `payment_anomalies_payment_id_idx` | `payment_anomalies.payment_id` | Indeks | Mempercepat anomali per pembayaran |
+| `outbox_jobs_dedupe_key_key` | `outbox_jobs.dedupe_key` | Unik | Satu sumber hanya melahirkan satu job |
+| `outbox_jobs_payment_id_key` | `outbox_jobs.payment_id` | Unik | Satu pembayaran hanya melahirkan satu job |
+| `outbox_jobs_status_created_at_idx` | `outbox_jobs.status`, `.created_at` | Indeks gabungan | Dispatcher mengambil job tertua yang belum terkirim |
+| `chain_transactions_tx_hash_key` | `chain_transactions.tx_hash` | Unik | Satu tx hash hanya tercatat sekali |
+| `chain_transactions_outbox_job_id_idx` | `chain_transactions.outbox_job_id` | Indeks | Mempercepat transaksi per job |
+| `chain_transactions_reference_idx` | `chain_transactions.reference` | Indeks | Mempercepat pencocokan di rekonsiliasi |
+| `kyc_submissions_user_id_active_key` | `kyc_submissions.user_id` bila `status` `SUBMITTED` atau `APPROVED` | Unik parsial | Satu investor paling banyak punya satu pengajuan aktif |
+| `kyc_submissions_user_id_created_at_idx` | `kyc_submissions.user_id`, `.created_at` | Indeks gabungan | Mempercepat riwayat KYC investor |
+| `kyc_submissions_status_created_at_idx` | `kyc_submissions.status`, `.created_at` | Indeks gabungan | Mempercepat antrean KYC admin |
+| `custodial_wallets_user_id_key`, `_address_key`, `_derivation_index_key` | `custodial_wallets` | Unik | Satu dompet per investor, satu alamat, satu indeks turunan |
+| `offerings_property_id_idx` | `offerings.property_id` | Indeks | Mempercepat penawaran per properti |
+| `token_purchases_offering_id_status_idx` | `token_purchases.offering_id`, `.status` | Indeks gabungan | Mempercepat hitung sisa penawaran |
+| `token_purchases_investor_id_status_idx` | `token_purchases.investor_id`, `.status` | Indeks gabungan | Mempercepat hitung sisa kuota investor |
+| `owner_applications_application_number_key` | `owner_applications.application_number` | Unik | Satu nomor untuk satu pengajuan |
+| `owner_applications_year_sequence_key` | `owner_applications.year`, `.sequence` | Unik gabungan | Nomor urut tidak kembar dalam satu tahun |
 
-Constraint unik gabungan pada `bills` juga menjamin bahwa kombinasi kode properti, nomor kamar, dan periode tidak kembar. Kombinasi itulah yang membentuk `order_id`, mis. `RENT-SMR01-K03-2026-11` dari `properties.code` = `SMR01`, `rooms.number` = `K03`, dan `bills.period` = `2026-11`.
+Empat aturan di atas (`payments_bill_id_paid_key`, `payments_token_purchase_id_paid_key`, `payments_exactly_one_target_check`, dan `kyc_submissions_user_id_active_key`) tidak bisa ditulis di `schema.prisma`, jadi ditulis di SQL migrasi skema v2.
+
+Constraint unik gabungan pada `bills` juga menjamin bahwa kombinasi kode properti, nomor kamar, dan periode tidak kembar. Kombinasi itulah yang membentuk `order_id` percobaan pertama, mis. `RENT-SMR01-K03-2026-11` dari `properties.code` = `SMR01`, `rooms.number` = `K03`, dan `bills.period` = `2026-11`. Percobaan berikutnya bersufiks `-2`, `-3`.
 
 ## Enum
 
@@ -206,10 +517,56 @@ Constraint unik gabungan pada `bills` juga menjamin bahwa kombinasi kode propert
 
 | Nilai | Arti | Label di layar |
 |---|---|---|
-| `UNPAID` | Belum dibayar. Nilai bawaan | Belum dibayar. Label Menunggu pembayaran, Kedaluwarsa, dan Gagal berasal dari percobaan pembayaran terakhir (tabel pembayaran, P2) |
+| `UNPAID` | Belum dibayar. Nilai bawaan | Belum dibayar. Label Menunggu pembayaran, Kedaluwarsa, dan Gagal berasal dari percobaan terakhir di `payments`. Memeriksa pembayaran hanya ada di klien |
 | `PAID` | Lunas. Hanya diubah oleh webhook Midtrans yang terverifikasi | Lunas |
 
 Pembayaran yang gagal, batal, atau kedaluwarsa tidak pernah mengubah status tagihan. Hubungannya dengan status di antarmuka digambarkan di [arsitektur bagian 6](arsitektur.md#6-status-yang-tampil-di-layar).
+
+**`PaymentStatus`**: status satu percobaan pembayaran.
+
+| Nilai | Arti |
+|---|---|
+| `PENDING` | Menunggu dibayar, atau sedang dibuat di Midtrans (`snap_token` masih kosong) |
+| `PAID` | Terbayar dan melunasi tagihannya |
+| `DUPLICATE_PAID` | Terbayar, tetapi tagihan sudah lunas lewat order lain; ada anomali `DUPLICATE_BILL_PAYMENT` |
+| `EXPIRED` | Midtrans mengirim `expire`, atau digantikan percobaan baru setelah batas waktu lewat |
+| `FAILED` | Midtrans mengirim `cancel`, `deny`, atau `failure`, atau transaksi gagal dibuat di Midtrans |
+
+**`PaymentAnomalyType`**: jenis anomali.
+
+| Nilai | Arti |
+|---|---|
+| `AMOUNT_MISMATCH` | Nominal notifikasi atau API status berbeda dari tagihan (skenario 7) |
+| `UNKNOWN_ORDER` | Signature sah, tetapi `order_id` tidak dikenal |
+| `DUPLICATE_BILL_PAYMENT` | Dua order untuk satu tagihan sama-sama terbayar |
+
+**`OutboxJobType`**: jenis job blockchain.
+
+| Nilai | Fungsi kontrak | Progress |
+|---|---|---|
+| `RECORD_RENT` | `KosLedger.recordRent` | P2 (ditulis), P3 (dikirim worker) |
+| `WHITELIST_KYC` | `KosToken.setKycStatus` | P3 |
+| `TRANSFER_TOKENS` | `KosToken.transferFromTreasury` | P3 |
+| `RECORD_EXPENSE` | `KosLedger.recordExpense` | P4 |
+| `CLOSE_PERIOD` | `KosLedger.closePeriod` | P4 |
+
+**`OutboxJobStatus`**: status pengiriman ke antrean. `PENDING` belum masuk antrean, `DISPATCHED` sudah masuk antrean.
+
+**`ChainTransactionStatus`**: status di jaringan Sepolia.
+
+| Nilai | Arti | Label di layar |
+|---|---|---|
+| `PENDING` | Sedang dikirim atau belum terkonfirmasi | Menunggu pencatatan |
+| `RECORDED` | Tercatat di blok | Tercatat |
+| `FAILED` | Percobaan otomatis habis | Gagal dicatat |
+
+**`KycStatus`**: `SUBMITTED` (diajukan), `APPROVED` (disetujui), `REJECTED` (ditolak, boleh mengajukan lagi).
+
+**`OfferingStatus`**: `OPEN` (dibuka), `CLOSED` (target tercapai), `CANCELLED` (target tidak tercapai, dana dikembalikan).
+
+**`TokenPurchaseStatus`**: `PENDING_PAYMENT` (menunggu dibayar), `PAID` (lunas), `EXPIRED` (batas bayar lewat), `FAILED` (gagal atau dibatalkan).
+
+**`OwnerApplicationStatus`**: lima tahap di halaman `/pemilik`, yaitu `SUBMITTED`, `ASSESSMENT`, `TOKEN_ISSUANCE`, `OFFERING`, `MANAGED`.
 
 ## Keputusan tipe data
 
@@ -229,57 +586,22 @@ Pembayaran yang gagal, batal, atau kedaluwarsa tidak pernah mengubah status tagi
 
 **Waktu disimpan sebagai `timestamp(3)`.** Presisinya milidetik. `created_at` diisi basis data saat baris dibuat, sedangkan `updated_at` diisi Prisma saat baris dibuat dan setiap kali baris diubah. `due_date` memakai `date` karena jatuh tempo tidak butuh jam.
 
-## Rencana entitas P2 sampai P4
+## Rencana entitas P4
 
 > [!IMPORTANT]
-> Bagian ini **rencana**, bukan skema yang sedang berjalan. Skema berjalan di P1 hanya berisi empat tabel di atas. Nama tabel di bawah masih sementara; nama, kolom, dan relasi finalnya ditetapkan jalur 2 di migrasi skema v2 (P2) dan P4, lalu ERD ini diperbarui.
-
-Diagram rencana hanya memuat nama entitas, relasi, dan kunci yang sudah ditentukan di rencana kerja. Empat tabel P1 (`users`, `properties`, `rooms`, `bills`) ikut digambar untuk menunjukkan tempat entitas baru menempel.
+> Bagian ini **rencana**, bukan skema yang sedang berjalan. Nama tabel masih sementara; nama, kolom, dan relasi finalnya ditetapkan jalur 2 di migrasi P4, lalu ERD ini diperbarui.
 
 ```mermaid
 erDiagram
-    users ||--o{ kyc_submissions : "mengajukan"
-    users ||--o| custodial_wallets : "memiliki"
-    users ||--o{ token_purchases : "membeli"
     users ||--o{ expenses : "mencatat"
     users ||--o{ distributions : "menerima"
-    properties ||--o{ rooms : "memiliki"
-    rooms ||--o{ bills : "ditagihkan"
-    properties ||--o{ offerings : "ditawarkan lewat"
-    offerings ||--o{ token_purchases : "dibeli lewat"
-    bills |o--o{ payments : "dibayar lewat"
-    token_purchases |o--o{ payments : "dibayar lewat"
-    payments |o..o{ payment_anomalies : "memicu"
-    outbox_jobs ||--o{ chain_transactions : "dikirim sebagai"
     properties ||--o{ expenses : "dibebani"
     properties ||--o{ periods : "ditutup per bulan"
     periods ||--o{ distributions : "dibagikan lewat"
-
-    payments {
-        text order_id UK "RENT- atau BUY-"
-    }
-    custodial_wallets {
-        text address UK
-    }
-    chain_transactions {
-        text tx_hash UK
-    }
-    owner_applications {
-        text application_number UK "mis. AJU-SMR-2026-0007"
-    }
 ```
 
 | Entitas (nama sementara) | Isi utama | Relasi | Progress | Kaitan |
 |---|---|---|---|---|
-| `kyc_submissions` | Data KYC dummy, status (belum mengajukan, diajukan, disetujui, ditolak), alasan penolakan, peninjau | Satu investor bisa mengajukan lebih dari sekali bila ditolak | P2 (API), P3 (whitelist on-chain) | Demo D1, US-INV-01, US-ADM-01 |
-| `custodial_wallets` | Alamat dompet kustodian investor dan indeks turunannya | Satu investor punya nol atau satu dompet | P2 (skema), P3 (dipakai) | Keputusan K5 di arsitektur |
-| `payments` | Satu percobaan pembayaran Midtrans: `order_id` unik berawalan `RENT-` atau `BUY-`, nominal, status dari Midtrans, metode, batas waktu | Terhubung ke salah satu: tagihan atau pembelian token. Satu tagihan bisa punya beberapa percobaan | P2 | Skenario S1 sampai S5, lapis pertama anti transaksi ganda |
-| `payment_anomalies` | Notifikasi yang ditolak, mis. nominal tidak cocok, beserta nominal yang diharapkan dan yang diterima | Merujuk pembayaran bila ada | P2 | Skenario S7, demo D6 |
-| `outbox_jobs` | Job blockchain yang ditulis dalam transaksi basis data yang sama dengan perubahan status: whitelist KYC, `recordRent`, transfer token, `recordExpense`, `closePeriod` | Sumber job (pembayaran, KYC, biaya, periode) dirujuk lewat isi job | P2 | Keputusan K2 di arsitektur |
-| `chain_transactions` | Transaksi Sepolia: referensi, tx hash unik, nomor blok, status (menunggu, tercatat, gagal), jumlah percobaan | Satu job bisa menghasilkan lebih dari satu percobaan transaksi | P2 (skema), P3 (dipakai) | Status on-chain dan tautan Etherscan di layar |
-| `offerings` | Penawaran token satu properti: 12.600 token, jumlah terjual, tanggal tutup 31 Des 2026 | Satu properti punya nol atau banyak penawaran | P2 (skema), P3 | US-INV-02, skenario S8 |
-| `token_purchases` | Pesanan investor: jumlah token, nominal, status | Satu penawaran dan satu investor punya banyak pembelian | P2 (skema), P3 | Demo D1, skenario S8 dan S9 |
-| `owner_applications` | Pengajuan pemilik kos: nomor seperti `AJU-SMR-2026-0007`, data dummy, status lima tahap | Berdiri sendiri karena pemilik kos tidak punya akun | P2 | US-PML-04 |
 | `expenses` | Biaya operasional: kategori, tanggal, nominal, lokasi berkas nota, hash nota | Satu properti punya banyak biaya, dicatat pengelola | P4 | Demo D3, US-PGL-02 |
 | `periods` | Penutupan periode: sewa kotor, biaya, fee pengelolaan 5%, pajak, sewa bersih, nilai per token, blok penutupan | Satu baris per properti per bulan | P4 | Demo D4, skenario S12 |
 | `distributions` | Bagian setiap investor dalam satu periode: saldo token pada blok penutupan × nilai per token | Satu baris per periode per investor | P4 | Demo D4 dan D5 |

@@ -1,19 +1,16 @@
 import type { Metadata } from "next";
 
-import { AppHeader } from "@/components/app-shell/app-header";
-import { ContentSkeleton } from "@/components/app-shell/content-skeleton";
+import { TenantHeader } from "@/components/tenant/tenant-header";
+import { TenantOverview } from "@/components/tenant/tenant-overview";
 
 export const metadata: Metadata = { title: "Ringkasan penghuni" };
 
-/**
- * Ringkasan penghuni kamar K03.
- * Progress 1: kerangka memuat sesuai desain app shell; isinya dibangun di progress 2.
- */
+/** Ringkasan penghuni: tagihan bulan berjalan, riwayat, kamar, dan bukti sewa. */
 export default function PenghuniOverviewPage() {
   return (
     <>
-      <AppHeader title="Ringkasan" description="Kamar K03, Kos Sumbersari 01" />
-      <ContentSkeleton />
+      <TenantHeader title="Ringkasan" />
+      <TenantOverview />
     </>
   );
 }

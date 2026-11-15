@@ -85,7 +85,7 @@ Prioritas wajib, dibangun di P1, halaman `/`.
   - **Given** pengunjung membuka `/` tanpa masuk
   - **When** halaman selesai dimuat
   - **Then** tampil hero untuk investor, kartu kos unggulan Kos Sumbersari 01, bagian bukti on-chain (papan kamar dan kuitansi kamar K03), cara kerja, bagian "Dari sewa ke bagi hasil", ajakan untuk pemilik kos, serta risiko dan kanal pengaduan
-  - **And** bagian "Dari sewa ke bagi hasil" menunjukkan contoh November 2026: sewa kotor Rp13.500.000 dari 9 kamar terisi, dikurangi biaya operasional 20%, fee pengelolaan 5%, dan PPh badan 22%, menjadi Rp7.897.500 yang dibagikan atau sekitar Rp439 per token per bulan, dengan keterangan bahwa angkanya dummy
+  - **And** bagian "Dari sewa ke bagi hasil" menunjukkan contoh November 2026: sewa kotor Rp13.500.000 dari 9 kamar terisi, dikurangi biaya operasional 20%, fee pengelolaan 5%, dan PPh badan 22%, menjadi Rp7.897.500 yang dibagikan atau Rp438,75 per token per bulan, dengan keterangan bahwa angkanya dummy
 - *Token bukan kepemilikan*
   - **Given** pengunjung membaca hero dan bagian risiko
   - **Then** token disebut sebagai hak atas bagi hasil sewa, bukan sertifikat tanah atau bangunan
@@ -308,7 +308,7 @@ Prioritas wajib, dibangun di P3, menu Penawaran (`/investor/penawaran`). Terkait
   - **Then** tampil "Sisa penawaran 8.240 token" dan "Sisa kuota kamu 1.800 token"
 - *Hitungan langsung*
   - **When** investor mengisi 100 token
-  - **Then** total pembayaran Rp10.000.000 dan "Estimasi bagi hasil ±Rp43.900 per bulan untuk 100 token" langsung tampil
+  - **Then** total pembayaran Rp10.000.000 dan "Estimasi bagi hasil ±Rp43.875 per bulan untuk 100 token" langsung tampil
 
 ### US-INV-03 Membeli token lewat Midtrans Snap
 
@@ -366,7 +366,7 @@ Prioritas wajib, dibangun di P4, menu Portofolio (`/investor/portofolio`). Terka
 - *Setelah distribusi*
   - **Given** admin sudah menutup periode November 2026 dan menjalankan distribusi
   - **When** investor membuka Portofolio
-  - **Then** saldo bagi hasil bertambah sebesar jumlah token × nilai per token periode itu (contoh: 100 token × sekitar Rp439 = sekitar Rp43.900)
+  - **Then** saldo bagi hasil bertambah sebesar bagian pro-rata periode itu, yaitu sewa bersih × jumlah token ÷ total token, dibulatkan ke bawah (contoh: Rp7.897.500 × 100 ÷ 18.000 = Rp43.875)
   - **And** setiap periode punya tautan Etherscan transaksi `closePeriod` sebagai bukti nilai per token
 - *Saldo cocok dengan blockchain*
   - **Then** jumlah token di portofolio sama dengan saldo dompet kustodian investor di KosToken
@@ -527,9 +527,10 @@ Prioritas sebaiknya, dibangun di P3, menu Tagihan dan kuitansi.
 
 - *Gagal dicatat*
   - **Given** worker gagal mencatat setelah semua percobaan otomatis
-  - **Then** tagihan tetap "Lunas" dan status on-chain menunjukkan "Pencatatan on-chain gagal" dengan keterangan "Jaringan Sepolia tidak merespons. Pembayaranmu tetap lunas di sistem." serta tombol "Coba lagi"
-- *Coba lagi*
-  - **When** tombol "Coba lagi" ditekan
+  - **Then** tagihan tetap "Lunas" dan status on-chain menunjukkan "Pencatatan on-chain gagal" dengan keterangan "Jaringan Sepolia tidak merespons. Pembayaranmu tetap lunas di sistem."
+  - **And** penghuni tidak mendapat tombol apa pun, karena pengulangan pencatatan adalah tugas operator
+- *Diulang operator*
+  - **When** admin menekan "Coba lagi" di antrean admin (P4)
   - **Then** job yang sama masuk antrean lagi dan tidak menghasilkan catatan ganda
 
 ## Pengelola
@@ -597,7 +598,7 @@ Prioritas wajib, test kontrak di P3 dan halaman di P4, menu Tutup periode (`/adm
   - **When** admin mengonfirmasi
   - **Then** job `closePeriod` masuk antrean, dan setelah tercatat, sewa bersih dan nilai per token tersimpan di KosLedger dengan tautan Etherscan
 - *Sesuai hitungan manual (S12)*
-  - **Then** nilai per token sama dengan perhitungan manual di fixture (contoh November 2026: Rp7.897.500 ÷ 18.000 token, sekitar Rp439 per token)
+  - **Then** nilai per token sama dengan perhitungan manual di fixture (contoh November 2026: Rp7.897.500 ÷ 18.000 token = Rp438,75 per token)
 - *Masih ada yang menunggu*
   - **Given** masih ada pembayaran atau biaya periode itu yang berstatus "Menunggu pencatatan"
   - **Then** tombol Tutup periode belum aktif dan alasannya dijelaskan
