@@ -1,11 +1,11 @@
 # Rancangan Smart Contract KosBagi
 
-Dokumen ini menjelaskan rancangan tiga smart contract KosBagi di Ethereum Sepolia: `KosToken` (selesai di progress 1), `KosLedger` (rencana progress 2), dan `KosVoting` (opsional, rencana progress 4). Kode ada di [`contracts/contracts/`](../../contracts/contracts/), test di [`contracts/test/`](../../contracts/test/).
+Dokumen ini menjelaskan rancangan tiga smart contract KosBagi di Ethereum Sepolia: `KosToken` (selesai di progress 1), `KosLedger` (selesai di progress 2), dan `KosVoting` (opsional, rencana progress 4). Kode ada di [`contracts/contracts/`](../../contracts/contracts/), test di [`contracts/test/`](../../contracts/test/), laporan uji di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md).
 
 | Kontrak | Fungsi utama | Progress | Status |
 |---|---|---|---|
 | `KosToken` | Token hak manfaat ekonomi satu properti (KB-SMR01): KYC, batas 10%, jeda darurat, delegasi otomatis, registri dokumen | P1 | Selesai, 63 test lulus, cakupan baris 100% |
-| `KosLedger` | `recordRent`, `recordExpense`, `closePeriod` | P2 | Rencana (bagian 4) |
+| `KosLedger` | `recordRent`, `recordExpense`, `closePeriod`, `shareOf`: buku besar sewa dan biaya per periode, angka distribusi final | P2 | Selesai, 65 test lulus, cakupan baris 100% |
 | `KosVoting` | `propose`, `vote`, `tally` | P4 (opsional) | Rencana (bagian 5) |
 
 ## 1. Posisi kontrak dalam arsitektur
@@ -234,7 +234,7 @@ Dengan harga gas Sepolia 1 sampai 10 gwei, deploy menghabiskan sekitar 0,003 sam
   | Bug | Syarat terjadinya | Status di KosBagi |
   |---|---|---|
   | `MisorderedNamedParametersInRequireWithCustomErrors`, `SpillSlotCollisionAcrossMutualRecursion`, `UnsoundSpillInMutualRecursion` | Hanya pipeline via-IR | Tidak berlaku, via-IR tidak dipakai |
-  | `MemoryByteArrayElementDeleteClearsWholeWord` | `delete` pada elemen `bytes` di memory | Tidak berlaku, tidak ada perintah `delete` di 34 file yang dikompilasi |
+  | `MemoryByteArrayElementDeleteClearsWholeWord` | `delete` pada elemen `bytes` di memory | Tidak berlaku, tidak ada perintah `delete` di 35 file yang dikompilasi |
   | `InheritanceOrderReversalOnStorageEndWarning` | Peringatan "storage end" muncul (layout storage kustom) | Tidak berlaku, tidak ada `layout at` dan kompilasi tanpa warning |
   | `YulOptimizerKnowledgeBaseStaleBookkeeping` (tingkat rendah) | Keluaran yang dioptimasi | Risiko kecil di profil `production`; dimitigasi dengan menjalankan seluruh test pada profil itu |
 
@@ -277,40 +277,226 @@ Prosedur ini hanya bisa dijalankan bila dompet admin terpisah dari dompet operat
 
 Operator lama tidak pernah bisa mengambil token dari dompet investor, mencetak token baru, mengganti dokumen, atau memberi peran, jadi kerugian terburuk sebelum langkah 1 terbatas pada stok perbendaharaan yang disalurkan ke dompet lolos KYC dan perubahan status KYC.
 
-## 4. KosLedger (rencana progress 2)
+## 4. KosLedger
 
-Mencatat setiap pembayaran sewa dan biaya per periode, lalu menutup periode dengan angka distribusi yang bisa diverifikasi.
+Buku besar on-chain satu properti. Kontrak ini mencatat setiap pembayaran sewa dan biaya per periode, lalu menutup periode dengan angka distribusi yang bisa diverifikasi siapa pun. Kontrak tidak memegang uang dan tidak mengirim apa pun ke investor: pencairan terjadi di luar chain memakai angka yang disimpan di sini.
 
-Rencana antarmuka (bisa berubah saat P2):
+### 4.1 Konstruktor dan parameter
 
-| Fungsi | Pemanggil | Keterangan |
+Satu `KosLedger` terikat ke satu `KosToken`, jadi fungsi tulisnya tidak perlu parameter kode properti. Kode properti dibaca dari `KosToken.propertyCode()`.
+
+```solidity
+constructor(
+    address admin,            // pemegang DEFAULT_ADMIN_ROLE dan PAUSER_ROLE
+    address operator,         // mendapat OPERATOR_ROLE dan PAUSER_ROLE
+    IVotes token_,            // alamat KosToken properti ini
+    uint256 platformFeeBps_,  // 500 (5% dari sewa kotor)
+    uint256 taxBps_           // 2200 (22% dari laba kena pajak)
+)
+```
+
+| Data | Nilai KB-SMR01 | Sumber di kontrak |
 |---|---|---|
-| `recordRent(room, period, amount, paymentRef)` | `OPERATOR_ROLE` | `room` nomor kamar (mis. 3), `period` format `YYYYMM` (mis. 202611), `amount` Rupiah, `paymentRef = keccak256(order_id)`. Menolak `paymentRef` yang sudah tercatat (`PaymentRefAlreadyRecorded`) dan periode yang sudah ditutup. Emit `RentRecorded` |
-| `recordExpense(period, category, amount, receiptHash)` | `OPERATOR_ROLE` | `category` kode kategori biaya, `receiptHash` hash file nota. Emit `ExpenseRecorded` |
-| `closePeriod(period)` | `OPERATOR_ROLE` | Menghitung dan menyimpan sewa kotor, biaya, fee platform, pajak, sewa bersih, nilai per token, dan blok snapshot. Setelah ditutup, periode menolak catatan baru (`PeriodClosed`) |
-| `isPaymentRefRecorded(paymentRef)` | baca | Untuk idempotensi worker |
+| Token properti | alamat `KosToken` | `token()` |
+| Fee pengelolaan | 500 bp | `platformFeeBps()` |
+| Tarif pajak | 2.200 bp | `taxBps()` |
+| Penyebut basis poin | 10.000 | `BPS_DENOMINATOR()` |
+| Sen per Rupiah | 100 | `SEN_PER_RUPIAH()` |
 
-Parameter `platformFeeBps = 500` (5%) dan `taxBps` (mis. 2.200 untuk PPh badan 22%) disimpan dalam basis poin. Usulan urutan perhitungan dengan pembulatan ke bawah (floor) di setiap pembagian:
+Tarif `immutable`: tidak ada fungsi untuk mengubahnya, dan admin pun tidak bisa. Dengan begitu investor tahu aturan hitungnya tidak bisa berubah di tengah jalan, dan angka periode lama tidak perlu menyimpan tarif yang berlaku saat itu. Tarif baru berarti deploy kontrak baru, sesuai prinsip 6 di bagian 2.
+
+Penyimpanan Rupiah memakai `uint256` agar angka di tab Read Contract Etherscan tampil apa adanya. `room` memakai `uint16` (cukup sampai 65.535 kamar), `period` memakai `uint32` dengan format `YYYYMM`, dan `category` memakai `uint8`.
+
+### 4.2 Pewarisan dan pustaka
+
+| Komponen | Yang diberikan |
+|---|---|
+| `AccessControl` | Peran `bytes32`, modifier `onlyRole`, `grantRole`/`revokeRole` |
+| `Pausable` | Modifier `whenNotPaused`, `pause`/`unpause` internal |
+| `IVotes` | Antarmuka untuk membaca `getPastTotalSupply` dari token |
+| `Math` | `mulDiv` (perkalian lalu pembagian tanpa overflow, dibulatkan ke bawah) dan `saturatingSub` (pengurangan yang berhenti di 0) |
+
+### 4.3 Peran
+
+| Peran | Pemegang saat deploy | Fungsi |
+|---|---|---|
+| `DEFAULT_ADMIN_ROLE` | `admin` | `grantRole`, `revokeRole` untuk semua peran |
+| `OPERATOR_ROLE` | `operator` | `recordRent`, `recordExpense`, `closePeriod` |
+| `PAUSER_ROLE` | `operator` dan `admin` | `pause`, `unpause` |
+
+Pembagian ini sama dengan `KosToken`. Admin tidak bisa mencatat sewa atau menutup periode (diuji), dan operator tidak bisa memberi peran (diuji).
+
+### 4.4 Fungsi
+
+Fungsi tulis, semuanya hanya berjalan saat kontrak tidak dijeda:
+
+| Fungsi | Pemanggil | Keterangan | Error khusus, urut pengecekan |
+|---|---|---|---|
+| `recordRent(room, period, amount, paymentRef)` | `OPERATOR_ROLE` | `room` 3 untuk K03, `period` 202611, `amount` Rupiah, `paymentRef = keccak256(order_id)`. Emit `RentRecorded` | `InvalidRoom`, `InvalidPeriod`, `ZeroAmount`, `EmptyPaymentRef`, `PaymentRefAlreadyRecorded`, `PeriodAlreadyClosed`, `RentAlreadyRecorded` |
+| `recordExpense(period, category, amount, receiptHash)` | `OPERATOR_ROLE` | `category` kode kategori biaya yang daftarnya dipegang backend, `receiptHash` hash file nota. Emit `ExpenseRecorded` | `InvalidPeriod`, `ZeroAmount`, `EmptyReceiptHash`, `ReceiptAlreadyRecorded`, `PeriodAlreadyClosed` |
+| `closePeriod(period)` | `OPERATOR_ROLE` | Menghitung dan menyimpan angka distribusi. Tidak bisa dibatalkan. Emit `PeriodClosed` | `InvalidPeriod`, `PeriodAlreadyClosed`, `EmptyPeriod`, `NoSupplyAtSnapshot` |
+| `pause()` / `unpause()` | `PAUSER_ROLE` | Jeda darurat semua pencatatan. Fungsi baca tetap berjalan | (bawaan) `EnforcedPause`, `ExpectedPause` |
+| `grantRole` / `revokeRole` / `renounceRole` | admin peran / diri sendiri | Bawaan `AccessControl` | (bawaan) |
+
+Fungsi baca:
+
+| Fungsi | Hasil |
+|---|---|
+| `periods(period)` | Seluruh `PeriodRecord`: `grossRent`, `totalExpenses`, `platformFee`, `tax`, `netRent`, `totalSupply`, `valuePerTokenSen`, `snapshotBlock`, `closed`. Dua field pertama bertambah selama periode terbuka, sisanya terisi saat `closePeriod` |
+| `shareOf(period, balance)` | `floor(netRent * balance / totalSupply)`. Gagal dengan `PeriodNotClosed` bila periode belum ditutup |
+| `isPaymentRefRecorded(paymentRef)` | Untuk idempotensi worker sebelum `recordRent` |
+| `isReceiptRecorded(receiptHash)` | Untuk idempotensi worker sebelum `recordExpense` |
+| `isRentRecorded(room, period)` | Apakah kamar sudah tercatat membayar di periode itu |
+
+### 4.5 Perhitungan `closePeriod`
+
+Urutan hitungnya, dengan pembulatan ke bawah di setiap pembagian:
 
 ```
-fee      = floor(sewaKotor * platformFeeBps / 10000)
-labaKena = sewaKotor - biaya - fee            (0 bila negatif)
-pajak    = floor(labaKena * taxBps / 10000)
-sewaBersih   = sewaKotor - biaya - fee - pajak
-nilaiPerToken = floor(sewaBersih / totalSupply)
-sisa         = sewaBersih - nilaiPerToken * totalSupply
-blokSnapshot = block.number saat closePeriod
+fee              = floor(sewaKotor * platformFeeBps / 10000)
+labaKenaPajak    = sewaKotor - fee - biaya      (0 bila negatif)
+pajak            = floor(labaKenaPajak * taxBps / 10000)
+sewaBersih       = labaKenaPajak - pajak
+nilaiPerTokenSen = floor(sewaBersih * 100 / totalSuplai)
+bagianPemegang   = floor(sewaBersih * saldo / totalSuplai)    (fungsi shareOf)
 ```
 
-Contoh angka satu bulan Kos Sumbersari 01 (9 kamar terisi x Rp1.500.000): sewa kotor 13.500.000, biaya 20% 2.700.000, fee 675.000, laba kena pajak 10.125.000, pajak 22% 2.227.500, sewa bersih 7.897.500. Pembagian per token: 7.897.500 / 18.000 = 438,75, sehingga `nilaiPerToken` = **Rp438** dan sisa Rp13.500. Proposal menulis "± Rp439" karena dibulatkan biasa.
+Contoh satu bulan Kos Sumbersari 01 (9 kamar terisi x Rp1.500.000, biaya 20%). Angka ini ditulis manual di `test/KosLedger.test.ts` (skenario 12) dan sama dengan kasus pertama fixture jalur 1:
 
-Hal yang wajib disepakati dengan jalur 1 sebelum P2 dikunci, supaya kalkulator `backend/src/finance/` dan fixture skenario 12 sama persis dengan kontrak:
+| Besaran | Hitungan | Nilai |
+|---|---|---|
+| Sewa kotor | 9 x 1.500.000 | 13.500.000 |
+| Biaya | 20% sewa kotor | 2.700.000 |
+| Fee platform | 5% x 13.500.000 | 675.000 |
+| Laba kena pajak | 13.500.000 - 675.000 - 2.700.000 | 10.125.000 |
+| Pajak | 22% x 10.125.000 | 2.227.500 |
+| Sewa bersih | 10.125.000 - 2.227.500 | 7.897.500 |
+| Nilai per token | 7.897.500 / 18.000 = 438,75 | `43875` sen |
+| Bagian 100 token | 7.897.500 x 100 / 18.000 | 43.875 |
+| Bagian 5.400 token | 7.897.500 x 5.400 / 18.000 | 2.369.250 |
 
-1. Dasar pajak: laba (PPh badan 22%) atau omzet (PPh final 0,5%), dan apakah perlu parameter jenis pajak.
-2. Pembulatan: floor di setiap langkah seperti di atas, atau pembagian pro-rata per investor `floor(sewaBersih * saldo / totalSupply)` (lebih presisi: 100 token mendapat Rp43.875, bukan 438 x 100 = Rp43.800).
-3. Perlakuan sisa pembulatan (dibawa ke periode berikutnya atau menjadi cadangan) dan bagian token yang masih di perbendaharaan.
+Proposal menulis "± Rp439" karena dibulatkan biasa. Nilai sebenarnya Rp438,75.
 
-Snapshot saldo tiap investor untuk distribusi dibaca dari `KosToken.getPastVotes(dompetKustodian, blokSnapshot)`.
+Perhitungan ini harus sama dengan kalkulator `backend/src/finance/` dan `docs/bisnis/perhitungan-distribusi.md`. Keempat kasus fixture `contracts/test/fixtures/distribusi-manual.json`, termasuk sisa pembulatan Rp3 dan Rp7 serta kasus defisit, sudah dicocokkan dengan kontrak saat P2 (lihat `docs/pengujian/kontrak.md`). Test yang membaca fixture itu baru masuk repo di P3.
+
+### 4.6 Tiga keputusan yang tadinya terbuka
+
+Rencana awal menyisakan tiga pertanyaan untuk disepakati dengan jalur 1. Semuanya diputuskan 2 Nov 2026:
+
+| Pertanyaan | Keputusan | Wujud di kontrak |
+|---|---|---|
+| Dasar pajak | PPh badan 22% atas laba, sesuai asumsi proposal | `taxBps` 2.200 dikenakan pada laba kena pajak. Tidak ada parameter jenis pajak. PPh final 0,5% omzet tetap menjadi sensitivitas di dokumen bisnis, bukan pilihan di kontrak |
+| Pembulatan bagi hasil | Pro-rata per pemegang: `floor(sewaBersih * saldo / totalSuplai)` | Fungsi `shareOf`. 100 token mendapat Rp43.875, bukan 438 x 100 = Rp43.800. `valuePerTokenSen` hanya untuk tampilan dan tidak dipakai menghitung bagian siapa pun |
+| Sisa pembulatan | Masuk cadangan, dicatat per periode, tidak dibawa ke periode berikutnya | Lihat catatan di bawah |
+
+**Sisa pembulatan tidak disimpan di kontrak.** Besarnya `sewaBersih - jumlah(shareOf(saldo tiap pemegang))`, dan ERC-20 tidak bisa menyebutkan daftar pemegangnya dari dalam kontrak. Backend menghitungnya saat distribusi (P4) dari daftar dompet yang dikenalnya, lalu mencatatnya sebagai cadangan periode itu. Hasilnya tetap bisa diaudit: siapa pun bisa menyusun ulang daftar pemegang dari event `Transfer`, membaca saldonya dengan `getPastVotes(alamat, snapshotBlock)`, dan menghitung `shareOf` tiap alamat. Sisa ini selalu lebih kecil dari jumlah pemegang karena satu pemegang kehilangan kurang dari Rp1.
+
+Bagian token yang masih di perbendaharaan diputuskan di P4. `shareOf` tidak membedakan pemilik saldo, jadi keputusan itu tidak mengubah kontrak.
+
+### 4.7 Blok snapshot
+
+`closePeriod` menyimpan `snapshotBlock = block.number - 1`, yaitu blok terakhir yang sudah selesai. Saldo pemegang untuk distribusi dibaca dari `KosToken.getPastVotes(dompet, snapshotBlock)`.
+
+`block.number` tidak bisa dipakai karena dua alasan:
+
+1. **Gagal saat dibaca.** `getPastVotes` dan `getPastTotalSupply` menolak blok yang belum selesai dengan `ERC5805FutureLookup(timepoint, clock)`. `closePeriod` butuh total suplai di blok snapshot, jadi panggilannya akan selalu gagal.
+2. **Belum final.** Nilai suatu blok adalah nilai di akhir blok itu. Saldo di blok penutupan masih bisa berubah oleh transaksi lain yang masuk ke blok yang sama setelah `closePeriod`.
+
+Saldo di akhir blok `N - 1` sudah final dan langsung bisa dibaca. Akibatnya, transfer di blok penutupan tidak dihitung, baik yang terjadi sebelum maupun sesudah `closePeriod` di dalam blok itu. Aturannya sederhana dan sama untuk semua orang: yang dihitung adalah saldo sebelum blok penutupan. Keempat perilaku ini diuji, termasuk tiga transaksi dalam satu blok yang urutannya dipastikan.
+
+Membaca `getPastVotes` tidak butuh RPC arsip, karena checkpoint-nya tersimpan di state `KosToken` saat ini. Backend bisa membacanya kapan pun setelah periode ditutup.
+
+### 4.8 Event
+
+| Event | Kapan | Isi |
+|---|---|---|
+| `RentRecorded(period, room, paymentRef, amount)` | `recordRent` | Tiga parameter pertama `indexed`, jadi bisa disaring per periode, per kamar, atau per referensi |
+| `ExpenseRecorded(period, category, receiptHash, amount)` | `recordExpense` | Tiga parameter pertama `indexed` |
+| `PeriodClosed(period, grossRent, totalExpenses, platformFee, tax, netRent, totalSupply, valuePerTokenSen, snapshotBlock)` | `closePeriod` | Seluruh angka distribusi dalam satu log, terbaca di tab Logs Etherscan |
+| `Paused`, `Unpaused` | Bawaan Pausable | |
+| `RoleGranted`, `RoleRevoked` | Bawaan AccessControl | |
+
+### 4.9 Daftar error
+
+| Error | Penyebab |
+|---|---|
+| `ZeroAddress()` | Alamat admin atau operator nol saat deploy |
+| `InvalidToken(tokenAddress)` | Alamat token bukan kontrak (termasuk alamat nol) saat deploy |
+| `InvalidBps(bps)` | Tarif di atas 10.000 bp saat deploy |
+| `InvalidRoom()` | Nomor kamar 0 |
+| `InvalidPeriod(period)` | Bukan `YYYYMM`: bulan di luar 01 sampai 12, atau tahun di luar 2000 sampai 9999. Menangkap salah format seperti `112026` |
+| `ZeroAmount()` | Nominal 0 |
+| `EmptyPaymentRef()` | Referensi pembayaran nol |
+| `EmptyReceiptHash()` | Hash nota nol |
+| `PaymentRefAlreadyRecorded(paymentRef)` | Referensi sudah tercatat. Bagi worker artinya job selesai |
+| `RentAlreadyRecorded(room, period)` | Kamar sudah lunas di periode itu lewat referensi lain (kasus `DUPLICATE_BILL_PAYMENT`) |
+| `ReceiptAlreadyRecorded(receiptHash)` | Nota sudah tercatat. Bagi worker artinya job selesai |
+| `PeriodAlreadyClosed(period)` | Catatan baru atau penutupan kedua untuk periode tertutup |
+| `PeriodNotClosed(period)` | `shareOf` untuk periode yang belum ditutup |
+| `EmptyPeriod(period)` | Menutup periode tanpa sewa dan tanpa biaya |
+| `NoSupplyAtSnapshot(snapshotBlock)` | Total suplai 0 di blok snapshot. Tidak terjadi pada urutan deploy normal, tetapi mencegah pembagian dengan nol |
+
+Error bawaan OpenZeppelin yang mungkin muncul: `AccessControlUnauthorizedAccount(account, neededRole)` (skenario uji 11), `AccessControlBadConfirmation()`, `EnforcedPause()`, `ExpectedPause()`.
+
+### 4.10 Keputusan desain
+
+1. **Referensi ganda dicek sebelum status periode dan kamar.** Bila job diulang setelah transaksinya ternyata berhasil, worker selalu menerima `PaymentRefAlreadyRecorded` dan bisa menganggap job selesai, walaupun periodenya sudah ditutup. Kalau urutannya terbalik, job yang sebenarnya sudah sukses akan tampak gagal. `recordExpense` memakai urutan yang sama.
+2. **Dua lapis penolakan sewa ganda.** `paymentRef` mencegah satu pembayaran tercatat dua kali. `RentAlreadyRecorded` mencegah dua pembayaran berbeda untuk tagihan yang sama, yaitu percobaan `-2` yang sama-sama lunas. Backend mencatat kasus kedua sebagai anomali `DUPLICATE_BILL_PAYMENT` tanpa membuat job, jadi di kontrak ini lapisan terakhir.
+3. **Setiap nota hanya bisa dicatat sekali** (`ReceiptAlreadyRecorded`). Tanpa aturan ini, job `recordExpense` yang diulang setelah koneksi RPC putus akan menggandakan biaya dan mengurangi bagi hasil investor. Akibatnya, satu berkas nota tidak bisa dipakai untuk dua pos biaya. Bila satu nota mencakup dua pos, catat sebagai satu biaya.
+4. **Periode kosong tidak bisa ditutup** (`EmptyPeriod`). Penutupan tidak bisa dibatalkan, jadi salah ketik periode tidak boleh mengunci periode yang belum dipakai.
+5. **Biaya melebihi sewa setelah fee: laba kena pajak, pajak, dan sewa bersih bernilai 0.** Fee tetap 5% dari sewa kotor. Defisitnya tidak disimpan sebagai field dan tidak dibawa ke periode berikutnya, sehingga setiap periode berdiri sendiri, sama seperti sisa pembulatan. Besarnya tetap bisa dihitung dari `grossRent - platformFee - totalExpenses`. Siapa yang menalangi defisit dibahas di dokumen bisnis.
+6. **`Math.mulDiv`, bukan `a * b / c`.** Hasil antara disimpan 512 bit, jadi `closePeriod` tidak bisa macet permanen karena overflow perkalian. Tanpa ini, satu catatan bernominal sangat besar akan membuat periode itu tidak pernah bisa ditutup, sebab catatan tidak bisa dihapus.
+7. **Catatan tidak bisa dikoreksi.** Tidak ada fungsi untuk mengubah atau menghapus catatan sewa dan biaya. Buku besar yang hanya bisa ditambah adalah alasan pencatatan on-chain dipakai. Nominal sewa berasal dari `gross_amount` yang sudah diverifikasi ke API Midtrans, tetapi biaya dimasukkan pengelola, jadi validasi biaya harus terjadi di backend sebelum job dibuat.
+8. **Tarif `immutable`** (lihat 4.1).
+9. **Tidak ada pengecekan urutan periode.** Periode boleh ditutup tidak berurutan dan kontrak tidak membandingkan periode dengan tanggal hari ini. Kapan periode boleh ditutup adalah aturan bisnis di backend.
+
+### 4.11 Perkiraan gas (profil `production`, optimizer 200 runs)
+
+| Operasi | Gas |
+|---|---|
+| Deploy KosLedger | ± 1.162.000 |
+| `recordRent` (pertama di satu periode) | ± 99.000 |
+| `recordRent` (berikutnya) | ± 82.000 |
+| `recordExpense` (pertama di satu periode) | ± 76.000 |
+| `recordExpense` (berikutnya) | ± 59.000 |
+| `closePeriod` | ± 199.000 |
+| `pause` / `unpause` | ± 47.000 / 25.000 |
+
+Satu bulan penuh (9 `recordRent`, satu `recordExpense`, satu `closePeriod`) sekitar 1,03 juta gas, atau 0,001 sampai 0,01 ETH Sepolia pada harga gas 1 sampai 10 gwei. Ukuran bytecode 4.607 byte (profil `production`) dan 8.067 byte (profil `default`), di bawah batas 24.576 byte.
+
+### 4.12 Checklist keamanan
+
+| Butir | Status |
+|---|---|
+| Reentrancy | Tidak ada pengiriman ETH. Satu-satunya panggilan keluar adalah `getPastTotalSupply` ke alamat token `immutable`, lewat antarmuka `view` sehingga dijalankan sebagai `STATICCALL` dan tidak bisa mengubah state |
+| Overflow/underflow | Aritmetika bawaan Solidity 0.8 selalu dicek. `grossRent - platformFee` dan `taxableProfit - tax` tidak bisa negatif karena tarif dibatasi maksimal 10.000 bp. `mulDiv` untuk perkalian, `saturatingSub` untuk laba yang bisa negatif |
+| Kontrol akses | Semua fungsi tulis memakai `onlyRole`. Setiap fungsi diuji menolak pemanggil tanpa peran, termasuk admin untuk fungsi operator |
+| Validasi input | Alamat, tarif, nomor kamar, format periode, nominal, referensi, dan hash nota |
+| Front-running | Tidak ada nilai yang bisa dicuri lewat urutan transaksi karena hanya operator yang menulis dan kontrak tidak memindahkan aset. Pembelian token yang masuk di blok penutupan tidak ikut periode itu, dan aturan itu berlaku sama untuk semua orang |
+| Pembayaran | Tidak berlaku, kontrak tidak memegang dan tidak mengirim aset |
+| Perulangan tak terbatas | Tidak ada perulangan, jadi biaya gas tiap fungsi tetap |
+| Jeda darurat | `Pausable`, dikendalikan `PAUSER_ROLE` (operator dan admin) |
+| `delegatecall`, `tx.origin`, `selfdestruct` | Tidak dipakai |
+| Ketergantungan waktu | Tidak memakai `block.timestamp` |
+| Event | Setiap perubahan state memancarkan event |
+| Alamat hardcode | Tidak ada, semua alamat lewat konstruktor |
+| Upgrade | Tidak upgradeable |
+| Data pribadi | Hanya nomor kamar, periode, nominal, dan hash |
+
+Risiko yang disadari (diterima untuk prototipe):
+
+- **Sentralisasi kunci operator.** Kunci operator yang bocor bisa menulis catatan palsu dan menutup periode, dan keduanya tidak bisa dibatalkan. Dampaknya dibatasi prosedur darurat di 4.13. Periode yang sudah rusak hanya bisa diperbaiki dengan deploy kontrak baru, dan rekonsiliasi (P4) adalah alat untuk mendeteksinya.
+- **Pembayaran yang terlambat.** Sewa yang lunas setelah periodenya ditutup ditolak (`PeriodAlreadyClosed`). Backend harus menutup periode setelah antrean pencatatan kosong dan menentukan perlakuan pembayaran yang terlambat (lihat bagian 7).
+
+### 4.13 Prosedur darurat (kunci operator dicurigai bocor)
+
+Prosedurnya sama dengan bagian 3.13 dan diuji di kelompok test Jeda darurat. Semua langkah dikirim dari dompet admin:
+
+1. `pause()` di `KosToken` dan `KosLedger`.
+2. `revokeRole(OPERATOR_ROLE, operatorLama)` dan `revokeRole(PAUSER_ROLE, operatorLama)` di `KosLedger`, lalu ketiga peran di `KosToken`.
+3. Periksa event `RentRecorded`, `ExpenseRecorded`, dan `PeriodClosed` sejak kunci dicurigai bocor, lalu cocokkan dengan data Midtrans dan DB.
+4. `grantRole` untuk dompet operator baru, perbarui private key di environment backend.
+5. `unpause()`.
 
 ## 5. KosVoting (rencana progress 4, opsional)
 
@@ -333,11 +519,27 @@ npx hardhat test          # semua test di jaringan Hardhat lokal
 npm run test:production   # test yang sama pada bytecode teroptimasi (yang akan di-deploy)
 npm run coverage          # laporan cakupan test
 npm run typecheck         # build + pemeriksaan tipe TypeScript
+npm run export-abi        # salin ABI KosToken dan KosLedger ke backend/src/blockchain/abi/
 ```
 
-Hasil saat P1 selesai: kompilasi tanpa warning, **63 passing** pada profil `default` dan `production`, cakupan `KosToken.sol` 100% baris dan pernyataan. Test berjalan di jaringan lokal Hardhat (EDR), tidak memakai Sepolia dan tidak butuh file `.env`.
+Hasil saat P2 selesai: kompilasi tanpa warning, **132 passing** pada profil `default` dan `production`, cakupan `KosToken.sol` dan `KosLedger.sol` 100% baris dan pernyataan. Test berjalan di jaringan lokal Hardhat (EDR), tidak memakai Sepolia dan tidak butuh file `.env`. Rincian hasil ada di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md).
 
-Ringkasan test (`contracts/test/KosToken.test.ts`):
+Ringkasan test `contracts/test/KosLedger.test.ts`:
+
+| Kelompok | Yang diuji |
+|---|---|
+| Deploy | Alamat token, tarif, pembagian peran, alamat nol, token bukan kontrak, tarif di atas dan tepat 10.000 bp |
+| `recordRent` | Sukses dan event, **skenario 11** (pihak luar dan admin ditolak), referensi ganda, kamar + periode ganda, periode tertutup, job yang diulang setelah tutup, kamar/nominal/referensi nol, batas `uint16`, sembilan format periode salah, batas bawah dan atas periode, overflow total |
+| `recordExpense` | Sukses dan event, batas kategori, pemanggil tanpa peran, nota ganda, periode tertutup, job yang diulang setelah tutup, periode/nominal/hash tidak valid |
+| `closePeriod` | **Skenario 12** dengan angka manual, biaya melebihi sewa, biaya + fee tepat sama dengan sewa, laba Rp1, tanpa sewa, tanpa biaya, pembulatan ke bawah di setiap langkah, nominal terbesar, tutup ganda, periode lain tetap terbuka, periode kosong, format salah, pemanggil tanpa peran, suplai nol |
+| Blok snapshot | Blok sebelum penutupan dan langsung terbaca, transfer di blok yang sama (sebelum dan sesudah) tidak dihitung, transfer sesudahnya tidak mengubah bagian, blok saat ini ditolak `getPastVotes` |
+| `shareOf` | Periode belum ditutup, saldo 0 dan seluruh suplai, pembulatan per pemegang, jumlah bagian + sisa = sewa bersih |
+| Jeda darurat | Pause dan unpause oleh operator dan admin, semua fungsi tulis terblokir lalu berjalan lagi, fungsi baca tetap jalan, jeda ganda, **prosedur darurat** |
+| Kontrol akses | Pihak luar di `pause`/`unpause`, operator tidak bisa memberi peran, admin menambah operator |
+
+`contracts/test/Deployment.test.ts` menguji modul Ignition lokal dan memastikan ABI di `backend/src/blockchain/abi/` sama dengan hasil kompilasi.
+
+Ringkasan test `contracts/test/KosToken.test.ts`:
 
 | Kelompok | Yang diuji |
 |---|---|
@@ -354,11 +556,26 @@ Ringkasan test (`contracts/test/KosToken.test.ts`):
 
 ## 7. Catatan integrasi untuk layanan blockchain backend (P3)
 
-- Fungsi yang dipanggil worker: `setKycStatus`, `transferFromTreasury`. Fungsi baca untuk idempotensi dan tampilan: `isKycApproved`, `isPurchaseRefUsed`, `balanceOf`, `maxBalance`, `getPastVotes`.
+- Fungsi `KosToken` yang dipanggil worker: `setKycStatus`, `transferFromTreasury`. Fungsi baca untuk idempotensi dan tampilan: `isKycApproved`, `isPurchaseRefUsed`, `balanceOf`, `maxBalance`, `getPastVotes`.
+- Fungsi `KosLedger` yang dipanggil worker: `recordRent`, `recordExpense`, `closePeriod`. Fungsi baca: `isPaymentRefRecorded`, `isReceiptRecorded`, `isRentRecorded`, `periods`, `shareOf`.
+- Konversi dari data backend: kamar `K03` menjadi `3`, periode `2026-11` menjadi `202611`, `paymentRef = keccak256(toUtf8Bytes(order_id))`.
+- Perlakuan revert `KosLedger` di worker:
+
+  | Revert | Fungsi | Tindakan worker |
+  |---|---|---|
+  | `PaymentRefAlreadyRecorded` | `recordRent` | Job selesai, bukan gagal |
+  | `ReceiptAlreadyRecorded` | `recordExpense` | Job selesai, bukan gagal |
+  | `PeriodAlreadyClosed` | `closePeriod` | Job selesai, bukan gagal |
+  | `PeriodAlreadyClosed` | `recordRent`, `recordExpense` | Gagal permanen. Jangan diulang, tandai untuk ditangani admin karena catatannya tidak akan pernah bisa masuk |
+  | `RentAlreadyRecorded` | `recordRent` | Gagal permanen dan tandai sebagai anomali. Backend seharusnya sudah mencegahnya lewat `DUPLICATE_BILL_PAYMENT` |
+  | `EnforcedPause` | semua | Ulangi nanti, kontrak sedang dijeda |
+
+- `closePeriod` hanya boleh dikirim setelah semua job `recordRent` dan `recordExpense` periode itu selesai. Periode yang sudah ditutup tidak bisa menerima catatan baru. Perlakuan pembayaran yang lunas setelah penutupan perlu ditetapkan di P4.
+- Bagi hasil tiap dompet: baca `snapshotBlock` dari `periods(period)`, saldo dari `KosToken.getPastVotes(dompet, snapshotBlock)`, lalu `shareOf(period, saldo)`. Sisa pembulatan = `netRent` dikurangi jumlah semua bagian, dicatat sebagai cadangan periode.
 - Sebelum `transferFromTreasury`, cek `isPurchaseRefUsed`; bila transaksi gagal dengan `PurchaseRefAlreadyUsed`, anggap job selesai, bukan gagal.
 - Pemeriksaan batas 10% juga dilakukan backend sebelum pembayaran dibuat (skenario 9). Kontrak adalah lapisan terakhir (skenario 10).
 - `delegate` dan `delegateBySig` di ABI ditandai `pure` dan selalu gagal. Jangan dipanggil.
-- Event yang perlu didengar: `TreasuryTransfer`, `KycStatusUpdated`, `Transfer`, `DocumentAnchored`.
+- Event yang perlu didengar: `TreasuryTransfer`, `KycStatusUpdated`, `Transfer`, `DocumentAnchored`, `RentRecorded`, `ExpenseRecorded`, `PeriodClosed`.
 - Tab Dokumen di frontend: status "on-chain" sebuah dokumen = `currentDocumentHash(jenis)` sama dengan SHA-256 file yang disimpan backend. Riwayat versi dari `documentHistory(jenis)` atau event `DocumentAnchored` (tautan Etherscan per versi). `anchorDocument` hanya untuk dompet admin (sebaiknya terpisah dari dompet operator, lihat bagian 3.1).
 - Variabel environment untuk deploy dan verifikasi (`contracts/.env.example`): `SEPOLIA_RPC_URL`, `OPERATOR_PRIVATE_KEY`, `ETHERSCAN_API_KEY`. Nama yang sama disarankan dipakai di `.env` backend.
-- ABI diekspor ke `backend/src/blockchain/abi/` lewat skrip di `contracts/scripts/` mulai P2.
+- ABI ada di `backend/src/blockchain/abi/KosToken.json` dan `KosLedger.json`, berisi array ABI saja. File ini hasil `npm run export-abi` dari folder `contracts/` dan tidak diedit manual; test "Ekspor ABI" gagal bila isinya tertinggal dari kontrak.

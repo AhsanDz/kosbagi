@@ -5,10 +5,10 @@ Smart contract KosBagi di Ethereum Sepolia, dibangun dengan Hardhat 3 dan OpenZe
 | Kontrak | Fungsi | Catatan |
 |---|---|---|
 | `KosToken` | ERC-20 + ERC20Votes, satu kontrak per properti (KB-SMR01) | Hanya alamat lolos KYC yang boleh menerima token; saldo per investor maksimal 10% |
-| `KosLedger` | `recordRent`, `recordExpense`, `closePeriod` | Menolak referensi pembayaran ganda; menyimpan sewa bersih dan nilai per token tiap periode (progress 2) |
+| `KosLedger` | `recordRent`, `recordExpense`, `closePeriod`, `shareOf` | Satu kontrak per token properti. Menolak referensi pembayaran ganda dan sewa kedua untuk kamar + periode yang sama; menyimpan sewa bersih, nilai per token, dan blok snapshot tiap periode |
 | `KosVoting` (opsional) | `propose`, `vote`, `tally` | Bobot suara dari saldo token di blok saat proposal dibuat (progress 4) |
 
-Semua fungsi tulis khusus dibatasi peran `AccessControl`: operasi harian (KYC, penyaluran token dari perbendaharaan, jeda) oleh dompet operator; pengaturan peran, registri dokumen, dan jeda darurat oleh dompet admin. Fungsi standar ERC-20 (`transfer`, `approve`, `transferFrom`, `permit`) tetap terbuka bagi pemegang token, tetapi tunduk pada aturan KYC, batas 10%, dan jeda. Data on-chain hanya kode properti, nomor kamar, periode, nominal, `keccak256(order_id)`, dan hash dokumen atau nota, tanpa data pribadi. Rancangan lengkap: [`docs/kontrak/rancangan-kontrak.md`](../docs/kontrak/rancangan-kontrak.md).
+Semua fungsi tulis khusus dibatasi peran `AccessControl`: operasi harian (KYC, penyaluran token dari perbendaharaan, pencatatan sewa dan biaya, penutupan periode, jeda) oleh dompet operator; pengaturan peran, registri dokumen, dan jeda darurat oleh dompet admin. Fungsi standar ERC-20 (`transfer`, `approve`, `transferFrom`, `permit`) tetap terbuka bagi pemegang token, tetapi tunduk pada aturan KYC, batas 10%, dan jeda. Data on-chain hanya kode properti, nomor kamar, periode, nominal, `keccak256(order_id)`, dan hash dokumen atau nota, tanpa data pribadi. Rancangan lengkap: [`docs/kontrak/rancangan-kontrak.md`](../docs/kontrak/rancangan-kontrak.md). Laporan uji: [`docs/pengujian/kontrak.md`](../docs/pengujian/kontrak.md).
 
 ## Versi yang dipakai
 
@@ -44,11 +44,11 @@ Dompet admin (pemegang `DEFAULT_ADMIN_ROLE`) sebaiknya berbeda dari dompet opera
 
 ```
 contracts/
-├── contracts/          kode Solidity (KosToken.sol)
+├── contracts/          kode Solidity (KosToken.sol, KosLedger.sol)
 ├── test/               test Hardhat TypeScript (mocha + chai)
 │   └── fixtures/       angka perhitungan manual dari jalur 1 (skenario 12)
-├── ignition/modules/   modul deploy Hardhat Ignition
-├── scripts/            ekspor ABI ke backend, verifikasi, data demo on-chain
+├── ignition/modules/   modul deploy Hardhat Ignition (LocalDeployment.ts untuk jaringan lokal)
+├── scripts/            export-abi.ts menyalin ABI ke backend/src/blockchain/abi/; verifikasi dan data demo on-chain menyusul di P3
 ├── deployments/        alamat kontrak hasil deploy Sepolia
 ├── hardhat.config.ts   versi compiler, profil build, jaringan Sepolia, verifikasi
 ├── tsconfig.json       pengaturan TypeScript untuk test dan skrip
