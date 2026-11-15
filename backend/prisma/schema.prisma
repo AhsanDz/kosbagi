@@ -1,4 +1,7 @@
-// Skema basis data KosBagi v1 (progress 1): pengguna, properti, kamar, tagihan sewa.
+// Skema basis data KosBagi v2 (progress 2).
+// v1 (P1): pengguna, properti, kamar, tagihan sewa.
+// v2 (P2): pembayaran Midtrans, anomali, outbox job blockchain, transaksi chain, KYC dummy,
+//          dompet kustodian, penawaran, pembelian token, pengajuan pemilik kos.
 //
 // Konvensi:
 // - Semua nilai uang dalam rupiah bilangan bulat (BigInt), tanpa pecahan.
@@ -6,6 +9,8 @@
 // - Nama model dan field camelCase di kode; tabel dan kolom PostgreSQL snake_case
 //   lewat @@map dan @map.
 // - ID memakai UUID v7: acak sehingga tidak bisa ditebak, tetapi terurut waktu.
+// - Aturan yang tidak bisa ditulis di file ini (index unik parsial, CHECK) ada di SQL migrasi
+//   skema_v2 dan dijelaskan di komentar model terkait.
 //
 // Setelah mengubah file ini: npm run prisma:generate, lalu buat migrasi baru
 // dengan npm run db:migrate (butuh PostgreSQL yang sedang jalan).
@@ -36,11 +41,82 @@ enum RoomStatus {
   MAINTENANCE /// dalam perbaikan, tidak disewakan
 }
 
-/// Status tagihan sewa. Perubahan UNPAID menjadi PAID hanya lewat webhook Midtrans.
+/// Status tagihan sewa. Di aplikasi, perubahan UNPAID menjadi PAID hanya lewat webhook Midtrans
+/// yang terverifikasi (settleRentPayment di src/modules/webhooks/service.ts). Seed mengisi riwayat
+/// tagihan lunas langsung sebagai data dummy, bukan sebagai perubahan status.
 /// Pembayaran yang gagal, batal, atau kedaluwarsa tidak mengubah status tagihan.
 enum BillStatus {
   UNPAID /// belum dibayar
   PAID /// lunas
+}
+
+/// Status satu percobaan pembayaran Midtrans.
+enum PaymentStatus {
+  PENDING /// menunggu dibayar, atau sedang dibuat di Midtrans (snap_token masih kosong)
+  PAID /// terbayar dan melunasi tagihannya
+  DUPLICATE_PAID /// terbayar, tetapi tagihan sudah lunas lewat order lain; ada anomali DUPLICATE_BILL_PAYMENT
+  EXPIRED /// Midtrans mengirim expire, atau digantikan percobaan baru setelah batas waktu lewat
+  FAILED /// Midtrans mengirim cancel, deny, atau failure, atau transaksi gagal dibuat di Midtrans
+}
+
+/// Jenis notifikasi Midtrans yang tidak diproses normal dan perlu ditinjau manusia.
+enum PaymentAnomalyType {
+  AMOUNT_MISMATCH /// nominal notifikasi atau API status berbeda dari tagihan
+  UNKNOWN_ORDER /// signature sah, tetapi order_id tidak dikenal
+  DUPLICATE_BILL_PAYMENT /// dua order untuk satu tagihan sama-sama terbayar
+}
+
+/// Jenis job blockchain. Isi tiap jenis didefinisikan di src/queue/jobs.ts.
+enum OutboxJobType {
+  RECORD_RENT /// KosLedger.recordRent (P2)
+  WHITELIST_KYC /// KosToken.setKycStatus (P3)
+  TRANSFER_TOKENS /// KosToken.transferFromTreasury (P3)
+  RECORD_EXPENSE /// KosLedger.recordExpense (P4)
+  CLOSE_PERIOD /// KosLedger.closePeriod (P4)
+}
+
+/// Status pengiriman baris outbox ke antrean BullMQ (bukan status transaksi di blockchain).
+enum OutboxJobStatus {
+  PENDING /// belum masuk antrean
+  DISPATCHED /// sudah masuk antrean
+}
+
+/// Status transaksi di jaringan Sepolia.
+enum ChainTransactionStatus {
+  PENDING /// sedang dikirim atau belum terkonfirmasi
+  RECORDED /// tercatat di blok
+  FAILED /// percobaan otomatis habis
+}
+
+/// Status pengajuan KYC dummy. Label "Belum mengajukan" berarti belum ada baris pengajuan.
+enum KycStatus {
+  SUBMITTED /// diajukan, menunggu admin
+  APPROVED /// disetujui
+  REJECTED /// ditolak, investor boleh mengajukan lagi
+}
+
+/// Status penawaran token.
+enum OfferingStatus {
+  OPEN /// sedang dibuka
+  CLOSED /// target tercapai, penawaran selesai
+  CANCELLED /// target tidak tercapai sampai batas waktu; dana dikembalikan
+}
+
+/// Status pesanan token.
+enum TokenPurchaseStatus {
+  PENDING_PAYMENT /// menunggu dibayar; ikut mengurangi kuota sampai reserved_until
+  PAID /// lunas
+  EXPIRED /// batas bayar lewat
+  FAILED /// pembayaran gagal atau dibatalkan
+}
+
+/// Lima tahap pengajuan pemilik kos, sesuai alur di halaman /pemilik.
+enum OwnerApplicationStatus {
+  SUBMITTED /// diajukan
+  ASSESSMENT /// penilaian dan dokumen
+  TOKEN_ISSUANCE /// penerbitan token
+  OFFERING /// penawaran
+  MANAGED /// pengelolaan bulanan
 }
 
 /// Akun pengguna aplikasi (data dummy). Data pribadi hanya disimpan di sini, tidak pernah on-chain.
@@ -61,6 +137,14 @@ model User {
   room              Room?
   /// Tagihan sewa atas nama pengguna ini (peran TENANT).
   bills             Bill[]
+  /// Pengajuan KYC dummy (peran INVESTOR).
+  kycSubmissions    KycSubmission[]  @relation("KycApplicant")
+  /// Pengajuan KYC yang ditinjau pengguna ini (peran ADMIN).
+  reviewedKyc       KycSubmission[]  @relation("KycReviewer")
+  /// Dompet kustodian (peran INVESTOR).
+  custodialWallet   CustodialWallet?
+  /// Pesanan token (peran INVESTOR).
+  tokenPurchases    TokenPurchase[]
 
   @@map("users")
 }
@@ -91,8 +175,9 @@ model Property {
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
-  manager User?  @relation(fields: [managerId], references: [id], onDelete: SetNull)
-  rooms   Room[]
+  manager   User?      @relation(fields: [managerId], references: [id], onDelete: SetNull)
+  rooms     Room[]
+  offerings Offering[]
 
   @@index([managerId])
   @@map("properties")
@@ -138,11 +223,233 @@ model Bill {
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
 
-  room   Room @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  tenant User @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  room     Room      @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  tenant   User      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Percobaan pembayaran. Satu tagihan bisa punya beberapa percobaan, satu yang berstatus PAID.
+  payments Payment[]
 
   @@unique([roomId, period])
   @@index([tenantId])
   @@index([period, status])
   @@map("bills")
+}
+
+/// Satu percobaan pembayaran Midtrans untuk tagihan sewa (RENT-) atau pesanan token (BUY-).
+///
+/// Tiga aturan ada di SQL migrasi karena tidak bisa ditulis di file ini:
+/// - payments_bill_id_paid_key: satu tagihan paling banyak punya satu baris berstatus PAID.
+/// - payments_token_purchase_id_paid_key: aturan yang sama untuk pesanan token.
+/// - payments_exactly_one_target_check: tepat satu dari bill_id dan token_purchase_id terisi.
+model Payment {
+  id                    String        @id @default(uuid(7)) @db.Uuid
+  /// order_id Midtrans, unik per percobaan: RENT-SMR01-K03-2026-11, lalu -2, -3.
+  orderId               String        @unique @map("order_id")
+  billId                String?       @map("bill_id") @db.Uuid
+  tokenPurchaseId       String?       @map("token_purchase_id") @db.Uuid
+  /// Nomor percobaan untuk tagihan atau pesanan yang sama, mulai dari 1.
+  attempt               Int           @default(1)
+  /// Nominal yang ditagihkan ke Midtrans (rupiah).
+  amountIdr             BigInt        @map("amount_idr")
+  status                PaymentStatus @default(PENDING)
+  /// payment_type dari Midtrans, mis. bank_transfer, qris, gopay. Kosong sampai metode dipilih.
+  method                String?
+  /// Token Snap. Kosong selama transaksi belum berhasil dibuat di Midtrans.
+  snapToken             String?       @map("snap_token")
+  snapRedirectUrl       String?       @map("snap_redirect_url")
+  /// transaction_status terakhir dari API status Midtrans, untuk telusur dan rekonsiliasi.
+  providerStatus        String?       @map("provider_status")
+  /// transaction_id dari Midtrans.
+  providerTransactionId String?       @map("provider_transaction_id")
+  /// Batas bayar. Status PENDING yang melewati batas ini dibaca sebagai kedaluwarsa.
+  expiresAt             DateTime      @map("expires_at")
+  paidAt                DateTime?     @map("paid_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  bill          Bill?            @relation(fields: [billId], references: [id], onDelete: Restrict)
+  tokenPurchase TokenPurchase?   @relation(fields: [tokenPurchaseId], references: [id], onDelete: Restrict)
+  anomalies     PaymentAnomaly[]
+  /// Job blockchain yang lahir dari pembayaran ini. Kosong selama belum lunas.
+  outboxJob     OutboxJob?
+
+  @@unique([billId, attempt])
+  @@unique([tokenPurchaseId, attempt])
+  @@map("payments")
+}
+
+/// Notifikasi Midtrans bersignature sah yang tidak diproses normal. Tagihan tidak berubah.
+/// Satu baris per order per jenis; notifikasi ulang hanya menaikkan occurrences.
+model PaymentAnomaly {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  type              PaymentAnomalyType
+  /// Teks order_id apa adanya, karena UNKNOWN_ORDER tidak punya baris pembayaran.
+  orderId           String             @map("order_id")
+  paymentId         String?            @map("payment_id") @db.Uuid
+  expectedAmountIdr BigInt?            @map("expected_amount_idr")
+  receivedAmountIdr BigInt?            @map("received_amount_idr")
+  /// transaction_status menurut API status Midtrans.
+  providerStatus    String?            @map("provider_status")
+  /// Keterangan untuk peninjau, tanpa data pribadi.
+  note              String?
+  /// Berapa kali notifikasi yang sama diterima.
+  occurrences       Int                @default(1)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, type])
+  @@index([paymentId])
+  @@map("payment_anomalies")
+}
+
+/// Job blockchain yang ditulis dalam satu transaksi DB dengan perubahan statusnya (pola outbox).
+/// Dispatcher memindahkannya ke antrean BullMQ, jadi job tidak hilang walau Redis sedang mati.
+model OutboxJob {
+  id           String          @id @default(uuid(7)) @db.Uuid
+  type         OutboxJobType
+  /// Mencegah job ganda untuk sumber yang sama, mis. record-rent:<id tagihan>.
+  dedupeKey    String          @unique @map("dedupe_key")
+  /// Isi job sesuai src/queue/jobs.ts. Tidak boleh memuat data pribadi.
+  payload      Json
+  /// Pembayaran asal job, untuk RECORD_RENT dan TRANSFER_TOKENS.
+  paymentId    String?         @unique @map("payment_id") @db.Uuid
+  status       OutboxJobStatus @default(PENDING)
+  /// Berapa kali gagal dimasukkan ke antrean.
+  attempts     Int             @default(0)
+  lastError    String?         @map("last_error")
+  dispatchedAt DateTime?       @map("dispatched_at")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  payment           Payment?           @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  chainTransactions ChainTransaction[]
+
+  @@index([status, createdAt])
+  @@map("outbox_jobs")
+}
+
+/// Transaksi di Sepolia. Satu job bisa menghasilkan beberapa percobaan transaksi.
+model ChainTransaction {
+  id          String                 @id @default(uuid(7)) @db.Uuid
+  outboxJobId String                 @map("outbox_job_id") @db.Uuid
+  /// Referensi on-chain, mis. keccak256(order_id).
+  reference   String
+  /// Kosong sampai transaksi berhasil dikirim ke jaringan.
+  txHash      String?                @unique @map("tx_hash")
+  blockNumber BigInt?                @map("block_number")
+  status      ChainTransactionStatus @default(PENDING)
+  attempts    Int                    @default(0)
+  lastError   String?                @map("last_error")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  outboxJob OutboxJob @relation(fields: [outboxJobId], references: [id], onDelete: Restrict)
+
+  @@index([outboxJobId])
+  @@index([reference])
+  @@map("chain_transactions")
+}
+
+/// Pengajuan KYC dummy. Investor yang ditolak boleh mengajukan lagi, jadi bisa ada banyak baris.
+/// Index unik parsial kyc_submissions_user_id_active_key di SQL migrasi menjamin satu investor
+/// paling banyak punya satu pengajuan berstatus SUBMITTED atau APPROVED.
+model KycSubmission {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  fullName        String    @map("full_name")
+  /// Nomor identitas dummy, wajib berawalan DUMMY-. Bukan nomor KTP.
+  dummyIdNumber   String    @map("dummy_id_number")
+  status          KycStatus @default(SUBMITTED)
+  rejectionReason String?   @map("rejection_reason")
+  reviewedById    String?   @map("reviewed_by_id") @db.Uuid
+  reviewedAt      DateTime? @map("reviewed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user       User  @relation("KycApplicant", fields: [userId], references: [id], onDelete: Restrict)
+  reviewedBy User? @relation("KycReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("kyc_submissions")
+}
+
+/// Dompet kustodian investor. Kunci privat tidak disimpan: diturunkan dari seed di environment
+/// memakai derivation_index.
+model CustodialWallet {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  address         String   @unique
+  /// Indeks turunan HD. Satu indeks hanya dipakai satu investor.
+  derivationIndex Int      @unique @map("derivation_index")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("custodial_wallets")
+}
+
+/// Penawaran token satu properti, mis. 12.600 token KB-SMR01.
+model Offering {
+  id            String         @id @default(uuid(7)) @db.Uuid
+  propertyId    String         @map("property_id") @db.Uuid
+  tokensOffered Int            @map("tokens_offered")
+  tokensSold    Int            @default(0) @map("tokens_sold")
+  status        OfferingStatus @default(OPEN)
+  closesAt      DateTime       @map("closes_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  property  Property        @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  purchases TokenPurchase[]
+
+  @@index([propertyId])
+  @@map("offerings")
+}
+
+/// Pesanan token seorang investor. Dibayar lewat Payment berawalan BUY- (P3).
+model TokenPurchase {
+  id            String              @id @default(uuid(7)) @db.Uuid
+  offeringId    String              @map("offering_id") @db.Uuid
+  investorId    String              @map("investor_id") @db.Uuid
+  tokenAmount   Int                 @map("token_amount")
+  amountIdr     BigInt              @map("amount_idr")
+  status        TokenPurchaseStatus @default(PENDING_PAYMENT)
+  /// Batas waktu pesanan yang belum dibayar ikut mengurangi sisa penawaran dan kuota investor.
+  reservedUntil DateTime?           @map("reserved_until")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  offering Offering  @relation(fields: [offeringId], references: [id], onDelete: Restrict)
+  investor User      @relation(fields: [investorId], references: [id], onDelete: Restrict)
+  payments Payment[]
+
+  @@index([offeringId, status])
+  @@index([investorId, status])
+  @@map("token_purchases")
+}
+
+/// Pengajuan pemilik kos dari halaman publik /pemilik. Pemilik kos tidak punya akun.
+model OwnerApplication {
+  id                String                 @id @default(uuid(7)) @db.Uuid
+  /// Nomor untuk pemilik, mis. AJU-SMR-2026-0007.
+  applicationNumber String                 @unique @map("application_number")
+  /// Tahun dan urutan pembentuk nomor. Urutan mulai lagi dari 1 setiap tahun.
+  year              Int
+  sequence          Int
+  ownerName         String                 @map("owner_name")
+  /// Email, atau nomor WhatsApp berisi angka saja.
+  contact           String
+  propertyAddress   String                 @map("property_address")
+  roomCount         Int                    @map("room_count")
+  monthlyRentIdr    BigInt                 @map("monthly_rent_idr")
+  /// Okupansi saat ini, 0 sampai 100 persen.
+  occupancyPercent  Float                  @map("occupancy_percent")
+  status            OwnerApplicationStatus @default(SUBMITTED)
+  submittedAt       DateTime               @default(now()) @map("submitted_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+
+  @@unique([year, sequence])
+  @@map("owner_applications")
 }

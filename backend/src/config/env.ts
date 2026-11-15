@@ -12,6 +12,10 @@ const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'
 // Pesan khusus bila variabel wajib belum diisi; kesalahan lain memakai pesan bawaan zod.
 const required = { error: (issue: { input: unknown }) => (issue.input === undefined ? 'wajib diisi' : undefined) };
 
+// Baris `NAMA=` tanpa nilai di .env terbaca sebagai teks kosong; anggap saja belum diisi.
+const optional = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
@@ -25,6 +29,17 @@ const envSchema = z.object({
     .pipe(z.array(z.url({ protocol: /^https?$/ }).transform((url) => new URL(url).origin)).min(1)),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/, ...required }),
   REDIS_URL: z.url({ protocol: /^rediss?$/, ...required }),
+  JWT_SECRET: z.string(required).min(32, 'minimal 32 karakter'),
+  // Boleh kosong: server tetap jalan, endpoint pembayaran membalas 503 MIDTRANS_NOT_CONFIGURED.
+  // Awalan SB-Mid-server- memastikan yang terpasang kunci sandbox, bukan kunci produksi.
+  MIDTRANS_SERVER_KEY: optional(z.string().startsWith('SB-Mid-server-', 'harus kunci sandbox berawalan SB-Mid-server-')),
+  // Dipakai worker blockchain (P3). Nama tiga variabel Sepolia sama dengan contracts/.env.example.
+  SEPOLIA_RPC_URL: optional(z.url({ protocol: /^https?$/ })),
+  SEPOLIA_RPC_URL_FALLBACK: optional(z.url({ protocol: /^https?$/ })),
+  OPERATOR_PRIVATE_KEY: optional(z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'harus 64 karakter heksadesimal berawalan 0x')),
+  CUSTODIAL_WALLET_MNEMONIC: optional(z.string().min(1)),
+  KOS_TOKEN_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'harus alamat Ethereum berawalan 0x')),
+  KOS_LEDGER_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'harus alamat Ethereum berawalan 0x')),
 });
 
 export type Env = z.output<typeof envSchema>;
