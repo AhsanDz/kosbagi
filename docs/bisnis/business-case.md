@@ -1,6 +1,6 @@
 # Business Case KosBagi: Kerangka
 
-Status: kerangka P2, 2 November 2026. Dikumpulkan sebagai PDF di forum Brone paling lambat 24 November 2026. Bobot penilaian 25%, dengan indikator pasar, proyeksi keuangan, risiko, dan kepatuhan.
+Status: kerangka P2, 2 November 2026; bab 3, 5, 6, 7, dan 8 diperbarui P3, 3 November 2026. Dikumpulkan sebagai PDF di forum Brone paling lambat 24 November 2026. Bobot penilaian 25%, dengan indikator pasar, proyeksi keuangan, risiko, dan kepatuhan.
 
 Urutan bab mengikuti bagian "Isi Business Case" di ketentuan tugas. Setiap bab mencantumkan bahan yang sudah ada dan yang masih harus dikerjakan. Teks di bawah judul "Bahan yang sudah ada" berupa ringkasan, bukan naskah akhir.
 
@@ -8,11 +8,11 @@ Urutan bab mengikuti bagian "Isi Business Case" di ketentuan tugas. Setiap bab m
 |---|---|---|---|
 | 1 | Ringkasan eksekutif | Belum, ditulis paling akhir | P4 |
 | 2 | Masalah dan segmen pengguna | Bahan siap | P3 |
-| 3 | Pasar (TAM, SAM, SOM) dan pesaing | Metode siap, data belum lengkap | P3 |
+| 3 | Pasar (TAM, SAM, SOM) dan pesaing | SOM berangka dari proyeksi; TAM dan SAM belum ada data | P4 |
 | 4 | Proposisi nilai dan Business Model Canvas | Bahan siap | P3 |
-| 5 | Peta regulasi dan perizinan | Bahan siap, butir verifikasi terbuka | P3 |
-| 6 | Model pendapatan | Bahan siap | P3 |
-| 7 | Proyeksi 3 tahun: unit economics, BEP, NPV | Unit economics siap, proyeksi belum | P3 |
+| 5 | Peta regulasi dan perizinan | Bahan siap, skenario Pasal 31E dan biaya peralihan hak ditambahkan, butir verifikasi terbuka | P4 |
+| 6 | Model pendapatan | Siap | P3 |
+| 7 | Proyeksi 3 tahun: unit economics, BEP, NPV | Proyeksi, BEP, NPV, dan sensitivitas siap; banyak asumsi biaya **[perlu verifikasi]** | P3 |
 | 8 | Manajemen risiko | Daftar risiko siap, dampak sebagian | P4 |
 | 9 | KYC/AML dan perlindungan data | Bahan siap, penerapan prototipe menyusul | P4 |
 | 10 | Arsitektur sistem, roadmap, dan KPI | Arsitektur siap, KPI belum | P4 |
@@ -38,7 +38,7 @@ Metode dari proposal bagian 2.7:
 |---|---|---|---|
 | TAM | Nilai properti kos di kota-kota kampus besar | jumlah kos × rata-rata kamar × nilai per kamar | Belum ada **[perlu verifikasi]** |
 | SAM | Kos eksklusif 10 sampai 30 kamar di Malang | jumlah kos segmen ini × rata-rata kamar × nilai per kamar | Belum ada: jumlah kos terdaftar dicari dari data pemerintah daerah dan platform listing **[perlu verifikasi]** |
-| SOM | Properti yang realistis dikelola dalam 3 tahun | target properti × dana per properti | Mengikuti asumsi proyeksi bab 7 |
+| SOM | Properti yang realistis dikelola dalam 3 tahun | target properti × dana per properti | 15 properti aktif di akhir tahun 3 × Rp1.260.000.000 = Rp18.900.000.000 dana dihimpun, dengan sewa kotor dikelola Rp2.430.000.000 per tahun ([proyeksi](proyeksi-keuangan.md), skenario dasar). Asumsi kelompok, belum dibandingkan dengan SAM |
 
 Angka pendukung yang sudah bersumber: lebih dari 330 ribu mahasiswa di Malang dan sekitar 90 ribu di UB (TIMES Indonesia, 2022); nilai pembanding Rp196 juta per kamar (Brighton Real Estate, 2026); 30,30 juta SID per 7 Agustus 2026 (Bisnis.com, 2026b); 20,7 juta konsumen aset kripto pada awal 2026 (Investortrust, 2026).
 
@@ -56,7 +56,12 @@ Yang masih dikerjakan: alasan bisnis memakai blockchain, yang juga diminta di sy
 
 Bahan yang sudah ada: [peta regulasi](../regulasi/peta-regulasi.md).
 
-Yang masih dikerjakan: menyelesaikan daftar cek bagian 6 dokumen itu sebelum 24 November, lalu menambahkan skenario Pasal 31E UU PPh **[perlu verifikasi]**.
+Tambahan P3 di [proyeksi keuangan bagian 7](proyeksi-keuangan.md):
+
+- Skenario fasilitas Pasal 31E UU PPh: tarif efektif 11% atas laba kustodian, imbal hasil investor 6,0075% per tahun. Berlaku penuh selama peredaran bruto kustodian tidak melebihi Rp4,8 miliar, sekitar 29 properti seukuran Kos Sumbersari 01 **[perlu verifikasi]**.
+- Biaya peralihan hak SHM ke HGB atas nama kustodian sekitar Rp153.000.000 untuk properti Rp1,8 miliar (PPh 2,5%, BPHTB 5%, jasa PPAT) **[perlu verifikasi]**.
+
+Yang masih dikerjakan: menyelesaikan daftar cek bagian 6 dokumen itu sebelum 24 November.
 
 ## 6. Model pendapatan
 
@@ -68,24 +73,37 @@ Bahan yang sudah ada: [model bisnis bagian 7](model-bisnis.md) dan [asumsi bagia
 | Fee pengelolaan | 5% dari sewa kotor per bulan | Rp8.100.000 per tahun |
 | Fee pasar sekunder | 0,5% per transaksi, fase kedua | Tidak dihitung |
 
-Yang masih dikerjakan: menegaskan siapa menanggung biaya transaksi payment gateway.
+Biaya transaksi payment gateway ditanggung PT KosBagi Teknologi dan tidak dibebankan kepada penghuni, sesuai struktur biaya di Business Model Canvas (proposal Tabel 2.5). Dengan virtual account Rp4.000 per transaksi sebelum PPN (Midtrans, 2026), biaya ini sekitar 6% dari fee pengelolaan per kamar per bulan. Aturan ini juga tertulis di [perjanjian pengelolaan dummy](dokumen-penerbitan/perjanjian-pengelolaan.md) Pasal 3.
 
 ## 7. Proyeksi 3 tahun
 
-Bahan yang sudah ada: [asumsi dan unit ekonomi](asumsi-unit-ekonomi.md), termasuk sensitivitas pajak, okupansi, dan biaya.
+Bahan lengkap: [proyeksi keuangan](proyeksi-keuangan.md), memakai [asumsi dan unit ekonomi](asumsi-unit-ekonomi.md) untuk tingkat properti.
 
-Struktur yang akan diisi di P3:
+Skenario dasar: 2, 5, dan 8 properti baru seukuran Kos Sumbersari 01, tim 4 orang, tingkat diskonto 20%.
 
-| Bagian | Isi | Masukan yang dibutuhkan |
-|---|---|---|
-| Asumsi pertumbuhan | Jumlah properti baru per tahun | Skala SOM dari bab 3 |
-| Pendapatan | Fee penawaran × properti baru + fee pengelolaan × properti aktif | Asumsi bagian 5 |
-| Biaya | Tim, infrastruktur, kepatuhan, kurasi, pemasaran | Daftar biaya di asumsi bagian 5 **[perlu verifikasi]** |
-| Unit economics | Kontribusi per properti setelah biaya per properti | Pendapatan dan biaya per properti |
-| BEP | Biaya tetap per tahun ÷ kontribusi per properti per tahun | Baris di atas |
-| NPV | Jumlah arus kas tahun ke-t ÷ (1 + r)^t | Tingkat diskonto r, dasar pemilihannya ditulis di bab ini |
+| Ukuran | Tahun 1 | Tahun 2 | Tahun 3 |
+|---|---|---|---|
+| Properti aktif di akhir tahun | 2 | 7 | 15 |
+| Pendapatan | Rp83,7 juta | Rp225,5 juta | Rp391,5 juta |
+| Laba (rugi) sebelum pajak | −Rp288,7 juta | −Rp220,6 juta | −Rp130,0 juta |
 
-Catatan awal dari unit ekonomi: fee pengelolaan satu properti hanya Rp8.100.000 per tahun, sehingga kelayakan bisnis bergantung pada jumlah properti dan fee penawaran. Proyeksi perlu memperlihatkan kondisi ini dengan jujur.
+| Ukuran | Hasil |
+|---|---|
+| Unit economics penerbitan | Fee Rp37,8 juta, biaya Rp23,9 juta, kontribusi Rp13,9 juta per properti |
+| Unit economics pengelolaan | Fee Rp8,1 juta, biaya transaksi Rp0,57 juta, kontribusi Rp7,5 juta per properti per tahun (92,9%) |
+| Kebutuhan dana sampai tahun 3 | Rp754,3 juta, termasuk investasi awal Rp115 juta |
+| NPV 3 tahun | −Rp584,0 juta |
+| BEP operasional | 59 properti aktif seukuran Kos Sumbersari 01, atau 26 properti 20 kamar |
+
+Temuan utama untuk naskah bab ini:
+
+1. Dengan properti 10 kamar, fee 3% dan 5% belum menutup biaya tim dalam tiga tahun. Ini sesuai catatan awal di unit ekonomi: kelayakan bergantung pada jumlah dan ukuran properti.
+2. Ukuran properti adalah pengungkit terbesar. Properti 20 kamar (masih di segmen proposal) membuat tahun 3 laba Rp224,4 juta dan NPV naik Rp409,2 juta. NPV ≥ 0 tercapai dengan 3, 6, dan 10 properti baru 20 kamar.
+3. Biaya tetap dan keberhasilan penawaran berpengaruh sekitar Rp110 sampai Rp140 juta pada NPV; okupansi hampir tidak berpengaruh pada KosBagi tetapi berpengaruh besar pada investor.
+
+Keputusan tim (15 November 2026): skenario dasar tetap memakai properti seukuran Kos Sumbersari 01 dan disajikan apa adanya, termasuk NPV negatifnya. Jalan menuju untung ditulis sebagai strategi akuisisi: setelah properti percontohan, KosBagi memprioritaskan kos 20 kamar yang masih termasuk segmen proposal. Biaya peralihan hak ke kustodian ditanggung pemilik lama (P16).
+
+Yang masih dikerjakan: memverifikasi asumsi biaya yang ditandai **[perlu verifikasi]** (KJPP, notaris, e-KYC, gas jaringan produksi, kepatuhan) dan menentukan sumber pendanaan awal.
 
 ## 8. Manajemen risiko
 
@@ -104,6 +122,9 @@ Bahan yang sudah ada: proposal Tabel 5.1. Dampak di bawah dihitung dari skenario
 | Regulasi | Aturan terbit berbeda, pajak kos daerah kembali | Struktur berubah atau imbal hasil turun | Ikut sandbox OJK, sensitivitas pajak |
 | Likuiditas | Token sulit dijual kembali | Investor tidak bisa keluar sebelum properti dijual | Pengungkapan risiko, pasar sekunder fase kedua, voting penjualan |
 | Hukum dan operasional | Sengketa sertifikat atau kerusakan besar | Nilai aset turun atau sewa terhenti | Pemeriksaan notaris, penilaian independen, asuransi, dana cadangan |
+| Keuangan platform | Jumlah atau ukuran properti tidak cukup untuk menutup biaya tetap | Rugi tiga tahun pertama; kebutuhan dana Rp754,3 juta pada skenario dasar ([proyeksi](proyeksi-keuangan.md) bagian 4) | Prioritas kos 20 sampai 30 kamar, tim kecil, pendanaan awal disiapkan sampai BEP |
+| Pasar | Imbal hasil sewa di bawah SUN 10 tahun (5,265% dibanding 7,66%) | Penawaran lambat terjual atau gagal; 25% penawaran gagal menurunkan NPV Rp111,7 juta | Tonjolkan modal kecil dan keterbukaan data, skenario pajak Pasal 31E, pengungkapan risiko yang jujur |
+| Hukum dan biaya | Biaya peralihan hak ke kustodian sekitar Rp153 juta per properti Rp1,8 miliar | Dana bersih pemilik turun menjadi 84,9% dari dana dihimpun, pemilik bisa memilih kredit bank | Biaya ditanggung pemilik lama (keputusan tim 15 November 2026) dan disebut di halaman pemilik kos; besaran dan strukturnya dikonfirmasi ke notaris dan konsultan pajak |
 
 Yang masih dikerjakan: peringkat kemungkinan dan dampak (matriks risiko), serta bukti pengujian dari skenario 1 sampai 12.
 

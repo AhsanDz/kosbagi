@@ -1,6 +1,6 @@
 # Asumsi dan Unit Ekonomi Kos Sumbersari 01
 
-Status: draf P2, 2 November 2026.
+Status: draf P2, 2 November 2026; diperbarui P3, 3 November 2026 (skenario Pasal 31E dan tautan ke proyeksi).
 
 Dokumen ini mengumpulkan semua asumsi angka di satu tempat, lalu menghitung unit ekonomi dari asumsi itu. Isinya menjadi dasar bab model pendapatan dan proyeksi 3 tahun di [business case](business-case.md). Rincian alur bisnisnya ada di [model bisnis](model-bisnis.md), dan aturan pembulatan per periode ada di [perhitungan distribusi](perhitungan-distribusi.md).
 
@@ -98,13 +98,13 @@ Halaman `/pemilik` memakai rumus yang sama untuk simulasi dana: token = nilai pr
 | Pendapatan tahun pertama, bila dikelola setahun penuh | Rp37.800.000 + Rp8.100.000 | Rp45.900.000 |
 | Pendapatan tahun berikutnya | sama selama sewa tidak berubah | Rp8.100.000 |
 
-Biaya per properti belum punya angka, jadi kontribusi bersih per properti belum bisa dihitung. Yang perlu dihimpun untuk P3:
+Biaya per properti dan biaya tetap platform dirumuskan di [proyeksi keuangan](proyeksi-keuangan.md) bagian 2 (P07 sampai P25), termasuk kontribusi bersih per properti di bagian 3. Status butir yang dulu dicatat terbuka:
 
-- biaya penilaian properti (kantor jasa penilai publik) dan notaris/PPAT **[perlu verifikasi]**;
-- biaya penurunan SHM menjadi HGB, pajak pengalihan hak, dan BPHTB, serta siapa yang menanggungnya **[perlu verifikasi]**;
-- tarif transaksi Midtrans per metode bayar, dan apakah masuk biaya operasional kos atau beban KosBagi **[perlu verifikasi]**;
-- biaya verifikasi e-KYC per investor **[perlu verifikasi]**;
-- biaya audit smart contract dan gas transaksi di jaringan produksi **[perlu verifikasi]**.
+- biaya penilaian properti dan notaris: asumsi kelompok Rp10.000.000 dan Rp5.000.000 per properti **[perlu verifikasi]**;
+- biaya penurunan SHM menjadi HGB, pajak pengalihan hak, dan BPHTB: sekitar Rp153.000.000 untuk properti Rp1,8 miliar; siapa yang menanggungnya masih perlu keputusan tim **[perlu verifikasi]**;
+- tarif transaksi Midtrans: virtual account Rp4.000 sebelum PPN dan QRIS 0,7% (Midtrans, 2026), ditanggung PT KosBagi Teknologi, bukan biaya operasional kos;
+- biaya verifikasi e-KYC: asumsi kelompok Rp10.000 per investor **[perlu verifikasi]**;
+- biaya audit smart contract Rp75.000.000 sekali dan gas Rp500 per transaksi di jaringan produksi: asumsi kelompok **[perlu verifikasi]**.
 
 ## 6. Analisis sensitivitas
 
@@ -115,9 +115,10 @@ Semua tabel memakai Kos Sumbersari 01 dan mengubah satu asumsi. Baris tebal adal
 | Skenario | Pajak per tahun | Dibagikan per tahun | Per token per bulan | Imbal hasil |
 |---|---|---|---|---|
 | **PPh badan 22% atas laba** | Rp26.730.000 | Rp94.770.000 | Rp438,75 | 5,265% |
+| PPh badan dengan fasilitas Pasal 31E, tarif efektif 11% | Rp13.365.000 | Rp108.135.000 | Rp500,625 | 6,0075% |
 | PPh final 0,5% dari omzet | Rp810.000 | Rp120.690.000 | Rp558,75 | 6,705% |
 
-Syarat tarif 0,5% bagi kustodian belum dikonfirmasi **[perlu verifikasi]**. Pajak kos daerah Kota Malang belum masuk tabel karena status dan tarifnya belum pasti (Ikatan Konsultan Pajak Indonesia, 2025) **[perlu verifikasi]**.
+Syarat tarif 0,5% bagi kustodian belum dikonfirmasi **[perlu verifikasi]**. Skenario Pasal 31E ditambahkan di P3 dan dijelaskan di [proyeksi keuangan](proyeksi-keuangan.md) bagian 7, termasuk batas peredaran bruto Rp4,8 miliar yang dihitung untuk seluruh properti kustodian **[perlu verifikasi]**. Pajak kos daerah Kota Malang belum masuk tabel karena status dan tarifnya belum pasti (Ikatan Konsultan Pajak Indonesia, 2025) **[perlu verifikasi]**.
 
 ### Okupansi
 
@@ -149,7 +150,7 @@ Kehilangan satu kamar selama setahun (90% ke 80%) menurunkan imbal hasil sekitar
 - Biaya pengalihan hak ke kustodian dan biaya per properti di bagian 5.
 - Kenaikan sewa dan inflasi biaya tahunan.
 - Fee pasar sekunder.
-- Proyeksi 3 tahun, BEP, dan NPV, yang disusun di P3 memakai dokumen ini sebagai masukan.
+- Proyeksi 3 tahun, BEP, dan NPV. Semuanya ada di [proyeksi keuangan](proyeksi-keuangan.md), yang memakai dokumen ini sebagai masukan.
 
 ## 8. Sumber
 
@@ -157,3 +158,4 @@ Kehilangan satu kamar selama setahun (90% ke 80%) menurunkan imbal hasil sekitar
 - Brighton Real Estate (2026) *Rumah Kos + Toko Dekat Suhat, Rukos Eksklusif Dekat UB (Universitas Brawijaya)*. Tersedia di: https://www.brighton.co.id/cari-properti/view/lowokwaru-57 (Diakses: 15 Oktober 2026).
 - Ikatan Konsultan Pajak Indonesia (2025) *Pemkot Malang akan Kembali Berlakukan Pajak Kos*. Tersedia di: https://ikpi.or.id/pemkot-malang-akan-kembali-berlakukan-pajak-kos/ (Diakses: 15 Oktober 2026).
 - Mamikos (2026) *Biaya Hidup Mahasiswa Kuliah di Unibraw*. Tersedia di: https://mamikos.com/info/biaya-hidup-mahasiswa-kuliah-di-unibraw/ (Diakses: 15 Oktober 2026).
+- Midtrans (2026) *Pricing*. Tersedia di: https://midtrans.com/pricing (Diakses: 3 November 2026).
