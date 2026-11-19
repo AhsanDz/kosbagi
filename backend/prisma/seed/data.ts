@@ -3,7 +3,7 @@
 //
 // Semua nama dan email di sini fiktif (domain .test). Tidak ada nomor KTP, rekening, atau
 // data pribadi asli. Nilai uang dalam rupiah bilangan bulat, ditulis sebagai bigint.
-import type { BillStatus, Role, RoomStatus } from '../../src/generated/prisma/enums.js';
+import type { BillStatus, KycStatus, Role, RoomStatus } from '../../src/generated/prisma/enums.js';
 
 /** Kata sandi semua akun demo. Sengaja ditulis terbuka karena hanya untuk data dummy lokal. */
 export const DEMO_PASSWORD = 'demo-kosbagi';
@@ -36,6 +36,19 @@ export const ADMIN_ACCOUNT: SeedAccount = {
   role: 'ADMIN',
 };
 
+/**
+ * Enam investor dummy selain Dimas, sesuai daftar admin KYC di Figma (frame 115-146 dan
+ * 115-1084). Tidak punya kartu di halaman Masuk, tetapi bisa login.
+ */
+const OTHER_INVESTORS: SeedAccount[] = [
+  { name: 'Rani Aulia', email: 'rani.dummy@kosbagi.test', role: 'INVESTOR' },
+  { name: 'Fajar Nugroho', email: 'fajar.dummy@kosbagi.test', role: 'INVESTOR' },
+  { name: 'Eko Saputra', email: 'eko.dummy@kosbagi.test', role: 'INVESTOR' },
+  { name: 'Citra Lestari', email: 'citra.dummy@kosbagi.test', role: 'INVESTOR' },
+  { name: 'Bagas Wicaksono', email: 'bagas.dummy@kosbagi.test', role: 'INVESTOR' },
+  { name: 'Hendra Kusuma', email: 'hendra.dummy@kosbagi.test', role: 'INVESTOR' },
+];
+
 /** Penghuni kamar selain K03. Tidak punya kartu di halaman Masuk, tetapi bisa login. */
 const OTHER_TENANTS: Array<{ room: string; name: string }> = [
   { room: 'K01', name: 'Bagus Nugroho' },
@@ -57,6 +70,7 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
   TENANT_ACCOUNT,
   MANAGER_ACCOUNT,
   ADMIN_ACCOUNT,
+  ...OTHER_INVESTORS,
   ...OTHER_TENANTS.map(({ room, name }): SeedAccount => ({ name, email: otherTenantEmail(room), role: 'TENANT' })),
 ];
 
@@ -131,20 +145,73 @@ function paid(room: string, period: string, paidAt: string): SeedBill {
 export const CURRENT_PERIOD = '2026-11';
 
 export const SEED_BILLS: SeedBill[] = [
-  // Tagihan November 2026 untuk 9 kamar terisi. K03, K04, K07 sengaja belum dibayar untuk demo.
-  paid('K01', CURRENT_PERIOD, '2026-11-01T09:12:00+07:00'),
-  paid('K02', CURRENT_PERIOD, '2026-11-02T13:40:00+07:00'),
-  unpaid('K03', CURRENT_PERIOD),
-  unpaid('K04', CURRENT_PERIOD),
-  paid('K05', CURRENT_PERIOD, '2026-11-01T19:05:00+07:00'),
-  unpaid('K07', CURRENT_PERIOD),
-  paid('K08', CURRENT_PERIOD, '2026-11-03T08:27:00+07:00'),
-  paid('K09', CURRENT_PERIOD, '2026-11-04T16:51:00+07:00'),
-  paid('K10', CURRENT_PERIOD, '2026-11-05T11:33:00+07:00'),
+  // Tagihan November 2026 untuk 9 kamar terisi, semuanya belum dibayar. Sebelum demo, tim
+  // membayar semuanya lewat Midtrans sandbox (npm run demo:bayar-sewa), sehingga setiap
+  // pembayaran melewati webhook dan tercatat di KosLedger lewat recordRent. Sembilan kamar
+  // lunas menghasilkan sewa kotor Rp13.500.000, angka kasus dasar perhitungan distribusi.
+  ...SEED_ROOMS.filter((room) => room.tenantEmail !== null).map((room) => unpaid(room.number, CURRENT_PERIOD)),
 
   // Riwayat K03 untuk tabel riwayat di halaman penghuni. Tagihan paling awal juga menjadi
-  // dasar masa sewa di API: 12 bulan mulai Agustus 2026, jadi sampai Juli 2027.
+  // dasar masa sewa di API: 12 bulan mulai Agustus 2026, jadi sampai Juli 2027. Data lampau
+  // ini tidak punya pembayaran Midtrans, jadi tidak pernah dicatat on-chain dan tampil tanpa
+  // tautan Etherscan.
   paid('K03', '2026-08', '2026-08-06T10:21:00+07:00'),
   paid('K03', '2026-09', '2026-09-07T14:02:00+07:00'),
   paid('K03', '2026-10', '2026-10-08T09:48:00+07:00'),
 ];
+
+export interface SeedKycSubmission {
+  /** Email akun investor pengaju. */
+  email: string;
+  /** Nama yang diketik investor. Pemeriksaan otomatis membandingkannya dengan nama akun. */
+  fullName: string;
+  /** Nomor identitas dummy, selalu berawalan DUMMY-. Bukan nomor KTP. */
+  dummyIdNumber: string;
+  /** Hanya SUBMITTED atau REJECTED. Persetujuan dilakukan saat demo karena harus membuat dompet kustodian dan job whitelist. */
+  status: Extract<KycStatus, 'SUBMITTED' | 'REJECTED'>;
+  /** Waktu pengajuan (WIB), tampil di kolom Diajukan. */
+  submittedAt: Date;
+  /** Diisi untuk pengajuan yang ditolak. Ditinjau oleh admin Laras Kusuma. */
+  review: { reason: string; reviewedAt: Date } | null;
+}
+
+/**
+ * Pengajuan KYC dummy. Nama, nomor, dan waktu mengikuti daftar admin di Figma; investor yang
+ * di Figma sudah disetujui di sini masih SUBMITTED, supaya persetujuannya bisa didemokan.
+ * Dimas Pratama sengaja tanpa pengajuan, sehingga demo dimulai dari mengajukan KYC.
+ */
+export const SEED_KYC_SUBMISSIONS: SeedKycSubmission[] = [
+  submitted('rani.dummy@kosbagi.test', 'Rani Aulia', 'DUMMY-0051', '2026-11-03T11:02:00+07:00'),
+  submitted('fajar.dummy@kosbagi.test', 'Fajar Nugroho', 'DUMMY-0034', '2026-11-02T16:05:00+07:00'),
+  submitted('eko.dummy@kosbagi.test', 'Eko Saputra', 'DUMMY-0021', '2026-11-02T08:30:00+07:00'),
+  submitted('citra.dummy@kosbagi.test', 'Citra Lestari', 'DUMMY-0013', '2026-11-01T13:45:00+07:00'),
+  submitted('bagas.dummy@kosbagi.test', 'Bagas Wicaksono', 'DUMMY-0007', '2026-11-01T09:20:00+07:00'),
+  {
+    // Nama yang diketik berbeda satu huruf dari nama akun, jadi pemeriksaan otomatis
+    // "nama sama dengan nama akun" gagal dan admin menolak. Investor boleh mengajukan lagi.
+    email: 'hendra.dummy@kosbagi.test',
+    fullName: 'Hendra Kusumah',
+    dummyIdNumber: 'DUMMY-0028',
+    status: 'REJECTED',
+    submittedAt: new Date('2026-10-31T14:20:00+07:00'),
+    review: {
+      reason: 'Nama tidak sama dengan nama akun dummy. Gunakan Hendra Kusuma.',
+      reviewedAt: new Date('2026-11-01T08:45:00+07:00'),
+    },
+  },
+];
+
+function submitted(email: string, fullName: string, dummyIdNumber: string, submittedAt: string): SeedKycSubmission {
+  return { email, fullName, dummyIdNumber, status: 'SUBMITTED', submittedAt: new Date(submittedAt), review: null };
+}
+
+/**
+ * Penawaran token KB-SMR01: 70% token (12.600) dijual ke investor, belum ada yang terjual.
+ * Ditutup 31 Desember 2026 pukul 23.59 WIB; bila tidak habis, penawaran dibatalkan.
+ */
+export const SEED_OFFERING = {
+  tokensOffered: SEED_PROPERTY.totalTokens - SEED_PROPERTY.ownerTokens,
+  tokensSold: 0,
+  status: 'OPEN',
+  closesAt: new Date('2026-12-31T23:59:00+07:00'),
+} as const;
