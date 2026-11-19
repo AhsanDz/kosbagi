@@ -54,7 +54,7 @@ export const faqs = [
   {
     question: "Berapa biayanya?",
     answer:
-      "Fee penawaran 3% dipotong sekali dari dana yang terkumpul. Fee pengelolaan 5% dari sewa kotor dipotong setiap bulan sebelum bagi hasil.",
+      "Fee penawaran 3% dipotong sekali dari dana yang terkumpul. Fee pengelolaan 5% dari sewa kotor dipotong setiap bulan sebelum bagi hasil. Biaya peralihan sertifikat ke kustodian, yaitu PPh, BPHTB, dan jasa PPAT sekitar 8,5% dari nilai kos, juga kamu tanggung dan dibayar dari dana yang diterima.",
   },
   {
     question: "Bagaimana kalau penawaran tidak penuh?",
