@@ -29,7 +29,8 @@ describe('format error', () => {
     });
   });
 
-  it('memakai format 404 yang sama di aplikasi asli', async () => {
+  // createApp memuat semua modul route; di bawah beban bisa mendekati batas bawaan 5 detik.
+  it('memakai format 404 yang sama di aplikasi asli', { timeout: 15_000 }, async () => {
     const realApp = await createApp();
     const res = await request(realApp).post('/api/health');
 

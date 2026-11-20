@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createApp } from '../../src/app.js';
 import { prisma } from '../../src/lib/prisma.js';
 import { MidtransUnavailableError } from '../../src/modules/payments/midtrans.js';
+import { SNAP_IN_FLIGHT_MS } from '../../src/modules/payments/service.js';
 import {
   bearer,
   DEMO_PASSWORD,
@@ -193,8 +194,8 @@ describe('percobaan tanpa token', () => {
   });
 
   it('proses pertama mati: klik yang menunggu dibalas 502, klik berikutnya membuat percobaan baru', async () => {
-    // Umur hampir habis, supaya test tidak perlu menunggu 10 detik.
-    await createAttemptWithoutToken(9_700);
+    // Umur hampir habis, supaya test tidak perlu menunggu batas penuh.
+    await createAttemptWithoutToken(SNAP_IN_FLIGHT_MS - 300);
 
     const waiting = await startPayment(app, fixture.bill.id, authorization);
 
