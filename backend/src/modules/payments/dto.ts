@@ -16,10 +16,11 @@ export interface PaymentDto {
 
 /**
  * Status yang dilihat pengguna. Percobaan yang melewati batas waktu dibaca kedaluwarsa walau
- * notifikasi expire dari Midtrans belum tiba. DUPLICATE_PAID hanya beda di catatan internal.
+ * notifikasi expire dari Midtrans belum tiba. DUPLICATE_PAID dan UNFULFILLED tetap terbaca PAID
+ * karena uangnya memang sudah diterima; bedanya hanya di catatan internal dan anomali.
  */
 export function effectiveStatus(payment: Pick<Payment, 'status' | 'expiresAt'>, now: Date): PaymentDtoStatus {
-  if (payment.status === 'DUPLICATE_PAID') return 'PAID';
+  if (payment.status === 'DUPLICATE_PAID' || payment.status === 'UNFULFILLED') return 'PAID';
   if (payment.status === 'PENDING' && payment.expiresAt <= now) return 'EXPIRED';
   return payment.status;
 }
