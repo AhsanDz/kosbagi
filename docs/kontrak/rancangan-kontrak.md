@@ -1,12 +1,14 @@
 # Rancangan Smart Contract KosBagi
 
-Dokumen ini menjelaskan rancangan tiga smart contract KosBagi di Ethereum Sepolia: `KosToken` (selesai di progress 1), `KosLedger` (selesai di progress 2), dan `KosVoting` (opsional, rencana progress 4). Kode ada di [`contracts/contracts/`](../../contracts/contracts/), test di [`contracts/test/`](../../contracts/test/), laporan uji di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md).
+Dokumen ini menjelaskan rancangan tiga smart contract KosBagi di Ethereum Sepolia: `KosToken` (selesai di progress 1), `KosLedger` (selesai di progress 2), dan `KosVoting` (opsional, rencana progress 4), serta cara keduanya di-deploy (progress 3, bagian 8). Kode ada di [`contracts/contracts/`](../../contracts/contracts/), test di [`contracts/test/`](../../contracts/test/), laporan uji di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md), panduan deploy di [`deploy-sepolia.md`](deploy-sepolia.md).
 
 | Kontrak | Fungsi utama | Progress | Status |
 |---|---|---|---|
 | `KosToken` | Token hak manfaat ekonomi satu properti (KB-SMR01): KYC, batas 10%, jeda darurat, delegasi otomatis, registri dokumen | P1 | Selesai, 63 test lulus, cakupan baris 100% |
-| `KosLedger` | `recordRent`, `recordExpense`, `closePeriod`, `shareOf`: buku besar sewa dan biaya per periode, angka distribusi final | P2 | Selesai, 65 test lulus, cakupan baris 100% |
+| `KosLedger` | `recordRent`, `recordExpense`, `closePeriod`, `shareOf`: buku besar sewa dan biaya per periode, angka distribusi final | P2 | Selesai, 65 test lulus (ditambah 13 test fixture jalur 1 di P3), cakupan baris 100% |
 | `KosVoting` | `propose`, `vote`, `tally` | P4 (opsional) | Rencana (bagian 5) |
+
+Kode kedua kontrak tidak berubah di P3. Yang ditambahkan: modul deploy Sepolia, skrip deploy dan verifikasi, pencatatan tiga dokumen penerbitan, dan test skenario 12 yang membaca fixture jalur 1. Alamat Sepolia dicatat di `contracts/deployments/sepolia.json` setelah koordinator menjalankan deploy.
 
 ## 1. Posisi kontrak dalam arsitektur
 
@@ -57,9 +59,11 @@ sequenceDiagram
 | Dompet pemilik lama | 5.400 token (30%) | `originalOwner()` |
 | Dompet perbendaharaan properti | 12.600 token (70%, dijual ke investor) | `treasury()` |
 | Batas saldo per alamat | 1.800 token (10% suplai) | `maxBalance()`, `MAX_BALANCE_BPS = 1000` |
-| Sertifikat | SHA-256 isi file PDF sertifikat, versi 1 dicatat saat deploy | `currentDocumentHash(DOCUMENT_CERTIFICATE)` |
-| Laporan penilaian | SHA-256 isi file PDF laporan penilaian, versi 1 dicatat saat deploy | `currentDocumentHash(DOCUMENT_APPRAISAL_REPORT)` |
-| Perjanjian pengelolaan | SHA-256 isi file PDF, dicatat admin setelah deploy | `currentDocumentHash(DOCUMENT_MANAGEMENT_AGREEMENT)` |
+| Sertifikat | SHA-256 isi `docs/bisnis/dokumen-penerbitan/sertifikat-hak-milik.md`, versi 1 dicatat konstruktor | `currentDocumentHash(DOCUMENT_CERTIFICATE)` |
+| Laporan penilaian | SHA-256 isi `docs/bisnis/dokumen-penerbitan/laporan-penilaian.md`, versi 1 dicatat konstruktor | `currentDocumentHash(DOCUMENT_APPRAISAL_REPORT)` |
+| Perjanjian pengelolaan | SHA-256 isi `docs/bisnis/dokumen-penerbitan/perjanjian-pengelolaan.md`, dicatat admin lewat `anchorDocument` di transaksi ketiga deploy | `currentDocumentHash(DOCUMENT_MANAGEMENT_AGREEMENT)` |
+
+Ketiga dokumen penerbitan adalah file dummy milik jalur 1 (Markdown, UTF-8 tanpa BOM, akhir baris LF). Hash-nya tidak ditulis di kode mana pun: skrip deploy menghitungnya dari byte file saat dijalankan (bagian 8.3).
 
 Kontrak bersifat umum: properti lain cukup di-deploy ulang dengan kode properti, alamat, jatah, dan hash dokumennya sendiri. Batas 10% dihitung dari total suplai saat deploy.
 
@@ -79,9 +83,9 @@ constructor(
 )
 ```
 
-Secara teknis `admin` dan `operator` boleh alamat yang sama, tetapi **deploy Sepolia di P3 sebaiknya memakai dompet admin yang terpisah dari dompet operator** (mis. dompet MetaMask milik koordinator dengan sedikit ETH Sepolia). Konstruktor hanya butuh *alamat* admin, jadi deploy tetap bisa dikirim dompet operator tanpa memakai kunci admin. Bila keduanya satu dompet, kunci operator yang bocor otomatis juga menguasai semua peran admin dan prosedur darurat di bagian 3.13 tidak bisa dijalankan.
+Secara teknis kontrak menerima `admin` dan `operator` beralamat sama, tetapi **deploy Sepolia memakai dua dompet terpisah** (keputusan pengguna 3 Nov 2026) dan skrip deploy menolak bila keduanya sama. Bila keduanya satu dompet, kunci operator yang bocor otomatis juga menguasai semua peran admin dan prosedur darurat di bagian 3.13 tidak bisa dijalankan.
 
-Sesudah deploy, admin memanggil `anchorDocument(DOCUMENT_MANAGEMENT_AGREEMENT, hash)` sehingga tab Dokumen di halaman properti langsung menampilkan tiga dokumen berstatus on-chain. Cara admin menandatangani transaksi (mis. MetaMask lewat tab Write Contract di Etherscan, atau skrip dengan kunci admin terpisah) diputuskan di P3.
+Deploy ditandatangani **dompet admin**: tiga transaksinya (deploy `KosToken`, deploy `KosLedger`, `anchorDocument(DOCUMENT_MANAGEMENT_AGREEMENT, hash)`) dikirim dari kunci admin lewat skrip `contracts/scripts/deploy.ts`. Kunci admin hanya ada di `contracts/.env` (atau keystore Hardhat) dan tidak pernah masuk `backend/.env`. Setelah deploy, tab Dokumen di halaman properti bisa langsung menampilkan tiga dokumen berstatus on-chain. Rinciannya di bagian 8.
 
 ### 3.2 Pewarisan dari OpenZeppelin
 
@@ -141,7 +145,7 @@ Kontrak menyimpan hash dokumen properti per **jenis dokumen**, bukan sebagai kol
 |---|---|---|
 | `DOCUMENT_CERTIFICATE` | `keccak256("DOCUMENT_CERTIFICATE")` | Wajib, saat deploy |
 | `DOCUMENT_APPRAISAL_REPORT` | `keccak256("DOCUMENT_APPRAISAL_REPORT")` | Wajib, saat deploy; diperbarui bila ada penilaian ulang (mis. tahunan) |
-| `DOCUMENT_MANAGEMENT_AGREEMENT` | `keccak256("DOCUMENT_MANAGEMENT_AGREEMENT")` | Lewat `anchorDocument` sesudah deploy |
+| `DOCUMENT_MANAGEMENT_AGREEMENT` | `keccak256("DOCUMENT_MANAGEMENT_AGREEMENT")` | Lewat `anchorDocument` oleh admin, transaksi ketiga skrip deploy |
 
 Jenis lain boleh dipakai tanpa mengubah kontrak dengan pola nama yang sama, mis. `keccak256("DOCUMENT_BUILDING_PERMIT")`. Daftar jenis yang dipakai dicatat di backend.
 
@@ -223,7 +227,7 @@ Error bawaan OpenZeppelin yang mungkin muncul: `AccessControlUnauthorizedAccount
 | `transfer` antarpemegang (penerima baru) | ± 164.000 |
 | `pause` / `unpause` | ± 47.000 / 25.000 |
 
-Dengan harga gas Sepolia 1 sampai 10 gwei, deploy menghabiskan sekitar 0,003 sampai 0,031 ETH Sepolia. Ukuran bytecode 10.805 byte (profil `production`) dan 19.852 byte (profil `default`), di bawah batas 24.576 byte.
+Dengan harga gas Sepolia 1 sampai 10 gwei, deploy menghabiskan sekitar 0,003 sampai 0,031 ETH Sepolia. Ukuran bytecode 10.805 byte (profil `production`) dan 19.852 byte (profil `default`), di bawah batas 24.576 byte. Gladi deploy P3 di Hardhat node lokal mengukur angka yang sama: deploy KosToken 3.073.916 gas dan `anchorDocument` perjanjian pengelolaan 71.439 gas (bagian 8.5).
 
 ### 3.11 Compiler, profil build, dan bug compiler yang diketahui
 
@@ -377,7 +381,7 @@ Contoh satu bulan Kos Sumbersari 01 (9 kamar terisi x Rp1.500.000, biaya 20%). A
 
 Proposal menulis "± Rp439" karena dibulatkan biasa. Nilai sebenarnya Rp438,75.
 
-Perhitungan ini harus sama dengan kalkulator `backend/src/finance/` dan `docs/bisnis/perhitungan-distribusi.md`. Keempat kasus fixture `contracts/test/fixtures/distribusi-manual.json`, termasuk sisa pembulatan Rp3 dan Rp7 serta kasus defisit, sudah dicocokkan dengan kontrak saat P2 (lihat `docs/pengujian/kontrak.md`). Test yang membaca fixture itu baru masuk repo di P3.
+Perhitungan ini harus sama dengan kalkulator `backend/src/finance/` dan `docs/bisnis/perhitungan-distribusi.md`. Keempat kasus fixture `contracts/test/fixtures/distribusi-manual.json`, termasuk sisa pembulatan Rp3 dan Rp7 serta kasus defisit, sudah dicocokkan dengan kontrak saat P2 (lihat `docs/pengujian/kontrak.md`). Mulai P3, `contracts/test/ManualDistribution.test.ts` membaca fixture itu langsung, jadi perubahan angka di fixture otomatis diuji ulang terhadap kontrak (bagian 6).
 
 ### 4.6 Tiga keputusan yang tadinya terbuka
 
@@ -522,7 +526,28 @@ npm run typecheck         # build + pemeriksaan tipe TypeScript
 npm run export-abi        # salin ABI KosToken dan KosLedger ke backend/src/blockchain/abi/
 ```
 
-Hasil saat P2 selesai: kompilasi tanpa warning, **132 passing** pada profil `default` dan `production`, cakupan `KosToken.sol` dan `KosLedger.sol` 100% baris dan pernyataan. Test berjalan di jaringan lokal Hardhat (EDR), tidak memakai Sepolia dan tidak butuh file `.env`. Rincian hasil ada di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md).
+Perintah deploy (`node:local`, `deploy:local`, `verify:local`, `deploy:sepolia`, `verify:sepolia`) dijelaskan langkah demi langkah di [`deploy-sepolia.md`](deploy-sepolia.md).
+
+Hasil saat P3 selesai: kompilasi tanpa warning, **167 passing** pada profil `default` dan `production`, cakupan `KosToken.sol` dan `KosLedger.sol` 100% baris dan pernyataan. Test berjalan di jaringan lokal Hardhat (EDR), tidak memakai Sepolia, tidak butuh file `.env`, dan tidak membaca dokumen penerbitan jalur 1 (test memakai file contoh di folder sementara sistem). Rincian hasil ada di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md).
+
+| File test | Jumlah | Isi |
+|---|---|---|
+| `KosToken.test.ts` | 63 | Lihat ringkasan di bawah |
+| `KosLedger.test.ts` | 65 | Lihat ringkasan di bawah |
+| `Deployment.test.ts` | 4 | Modul deploy lokal dan kecocokan ABI backend |
+| `ManualDistribution.test.ts` | 13 | **Skenario 12** dengan fixture jalur 1 (bagian 4.5) |
+| `SepoliaDeployment.test.ts` | 22 | Modul deploy Sepolia, pemeriksaan pasca-deploy, pemeriksaan bytecode, parameter dompet, dokumen penerbitan (bagian 8) |
+
+Ringkasan test `contracts/test/ManualDistribution.test.ts`:
+
+| Kelompok | Yang diuji |
+|---|---|
+| Parameter | Fee, pajak, dan total suplai di fixture sama dengan hasil modul deploy Sepolia |
+| Konsistensi fixture (per kasus) | Sewa kotor = jumlah sewa per kamar, saldo pemegang = 18.000, jumlah bagian + cadangan = sewa bersih, satu pemilik lama, label unik |
+| `closePeriod` (per kasus) | Sewa kotor, biaya, fee, pajak, sewa bersih, total suplai, nilai per token, laba kena pajak (`netRent + tax`), dan defisit sama dengan fixture |
+| Bagian pemegang (per kasus) | Saldo snapshot `getPastVotes` dan `shareOf` tiap pemegang sama dengan fixture, jumlah bagian dan cadangan sama |
+
+Keempat kasus fixture: dasar November 2026 (Rp438,75), sisa pembulatan Rp3 dengan dua belas pemegang, biaya melebihi sewa (defisit Rp1.650.000), dan pembulatan di setiap langkah (sisa Rp7).
 
 Ringkasan test `contracts/test/KosLedger.test.ts`:
 
@@ -537,7 +562,7 @@ Ringkasan test `contracts/test/KosLedger.test.ts`:
 | Jeda darurat | Pause dan unpause oleh operator dan admin, semua fungsi tulis terblokir lalu berjalan lagi, fungsi baca tetap jalan, jeda ganda, **prosedur darurat** |
 | Kontrol akses | Pihak luar di `pause`/`unpause`, operator tidak bisa memberi peran, admin menambah operator |
 
-`contracts/test/Deployment.test.ts` menguji modul Ignition lokal dan memastikan ABI di `backend/src/blockchain/abi/` sama dengan hasil kompilasi.
+`contracts/test/Deployment.test.ts` menguji modul Ignition lokal dan memastikan ABI di `backend/src/blockchain/abi/` sama dengan hasil kompilasi. `contracts/test/SepoliaDeployment.test.ts` menguji modul deploy Sepolia dan fungsi skrip deploy (bagian 8).
 
 Ringkasan test `contracts/test/KosToken.test.ts`:
 
@@ -577,5 +602,96 @@ Ringkasan test `contracts/test/KosToken.test.ts`:
 - `delegate` dan `delegateBySig` di ABI ditandai `pure` dan selalu gagal. Jangan dipanggil.
 - Event yang perlu didengar: `TreasuryTransfer`, `KycStatusUpdated`, `Transfer`, `DocumentAnchored`, `RentRecorded`, `ExpenseRecorded`, `PeriodClosed`.
 - Tab Dokumen di frontend: status "on-chain" sebuah dokumen = `currentDocumentHash(jenis)` sama dengan SHA-256 file yang disimpan backend. Riwayat versi dari `documentHistory(jenis)` atau event `DocumentAnchored` (tautan Etherscan per versi). `anchorDocument` hanya untuk dompet admin (sebaiknya terpisah dari dompet operator, lihat bagian 3.1).
-- Variabel environment untuk deploy dan verifikasi (`contracts/.env.example`): `SEPOLIA_RPC_URL`, `OPERATOR_PRIVATE_KEY`, `ETHERSCAN_API_KEY`. Nama yang sama disarankan dipakai di `.env` backend.
-- ABI ada di `backend/src/blockchain/abi/KosToken.json` dan `KosLedger.json`, berisi array ABI saja. File ini hasil `npm run export-abi` dari folder `contracts/` dan tidak diedit manual; test "Ekspor ABI" gagal bila isinya tertinggal dari kontrak.
+- Variabel environment untuk deploy dan verifikasi (`contracts/.env.example`): `SEPOLIA_RPC_URL`, `ADMIN_PRIVATE_KEY`, `OPERATOR_PRIVATE_KEY`, `ETHERSCAN_API_KEY`. `SEPOLIA_RPC_URL` dan `OPERATOR_PRIVATE_KEY` memakai nama yang sama di `backend/.env`; `ADMIN_PRIVATE_KEY` tidak pernah disalin ke backend.
+- ABI ada di `backend/src/blockchain/abi/KosToken.json` dan `KosLedger.json`, berisi array ABI saja. File ini hasil `npm run export-abi` dari folder `contracts/` dan tidak diedit manual; test "Ekspor ABI" gagal bila isinya tertinggal dari kontrak. ABI tidak berubah di P3.
+- Alamat kontrak untuk `KOS_TOKEN_ADDRESS` dan `KOS_LEDGER_ADDRESS` diambil dari `contracts/deployments/sepolia.json` (`contracts.KosToken.address`, `contracts.KosLedger.address`). Blok deploy (`contracts.KosToken.blockNumber`) bisa dipakai sebagai blok awal saat membaca event, supaya worker tidak memindai dari blok 0.
+- Hasil gladi di Hardhat node lokal ditulis ke `contracts/deployments/lokal.json` dengan format yang sama (tidak ikut repo).
+
+## 8. Deploy dan verifikasi (P3)
+
+Panduan langkah demi langkah untuk koordinator ada di [`deploy-sepolia.md`](deploy-sepolia.md). Bagian ini menjelaskan rancangannya.
+
+### 8.1 Komponen
+
+| File | Fungsi |
+|---|---|
+| `contracts/ignition/modules/SepoliaDeployment.ts` | Modul Hardhat Ignition `KosBagiSepolia`: deploy KosToken, deploy KosLedger, lalu `anchorDocument` perjanjian pengelolaan dari dompet admin |
+| `contracts/ignition/parameters/sepolia.json` | Empat alamat dompet untuk Sepolia (diisi koordinator sebelum deploy; di repo masih alamat nol) |
+| `contracts/ignition/parameters/lokal.json` | Empat akun pertama Hardhat untuk gladi lokal |
+| `contracts/scripts/deploy.ts` | Skrip deploy: pemeriksaan awal, hash dokumen, Ignition, pemeriksaan pasca-deploy, berkas hasil |
+| `contracts/scripts/verify.ts` | Skrip verifikasi Etherscan dengan pemeriksaan bytecode lebih dulu |
+| `contracts/scripts/lib/` | Fungsi bersama yang diuji: target jaringan dan parameter, dokumen penerbitan, pemeriksaan pasca-deploy dan bytecode, format berkas hasil |
+| `contracts/deployments/sepolia.json` | Hasil deploy Sepolia, ditulis skrip (belum ada sampai koordinator men-deploy) |
+
+### 8.2 Urutan kerja skrip deploy
+
+1. **Profil build `production`.** Etherscan memverifikasi bytecode yang di-deploy, dan bytecode itu harus berasal dari profil yang sama dengan verifikasi. Skrip berhenti bila dijalankan tanpa `--build-profile production` (perintah npm sudah memakainya).
+2. **Target dari chain id.** Hanya Sepolia (11155111) dan Hardhat lokal (31337). Chain lain, termasuk mainnet, ditolak walaupun URL RPC salah isi.
+3. **Alamat dompet** dibaca dari `ignition/parameters/<sepolia|lokal>.json`: wajib valid, bukan alamat nol, dan empat-empatnya berbeda. Akun penanda tangan pertama (dari `ADMIN_PRIVATE_KEY`) wajib sama dengan alamat `admin`, dan akun kedua (dari `OPERATOR_PRIVATE_KEY`) wajib sama dengan alamat `operator`, sehingga salah ketik alamat operator ketahuan sebelum peran diberikan ke alamat yang salah. Kunci lain di file parameter ditolak, termasuk hash dokumen.
+4. **Hash dokumen** dihitung dari tiga file bernama tetap (bagian 8.3).
+5. **Saldo dan konfirmasi.** Saldo admin dibandingkan dengan perkiraan 4.500.000 gas x harga gas maksimum saat itu. Di Sepolia skrip menampilkan ringkasan (alamat, hash, biaya) dan baru lanjut bila koordinator mengetik `DEPLOY`.
+6. **Ignition** menjalankan modul dengan `defaultSender` = admin dan id deployment `sepolia-smr01`. Bila terputus (RPC putus, laptop mati), menjalankan skrip lagi melanjutkan dari jejak di `ignition/deployments/sepolia-smr01/` tanpa men-deploy ulang. Bila hash dokumen atau alamat berubah di antaranya, Ignition menolak melanjutkan.
+7. **Pemeriksaan pasca-deploy** membaca ulang 50 nilai: parameter penerbitan, saldo awal, KYC dompet awal, hubungan KosLedger ke KosToken, tabel peran lengkap (bagian 8.4), dan hash versi 1 ketiga dokumen. Bila ada yang tidak sesuai, skrip berhenti dan tidak menulis berkas hasil.
+8. **Berkas hasil** `deployments/sepolia.json`: jaringan, compiler, empat dompet, alamat dan blok kedua kontrak, argumen konstruktor, tiga dokumen (path, SHA-256, transaksi pencatat), pemegang peran, dan total gas.
+
+### 8.3 Dokumen penerbitan
+
+| Jenis (konstanta `KosToken`) | File di `docs/bisnis/dokumen-penerbitan/` | Dicatat oleh |
+|---|---|---|
+| `DOCUMENT_CERTIFICATE` | `sertifikat-hak-milik.md` | Konstruktor KosToken (transaksi 1) |
+| `DOCUMENT_APPRAISAL_REPORT` | `laporan-penilaian.md` | Konstruktor KosToken (transaksi 1) |
+| `DOCUMENT_MANAGEMENT_AGREEMENT` | `perjanjian-pengelolaan.md` | `anchorDocument` dari admin (transaksi 3) |
+
+- Nama file ditulis eksplisit di `scripts/lib/issuance-documents.ts`. Folder itu juga berisi `README.md` yang bukan dokumen untuk dicatat, jadi skrip tidak membaca seluruh folder.
+- Hash = SHA-256 byte file apa adanya, ditulis sebagai `bytes32` berawalan `0x`. Siapa pun bisa mencocokkannya dengan `sha256sum` atau `Get-FileHash` lalu membandingkan dengan `currentDocumentHash` di Etherscan.
+- File teks yang memakai akhir baris CRLF atau diawali BOM ditolak. `.gitattributes` menyimpan file teks dengan LF di semua laptop, jadi CRLF atau BOM berarti file berubah setelah diambil dari Git dan hash-nya tidak akan sama dengan versi repo.
+- Variabel `ISSUANCE_DOCS_DIR` boleh menunjuk folder lain hanya untuk gladi lokal; di Sepolia skrip menolaknya.
+- Isi ketiga file tidak boleh diubah setelah deploy Sepolia. Perubahan berarti versi baru lewat `anchorDocument` oleh admin, dan riwayat versi lama tetap tersimpan (bagian 3.6).
+
+### 8.4 Peran setelah deploy
+
+Semua peran diberikan konstruktor; skrip tidak memanggil `grantRole`. Pemeriksaan pasca-deploy memastikan setiap sel tabel ini, termasuk sel "tidak":
+
+| Peran | KosToken | KosLedger |
+|---|---|---|
+| `DEFAULT_ADMIN_ROLE` | admin | admin |
+| `OPERATOR_ROLE` | operator | operator |
+| `KYC_ROLE` | operator | (tidak ada peran ini) |
+| `PAUSER_ROLE` | admin dan operator | admin dan operator |
+
+Pemilik lama dan perbendaharaan tidak memegang peran apa pun. Admin tidak memegang `OPERATOR_ROLE` maupun `KYC_ROLE`, operator tidak memegang `DEFAULT_ADMIN_ROLE`.
+
+### 8.5 Gas terukur dan kebutuhan ETH
+
+Gladi di Hardhat node lokal (profil `production`, 4 Nov 2026):
+
+| Transaksi | Gas |
+|---|---|
+| Deploy KosToken (termasuk dua dokumen versi 1) | 3.073.916 |
+| Deploy KosLedger | 1.162.028 |
+| `anchorDocument` perjanjian pengelolaan | 71.439 |
+| **Total** | **4.307.383** |
+
+Perkiraan ETH Sepolia tiap dompet ada di [`deploy-sepolia.md`](deploy-sepolia.md) bagian 2.
+
+### 8.6 Verifikasi Etherscan
+
+`scripts/verify.ts` membaca `deployments/sepolia.json`, lalu untuk setiap kontrak:
+
+1. Membandingkan bytecode di chain dengan artifact hasil build `production`, setelah nilai immutable (alamat perbendaharaan, tarif, domain EIP-712) dinolkan. Bila berbeda, verifikasi pasti gagal, jadi skrip berhenti sebelum mengirim apa pun.
+2. Mengirim kode sumber dan argumen konstruktor yang tercatat saat deploy ke Etherscan lewat `verifyContract` dari `@nomicfoundation/hardhat-verify`.
+3. Menulis status verifikasi dan tautan `#code` ke berkas hasil.
+
+Verifikasi tidak membutuhkan ETH, hanya `ETHERSCAN_API_KEY`. Di jaringan lokal hanya langkah 1 yang berjalan.
+
+### 8.7 Keamanan deploy
+
+| Butir | Penanganan |
+|---|---|
+| Kunci di repo | Tidak ada. Kunci hanya di `contracts/.env` (diabaikan Git) atau keystore terenkripsi Hardhat. Skrip hanya mencetak alamat; pesan error Hardhat untuk kunci tidak valid hanya menyebut nama variabel |
+| Kunci admin di backend | Tidak pernah. Backend hanya memegang kunci operator |
+| Salah jaringan | Hanya chain 11155111 dan 31337 yang diterima |
+| Salah alamat | Validasi format, alamat nol, alamat kembar, dan pencocokan dengan kunci admin dan operator |
+| Hash ditulis tangan | Ditolak di file parameter; hash selalu dihitung dari file |
+| Deploy setengah jalan | Ignition melanjutkan dari jejak; pemeriksaan pasca-deploy wajib lulus sebelum berkas hasil ditulis |
+| Bytecode berbeda dari yang diverifikasi | Profil `production` diwajibkan; verifikasi didahului perbandingan bytecode |
