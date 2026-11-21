@@ -15,6 +15,11 @@
     "coverage": "hardhat test --coverage",
     "typecheck": "hardhat build && tsc --noEmit",
     "export-abi": "hardhat run scripts/export-abi.ts",
+    "node:local": "hardhat node --port 8546",
+    "deploy:local": "hardhat run --build-profile production --network local8546 scripts/deploy.ts",
+    "verify:local": "hardhat run --build-profile production --network local8546 scripts/verify.ts",
+    "deploy:sepolia": "hardhat run --build-profile production --network sepolia scripts/deploy.ts",
+    "verify:sepolia": "hardhat run --build-profile production --network sepolia scripts/verify.ts",
     "clean": "hardhat clean"
   },
   "dependencies": {

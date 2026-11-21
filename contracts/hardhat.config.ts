@@ -48,11 +48,23 @@ export default defineConfig({
     },
   },
   networks: {
+    // Akun pertama = dompet admin (penanda tangan deploy dan pencatat dokumen).
+    // Akun kedua = dompet operator, dimuat hanya supaya skrip deploy bisa memastikan
+    // alamat operator di ignition/parameters/sepolia.json sama dengan kuncinya.
+    // Skrip deploy tidak mengirim transaksi dari dompet operator.
     sepolia: {
       type: "http",
       chainType: "l1",
       url: configVariable("SEPOLIA_RPC_URL"),
-      accounts: [configVariable("OPERATOR_PRIVATE_KEY")],
+      accounts: [configVariable("ADMIN_PRIVATE_KEY"), configVariable("OPERATOR_PRIVATE_KEY")],
+    },
+    // Hardhat node khusus kontrak (`npm run node:local`, port 8546) untuk gladi
+    // deploy. Port 8545 dipakai Hardhat node layanan blockchain backend (jaringan
+    // `localhost` bawaan Hardhat). Akun diambil dari node: akun bawaan Hardhat.
+    local8546: {
+      type: "http",
+      chainType: "l1",
+      url: "http://127.0.0.1:8546",
     },
   },
   verify: {
