@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
 
+import { KycReview } from "@/components/admin/kyc-review";
 import { AppHeader } from "@/components/app-shell/app-header";
-import { ContentSkeleton } from "@/components/app-shell/content-skeleton";
 
 export const metadata: Metadata = { title: "Verifikasi KYC" };
 
 /**
- * Persetujuan KYC investor oleh admin.
- * Progress 1: kerangka memuat sesuai desain app shell; isinya dibangun di progress 3.
+ * Persetujuan KYC investor oleh admin: tabel bertab, Sheet tinjau dengan
+ * pemeriksaan otomatis, dan Dialog tolak. Menyetujui membuat dompet kustodian
+ * dan job whitelist on-chain di backend.
  */
 export default function AdminKycPage() {
   return (
     <>
-      <AppHeader title="Verifikasi KYC" description="Pengajuan KYC investor" />
-      <ContentSkeleton />
+      <AppHeader title="Verifikasi KYC" description="Pengajuan KYC investor (data dummy)" />
+      <KycReview />
     </>
   );
 }
