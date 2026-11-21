@@ -146,4 +146,21 @@ Sisa pembulatan = **Rp7**, tetap lebih kecil dari jumlah pemegang (8).
 
 1. Hitung ulang satu kasus dengan kalkulator mengikuti tabel aturan di bagian 1.
 2. Cocokkan hasilnya dengan kasus yang sama di fixture. Nama field fixture mengikuti kolom terakhir bagian 1.
-3. Di P2, test `closePeriod` memakai angka kasus 1 yang ditulis langsung di file test. Mulai P3, test membaca fixture ini.
+3. Di P2, test `closePeriod` memakai angka kasus 1 yang ditulis langsung di file test. Mulai P3, test kontrak dan test kalkulator backend sama-sama membaca fixture ini.
+
+## 8. Kalkulator backend
+
+Mulai P3, aturan bagian 1 juga tersedia sebagai fungsi murni di [`backend/src/finance/`](../../backend/src/finance/). Semua nominal bertipe `bigint` dan setiap pembagian dibulatkan ke bawah, sama dengan `Math.mulDiv` di `KosLedger`.
+
+| Langkah di bagian 1 | Fungsi | Padanan di `KosLedger` |
+|---|---|---|
+| 3 | `calculatePlatformFee(sewaKotor)` | `platformFee` di `closePeriod` |
+| 4 | `calculateTaxableProfit(sewaKotor, fee, biaya)` | `Math.saturatingSub` di `closePeriod` |
+| 5 | `calculateTax(labaKenaPajak)` | `tax` |
+| 3 sampai 7 sekaligus | `calculatePeriod({ grossRent, totalExpenses, totalSupply })` | `closePeriod`, termasuk penolakan periode kosong dan suplai 0 |
+| 7 | `calculateValuePerTokenSen(sewaBersih, totalSuplai)` | `valuePerTokenSen` |
+| 8 | `calculateShare(sewaBersih, saldo, totalSuplai)` | `shareOf` |
+| 8 dan 9 untuk semua pemegang | `distribute(sewaBersih, totalSuplai, pemegang)` | dihitung backend; jumlah saldo wajib sama dengan total suplai |
+| Fee penawaran 3% | `settleOffering(tokenTerjual, hargaToken)` | tidak ada di kontrak |
+
+Test `backend/src/finance/distribution.test.ts` mencocokkan keempat kasus fixture, termasuk bagian setiap pemegang, sisa pembulatan, dan defisit. Jalankan dengan `npm test` dari folder `backend`.

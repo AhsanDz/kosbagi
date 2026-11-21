@@ -3,7 +3,10 @@
 // Seed idempoten, jadi aman dijalankan berulang:
 // - akun, properti, dan kamar disamakan dengan prisma/seed/data.ts;
 // - tagihan hanya dibuat bila belum ada. Tagihan yang sudah ada tidak disentuh, sehingga
-//   pembayaran yang terjadi saat demo tidak kembali menjadi belum dibayar.
+//   pembayaran yang terjadi saat demo tidak kembali menjadi belum dibayar;
+// - pengajuan KYC hanya dibuat untuk investor yang belum punya pengajuan sama sekali, sehingga
+//   persetujuan atau penolakan saat demo tidak tertimpa;
+// - penawaran hanya dibuat bila properti belum punya penawaran. Token terjual tidak disentuh.
 //
 // Sengaja membuat PrismaClient sendiri, tidak memakai src/lib/prisma.ts, karena file itu
 // memvalidasi seluruh environment server. Seed hanya butuh DATABASE_URL.
@@ -12,11 +15,15 @@ import { config as loadEnv } from 'dotenv';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { hashPassword, verifyPassword } from '../src/lib/password.js';
 import {
+  ADMIN_ACCOUNT,
+  CURRENT_PERIOD,
   DEMO_PASSWORD,
   MANAGER_ACCOUNT,
   MONTHLY_RENT_IDR,
   SEED_ACCOUNTS,
   SEED_BILLS,
+  SEED_KYC_SUBMISSIONS,
+  SEED_OFFERING,
   SEED_PROPERTY,
   SEED_ROOMS,
 } from './seed/data.js';
@@ -113,11 +120,55 @@ async function main(): Promise<void> {
       }
       const billsAfter = await tx.bill.count();
 
+      // Pengajuan KYC. Investor yang sudah punya pengajuan apa pun (dari seed sebelumnya atau
+      // dari demo) dilewati seluruhnya, jadi status yang berubah saat demo tetap apa adanya.
+      const adminId = findUserId(ADMIN_ACCOUNT.email);
+      const applicantIds = [...new Set(SEED_KYC_SUBMISSIONS.map((submission) => findUserId(submission.email)))];
+      const existingApplicants = await tx.kycSubmission.findMany({
+        where: { userId: { in: applicantIds } },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+      const skippedApplicants = new Set(existingApplicants.map((submission) => submission.userId));
+
+      let kycCreated = 0;
+      for (const submission of SEED_KYC_SUBMISSIONS) {
+        const userId = findUserId(submission.email);
+        if (skippedApplicants.has(userId)) continue;
+
+        await tx.kycSubmission.create({
+          data: {
+            userId,
+            fullName: submission.fullName,
+            dummyIdNumber: submission.dummyIdNumber,
+            status: submission.status,
+            rejectionReason: submission.review?.reason ?? null,
+            reviewedById: submission.review ? adminId : null,
+            reviewedAt: submission.review?.reviewedAt ?? null,
+            createdAt: submission.submittedAt,
+          },
+          select: { id: true },
+        });
+        kycCreated += 1;
+      }
+
+      // Penawaran. Tabel ini tidak punya kunci unik per properti, jadi dicek dulu.
+      const existingOffering = await tx.offering.findFirst({
+        where: { propertyId: property.id },
+        select: { id: true },
+      });
+      if (!existingOffering) {
+        await tx.offering.create({ data: { ...SEED_OFFERING, propertyId: property.id }, select: { id: true } });
+      }
+
       return {
         accounts: SEED_ACCOUNTS.length,
         rooms: SEED_ROOMS.length,
         billsCreated: billsAfter - billsBefore,
         billsKept: SEED_BILLS.length - (billsAfter - billsBefore),
+        kycCreated,
+        kycApplicantsKept: skippedApplicants.size,
+        offeringCreated: !existingOffering,
       };
     },
     { timeout: 30_000 },
@@ -127,7 +178,31 @@ async function main(): Promise<void> {
     `Seed selesai: ${summary.accounts} akun, 1 properti, ${summary.rooms} kamar, ` +
       `${summary.billsCreated} tagihan baru, ${summary.billsKept} tagihan lama dibiarkan.`,
   );
+  console.log(
+    `KYC: ${summary.kycCreated} pengajuan baru, ${summary.kycApplicantsKept} investor dengan pengajuan lama dibiarkan. ` +
+      `Penawaran ${SEED_PROPERTY.tokenSymbol}: ${summary.offeringCreated ? 'dibuat' : 'sudah ada, dibiarkan'}.`,
+  );
   console.log(`Kata sandi semua akun demo: ${DEMO_PASSWORD}`);
+
+  await warnAboutLegacyPaidBills();
+}
+
+/**
+ * Seed progress 2 membuat enam tagihan November yang langsung lunas tanpa pembayaran Midtrans.
+ * Tagihan itu tidak disentuh seed ini, tetapi tidak pernah bisa tercatat on-chain. Bila masih
+ * ada, beri tahu cara mengosongkan basis data lokal.
+ */
+async function warnAboutLegacyPaidBills(): Promise<void> {
+  const legacyPaid = await prisma.bill.count({
+    where: { period: CURRENT_PERIOD, status: 'PAID', payments: { none: {} } },
+  });
+  if (legacyPaid === 0) return;
+
+  console.warn(
+    `Perhatian: ${legacyPaid} tagihan ${CURRENT_PERIOD} lunas tanpa pembayaran Midtrans (data seed progress 2). ` +
+      'Tagihan ini tidak akan pernah tercatat di blockchain. Untuk memulai demo dari awal, jalankan ' +
+      '`npx prisma migrate reset --force` lalu `npm run db:seed`. Semua data di basis data lokal terhapus.',
+  );
 }
 
 try {

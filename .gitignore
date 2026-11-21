@@ -1,5 +1,8 @@
 # Dependensi
 node_modules/
+# Root repo tidak punya package.json; lockfile di sini muncul bila npm tidak sengaja
+# dijalankan di root. Lockfile backend, contracts, dan frontend tetap di-commit.
+/package-lock.json
 
 # Rahasia: jangan pernah di-commit (yang boleh hanya .env.example)
 .env
