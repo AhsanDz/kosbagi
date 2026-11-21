@@ -15,7 +15,9 @@ export function AppHeader({ title, description }: { title: string; description: 
   const property = kosSumbersari01;
 
   return (
-    <header className="flex items-center justify-between gap-2 border-b border-border bg-card py-3 pr-4 pl-2 md:gap-4 md:px-8 md:py-4">
+    <header
+      data-print-hide
+      className="flex items-center justify-between gap-2 border-b border-border bg-card py-3 pr-4 pl-2 md:gap-4 md:px-8 md:py-4">
       <div className="flex min-w-0 items-center gap-1">
         <SidebarTrigger
           size="icon-lg"

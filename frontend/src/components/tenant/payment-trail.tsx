@@ -23,6 +23,7 @@ const activeStepByState: Record<BillViewState, number> = {
   PAID_QUEUED: LAST_STEP,
   PAID_RECORDED: LAST_STEP,
   PAID_CHAIN_FAILED: LAST_STEP,
+  PAID_NOT_RECORDED: LAST_STEP,
 };
 
 function describeState(state: BillViewState, period: string) {
@@ -37,6 +38,8 @@ function describeState(state: BillViewState, period: string) {
       return "Selesai. Siapa pun bisa memeriksa catatan ini di Etherscan.";
     case "PAID_CHAIN_FAILED":
       return "Tagihan tetap lunas. Operator mengulang pencatatan ke Sepolia.";
+    case "PAID_NOT_RECORDED":
+      return "Tagihan lunas sebelum pencatatan on-chain dimulai, jadi tidak ada di Sepolia.";
     default:
       return `Belum ada pembayaran untuk ${formatPeriod(period)}.`;
   }
@@ -58,6 +61,9 @@ function StepDot({ index, active, state }: { index: number; active: number; stat
         <XIcon aria-hidden className="size-3" />
       </span>
     );
+  }
+  if (index === LAST_STEP && state === "PAID_NOT_RECORDED") {
+    return <span className={cn(baseClass, "border-[1.5px] border-muted-foreground bg-card")} />;
   }
   if (index < active) {
     return (

@@ -1,3 +1,4 @@
+import { TearLine } from "@/components/common/tear-line";
 import { BillSlipActions } from "@/components/tenant/bill-slip-actions";
 import { BillSummary } from "@/components/tenant/bill-summary";
 import { RecordedStamp } from "@/components/tenant/recorded-stamp";
@@ -11,17 +12,6 @@ interface BillSlipProps {
   room: TenantRoomDto | null;
   state: BillViewState;
   className?: string;
-}
-
-/** Garis sobek dengan dua takik berwarna latar halaman, seperti kuitansi disobek. */
-function TearLine() {
-  return (
-    <div aria-hidden className="relative h-0.5 text-border">
-      <div className="dash-line h-[1.5px]" />
-      <span className="absolute -top-[7px] -left-2 size-4 rounded-full bg-background" />
-      <span className="absolute -top-[7px] -right-2 size-4 rounded-full bg-background" />
-    </div>
-  );
 }
 
 /**

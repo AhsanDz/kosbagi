@@ -23,8 +23,11 @@ export type BillStatus =
   | "FAILED"
   | "CANCELLED";
 
-/** Status transaksi blockchain (Figma: komponen "Status on-chain"). */
-export type ChainTxStatus = "QUEUED" | "SENT" | "CONFIRMED" | "FAILED";
+/**
+ * Status transaksi blockchain (Figma: komponen "Status on-chain"). NOT_RECORDED
+ * untuk data lampau yang lunas sebelum pencatatan on-chain ada: tanpa tautan.
+ */
+export type ChainTxStatus = "QUEUED" | "SENT" | "CONFIRMED" | "FAILED" | "NOT_RECORDED";
 
 /** Sewa satu kamar pada periode berjalan, dasar "Papan kamar". */
 export interface RoomRent {
@@ -92,7 +95,11 @@ export interface ChainTransaction {
 /** Dokumen properti yang hash-nya dicatat di KosToken saat penerbitan. */
 export interface PropertyDocument {
   title: string;
+  /** Nama file di docs/bisnis/dokumen-penerbitan. */
+  fileName: string;
   fileInfo: string;
+  /** SHA-256 isi file dengan awalan 0x, sama dengan bytes32 yang disimpan KosToken. */
+  contentHash: HexString;
   chainStatus: ChainTxStatus;
   txHash: HexString;
 }

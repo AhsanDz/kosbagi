@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import Link from "next/link";
 import {
   CircleNotchIcon,
   InfoIcon,
@@ -14,7 +15,7 @@ import { useTenantBilling } from "@/components/tenant/tenant-billing-provider";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { BillDto } from "@/lib/api/types";
-import { PAID_VIEW_STATES, type BillViewState } from "@/lib/billing";
+import { PAID_VIEW_STATES, receiptHref, type BillViewState } from "@/lib/billing";
 
 function PayButton({ label, onClick }: { label: string; onClick: () => void }) {
   const { paying } = useTenantBilling();
@@ -31,8 +32,8 @@ function PayButton({ label, onClick }: { label: string; onClick: () => void }) {
 
 /**
  * Bagian bawah Slip tagihan dan Slip ringkas: isi dan tombolnya mengikuti
- * keadaan tagihan. Tombol Lihat kuitansi menyusul di progress 3, saat halaman
- * /penghuni/tagihan/[id] sudah ada.
+ * keadaan tagihan. Tagihan lunas mendapat tombol Lihat kuitansi ke
+ * /penghuni/tagihan/[id].
  */
 export function BillSlipActions({ bill, state }: { bill: BillDto; state: BillViewState }) {
   const { startPayment, resumePayment, markPaymentExpired } = useTenantBilling();
@@ -43,7 +44,14 @@ export function BillSlipActions({ bill, state }: { bill: BillDto; state: BillVie
   }, [paymentId, markPaymentExpired]);
 
   if (PAID_VIEW_STATES.includes(state)) {
-    return <ChainStatusStack chain={bill.chain} />;
+    return (
+      <>
+        <ChainStatusStack chain={bill.chain} />
+        <Button asChild variant="outline" className="w-full">
+          <Link href={receiptHref(bill.id)}>Lihat kuitansi</Link>
+        </Button>
+      </>
+    );
   }
 
   if (state === "PENDING" && bill.payment) {

@@ -107,6 +107,17 @@ export function formatDateTime(value: string | Date): string {
   return `${dateFormatter.format(date)}, ${timeFormatter.format(date)}`;
 }
 
+/** "2026-11-09T03:42:00.000Z" -> "9 Nov 2026, 10.42 WIB" (kuitansi, KYC). */
+export function formatDateTimeWib(value: string | Date): string {
+  return `${formatDateTime(value)} WIB`;
+}
+
+/** "2026-11-09T07:27:00.000Z" -> "14.27 WIB" (batas pesanan token). */
+export function formatTimeWib(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return `${timeFormatter.format(date)} WIB`;
+}
+
 /** "2026-08" -> "Agu 2026". */
 export function formatMonthYear(period: string): string {
   return monthYearFormatter.format(new Date(`${period}-01T00:00:00+07:00`));

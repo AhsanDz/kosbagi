@@ -1,7 +1,11 @@
 import { TrayIcon } from "@phosphor-icons/react/ssr";
 
 import { TextLink } from "@/components/common/text-link";
-import { HistoryListItem, HistoryTableRow } from "@/components/tenant/history-row";
+import {
+  HISTORY_CELL_CLASS,
+  HistoryListItem,
+  HistoryTableRow,
+} from "@/components/tenant/history-row";
 import {
   Empty,
   EmptyDescription,
@@ -30,8 +34,12 @@ const SUMMARY_ROW_LIMIT = 4;
 
 /**
  * Kartu riwayat (Figma: "Kartu riwayat"). Bentuknya mengikuti lebar kartu, bukan
- * lebar layar: tabel butuh minimal 560 px, jadi di kolom yang sempit (mis.
- * laptop 1280 px) kartu tetap memakai daftar seperti di ponsel.
+ * lebar layar: tabel dengan kolom Aksi dipakai bila kartu minimal 608 px, jadi
+ * di kolom yang sempit (mis. laptop 1280 px) kartu tetap memakai daftar seperti
+ * di ponsel. Lebar kolom tidak dipatok dan jarak antarsel 12 px, sehingga di
+ * kolom kanan /penghuni/tagihan pada 1440 px (648 px) tabel masih punya sisa
+ * ruang dan tidak menggulir mendatar. Bila tetap sempit, status on-chain
+ * dilipat ke baris kedua, bukan mendorong kolom Aksi keluar kartu.
  */
 export function HistoryCard({ bills, summary = false, className }: HistoryCardProps) {
   const rows = summary ? bills.slice(0, SUMMARY_ROW_LIMIT) : bills;
@@ -63,21 +71,22 @@ export function HistoryCard({ bills, summary = false, className }: HistoryCardPr
         className
       )}
     >
-      <div className="flex items-center justify-between gap-4 px-4 pt-5 pb-3.5 @min-[35rem]:px-6">
+      <div className="flex items-center justify-between gap-4 px-4 pt-5 pb-3.5 @min-[38rem]:px-6">
         <h2 id="judul-riwayat" className="text-h5 font-semibold">
           Riwayat pembayaran
         </h2>
         {summary ? <TextLink href="/penghuni/tagihan">Semua tagihan</TextLink> : null}
       </div>
 
-      <div className="hidden @min-[35rem]:block">
+      <div className="hidden @min-[38rem]:block">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[136px]">Periode</TableHead>
-              <TableHead className="w-[116px]">Nominal</TableHead>
-              <TableHead className="w-[104px]">Dibayar</TableHead>
-              <TableHead>On-chain</TableHead>
+              <TableHead className={HISTORY_CELL_CLASS}>Periode</TableHead>
+              <TableHead className={HISTORY_CELL_CLASS}>Nominal</TableHead>
+              <TableHead className={HISTORY_CELL_CLASS}>Dibayar</TableHead>
+              <TableHead className={HISTORY_CELL_CLASS}>On-chain</TableHead>
+              <TableHead className={HISTORY_CELL_CLASS}>Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -88,7 +97,7 @@ export function HistoryCard({ bills, summary = false, className }: HistoryCardPr
         </Table>
       </div>
 
-      <ul className="@min-[35rem]:hidden">
+      <ul className="@min-[38rem]:hidden">
         {rows.map((bill) => (
           <HistoryListItem key={bill.id} bill={bill} />
         ))}
