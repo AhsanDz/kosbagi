@@ -48,7 +48,7 @@ Status: versi P1 (29 Okt 2026). Cerita dan kriterianya difinalkan di P4 bersama 
 | [US-INV-04](#us-inv-04-pesanan-melebihi-sisa-penawaran-ditolak) | Pesanan melebihi sisa penawaran ditolak | Wajib | P3 | | S8 |
 | [US-INV-05](#us-inv-05-pesanan-melebihi-batas-kepemilikan-10-ditolak) | Pesanan melebihi batas kepemilikan 10% ditolak | Wajib | P1, P3 | | S9, S10 |
 | [US-INV-06](#us-inv-06-melihat-portofolio-dan-bagi-hasil) | Melihat portofolio dan bagi hasil | Wajib | P4 | D5 | |
-| [US-INV-07](#us-inv-07-melihat-riwayat-dan-status-on-chain) | Melihat riwayat dan status on-chain | Wajib | P3, P4 | D5 | |
+| [US-INV-07](#us-inv-07-melihat-riwayat-dan-status-on-chain) | Melihat riwayat dan status on-chain | Wajib | P4 | D5 | |
 | [US-INV-08](#us-inv-08-melihat-ringkasan-investor) | Melihat ringkasan investor | Sebaiknya | P3, P4 | | |
 | [US-INV-09](#us-inv-09-menarik-saldo-bagi-hasil) | Menarik saldo bagi hasil | Opsional | P5 | | |
 | [US-INV-10](#us-inv-10-memberi-suara-on-chain) | Memberi suara on-chain | Opsional | P4, P5 | | |
@@ -281,20 +281,27 @@ Prioritas sebaiknya, dibangun di P2 (halaman jalur 1, endpoint `POST /api/owner-
 Prioritas wajib, API KYC di P2 dan halaman serta whitelist on-chain di P3, menu Verifikasi KYC (`/investor/kyc`). Terkait demo D1.
 
 - *Belum mengajukan*
-  - **Given** status KYC investor "Belum mengajukan"
-  - **When** investor membuka Penawaran
-  - **Then** pembelian terkunci dan ada ajakan untuk melengkapi Verifikasi KYC
+  - **Given** Dimas belum pernah mengajukan KYC
+  - **When** membuka Verifikasi KYC
+  - **Then** tampil form "Data identitas dummy" dengan dua isian (Nama lengkap, Nomor identitas dummy), centang "Saya memakai data dummy, bukan data pribadi asli.", dan Jejak KYC empat tahap di kanan
+  - **And** Penawaran menampilkan "Verifikasi KYC dulu" dengan tombol Verifikasi KYC, tanpa tombol Bayar
+- *Form error*
+  - **Given** nama kosong dan nomor identitas tidak berawalan `DUMMY-`
+  - **When** investor menekan Ajukan verifikasi
+  - **Then** tidak ada data yang dikirim, isian salah diberi garis merah, dan pesan "Nama lengkap wajib diisi." serta "Nomor identitas harus berawalan DUMMY-. Jangan memakai nomor KTP asli." tampil di bawah isiannya
 - *Mengajukan*
-  - **Given** form KYC diisi data dummy
+  - **Given** isian valid dan centang data dummy dicentang
   - **When** investor mengirimnya
-  - **Then** status berubah menjadi "Diajukan"
-  - **And** form menegaskan larangan memakai KTP atau data pribadi asli
-- *Disetujui*
+  - **Then** form diganti Kartu status KYC "Pengajuanmu sedang ditinjau" berbadge "Diajukan", dan Jejak KYC maju ke tahap "Admin meninjau"
+- *Disetujui, dompet sedang didaftarkan*
   - **Given** admin menyetujui pengajuan ([US-ADM-01](#us-adm-01-menyetujui-atau-menolak-kyc))
-  - **Then** status menjadi "Disetujui" dan alamat dompet kustodian investor tercatat lolos KYC di KosToken dengan tautan Etherscan
+  - **Then** kartu menampilkan "KYC disetujui, dompet sedang didaftarkan", alamat dompet kustodian 6+4, dan "Menunggu pencatatan on-chain"; tombol "Beli token KB-SMR01" masih nonaktif
+- *Dompet tercatat*
+  - **When** worker selesai mencatat `setKycStatus` di KosToken
+  - **Then** halaman berubah sendiri menjadi "Kamu sudah bisa membeli token" dengan "Tercatat di blockchain", hash 6+4, nomor blok, dan tautan Etherscan, lalu tombol "Beli token KB-SMR01" aktif
 - *Ditolak*
   - **Given** admin menolak dengan alasan
-  - **Then** investor melihat status "Ditolak" beserta alasannya dan bisa mengajukan ulang
+  - **Then** kartu "Pengajuanmu ditolak" menampilkan "Alasan dari admin", Jejak KYC menandai "Pengajuan ditolak", dan form "Ajukan lagi" muncul di bawah kartu dengan data sebelumnya
 
 ### US-INV-02 Melihat penawaran dan sisa kuota
 
@@ -303,30 +310,41 @@ Prioritas wajib, API KYC di P2 dan halaman serta whitelist on-chain di P3, menu 
 Prioritas wajib, dibangun di P3, menu Penawaran (`/investor/penawaran`). Terkait demo D1.
 
 - *Kuota awal*
-  - **Given** investor lolos KYC dan belum memegang token
+  - **Given** dompet kustodian investor sudah tercatat lolos KYC dan investor belum memegang token
   - **When** membuka Penawaran
-  - **Then** tampil "Sisa penawaran 8.240 token" dan "Sisa kuota kamu 1.800 token"
+  - **Then** Ringkasan penawaran menampilkan "8.240 token tersisa dari 12.600", dan Tiket beli menampilkan "Sisa penawaran 8.240 token" serta "Sisa kuota kamu 1.800 token"
 - *Hitungan langsung*
   - **When** investor mengisi 100 token
-  - **Then** total pembayaran Rp10.000.000 dan "Estimasi bagi hasil ±Rp43.875 per bulan untuk 100 token" langsung tampil
+  - **Then** total Rp10.000.000 dan "Estimasi bagi hasil ±Rp43.875 per bulan untuk 100 token." langsung tampil
+- *Token disisihkan*
+  - **Given** ada pesanan 100 token yang masih menunggu bayar
+  - **Then** kartu penawaran menulis "8.140 token tersisa" dan "4.360 terjual, 100 sedang dipesan"
+- *Tiket tetap terlihat*
+  - **Given** layar desktop
+  - **When** investor menggulir dokumen dan ringkasan risiko
+  - **Then** Tiket beli tetap terlihat di kolom kanan; di ponsel tiket berada tepat di bawah Ringkasan penawaran
 
 ### US-INV-03 Membeli token lewat Midtrans Snap
 
-> Sebagai investor, saya ingin membayar token lewat Midtrans dan melihat token masuk ke portofolio, supaya pembelian saya selesai dan bisa dibuktikan.
+> Sebagai investor, saya ingin membayar token lewat Midtrans dan melihat token masuk ke dompet kustodian saya, supaya pembelian saya selesai dan bisa dibuktikan.
 
 Prioritas wajib, dibangun di P3, menu Penawaran. Terkait demo D1 dan D5.
 
 - *Membayar*
-  - **Given** jumlah token valid
-  - **When** investor menekan tombol beli
-  - **Then** popup Snap sandbox terbuka dengan nominal jumlah token × Rp100.000 dan `order_id` berawalan `BUY-`
+  - **Given** jumlah token valid dan "Saya sudah membaca ringkasan risiko ..." dicentang
+  - **When** investor menekan "Bayar Rp10.000.000"
+  - **Then** popup Snap sandbox terbuka dengan `order_id` berawalan `BUY-`, tiket menjadi "Menunggu pembayaran" dengan hitung mundur 5 menit, dan token disisihkan untuk investor itu
+  - **And** di atas 100 token Snap hanya menawarkan virtual account, sesuai catatan di tiket
 - *Lunas lalu tercatat*
   - **When** investor menyelesaikan pembayaran di simulator sandbox
-  - **Then** pembelian menjadi lunas hanya setelah webhook Midtrans terverifikasi, lalu status on-chain bergerak dari "Menunggu pencatatan" ke "Tercatat" dengan tautan Etherscan transaksi pemindahan token
-  - **And** saldo token di portofolio bertambah sebanyak jumlah yang dibeli
-- *Tidak jadi membayar*
-  - **Given** investor menutup popup tanpa membayar
-  - **Then** tidak ada token yang berpindah dan investor bisa memesan ulang
+  - **Then** tiket menjadi "Memeriksa pembayaran" sampai webhook terverifikasi, lalu "100 token sedang dikirim" dengan "Menunggu pencatatan on-chain"
+  - **And** setelah worker memanggil `transferFromTreasury`, tiket menjadi "100 token sudah di dompetmu" dengan cap TERCATAT, hash 6+4, nomor blok, dan tautan Etherscan
+- *Kedaluwarsa atau gagal*
+  - **Given** batas 5 menit lewat atau Midtrans membatalkan transaksi
+  - **Then** tiket menjadi "Pesanan kedaluwarsa" atau "Pembayaran dibatalkan", token yang disisihkan dilepas lagi, dan "Buat pesanan baru" membuka form dengan jumlah yang sama
+- *Penawaran penuh*
+  - **Given** seluruh 12.600 token sudah terjual
+  - **Then** tiket menampilkan "Penawaran sudah penuh" tanpa form
 
 ### US-INV-04 Pesanan melebihi sisa penawaran ditolak
 
@@ -335,12 +353,12 @@ Prioritas wajib, dibangun di P3, menu Penawaran. Terkait demo D1 dan D5.
 Prioritas wajib, dibangun di P3, menu Penawaran. Skenario uji S8.
 
 - *Melebihi sisa*
-  - **Given** sisa penawaran 8.240 token
-  - **When** investor memesan 9.000 token
-  - **Then** pesanan ditolak sebelum transaksi Midtrans dibuat, field menampilkan "Melebihi sisa penawaran. Maksimal 8.240 token.", dan total pembayaran dicoret
+  - **Given** sisa penawaran 120 token
+  - **When** investor mengisi 200 token
+  - **Then** pesanan ditolak sebelum transaksi Midtrans dibuat: isian bergaris merah, pesan "Melebihi sisa penawaran. Maksimal 120 token." tampil di bawahnya, kotak "Sisa penawaran" berwarna merah, total diredupkan, dan tombol Bayar nonaktif
 - *Lewat API langsung*
   - **When** permintaan yang sama dikirim langsung ke API tanpa lewat halaman
-  - **Then** backend tetap menolaknya dan tidak ada transaksi Midtrans yang dibuat
+  - **Then** backend tetap menolaknya dengan `OFFERING_EXCEEDED` dan tidak ada transaksi Midtrans yang dibuat; halaman memperbarui sisa penawaran dari jawaban itu
 
 ### US-INV-05 Pesanan melebihi batas kepemilikan 10% ditolak
 
@@ -350,8 +368,12 @@ Prioritas wajib, lapis kontrak di P1 dan lapis backend serta halaman di P3, menu
 
 - *Ditolak sebelum bayar (S9)*
   - **Given** investor memegang 1.500 token
-  - **When** investor memesan 500 token
-  - **Then** pesanan ditolak sebelum transaksi Midtrans dibuat dengan pesan "Melebihi batas kepemilikan 10%. Sisa kuota kamu 300 token."
+  - **When** investor mengisi 500 token
+  - **Then** pesanan ditolak sebelum transaksi Midtrans dibuat dengan pesan "Melebihi batas kepemilikan 10%. Sisa kuota kamu 300 token.", kotak "Sisa kuota kamu" berwarna merah, dan tombol Bayar nonaktif
+  - **And** tiket menulis "Kamu sudah memegang 1.500 token KB-SMR01." dengan tombol "Pakai 300 token"
+- *Pakai sisa kuota*
+  - **When** investor menekan "Pakai 300 token"
+  - **Then** jumlah menjadi 300, pesan galat hilang, dan tombol berubah menjadi "Bayar Rp30.000.000" setelah risiko dicentang
 - *Ditolak kontrak (S10)*
   - **Given** sebuah transfer akan membuat saldo penerima melebihi 1.800 token
   - **When** transfer itu dijalankan di KosToken
@@ -375,7 +397,7 @@ Prioritas wajib, dibangun di P4, menu Portofolio (`/investor/portofolio`). Terka
 
 > Sebagai investor, saya ingin melihat riwayat pembelian dan bagi hasil beserta status on-chain-nya, supaya setiap transaksi saya bisa dicek.
 
-Prioritas wajib, pembelian di P3 dan distribusi di P4, bagian riwayat di menu Portofolio. Terkait demo D5.
+Prioritas wajib, dibangun di P4 di menu Portofolio. Status on-chain pembelian sudah tampil di Tiket beli sejak P3 ([US-INV-03](#us-inv-03-membeli-token-lewat-midtrans-snap)). Terkait demo D5.
 
 - *Status tiap baris*
   - **Given** investor punya pembelian dan bagi hasil
@@ -508,16 +530,27 @@ Prioritas wajib, lapis basis data dan webhook di P2, lapis kontrak di P3. Skenar
 
 > Sebagai penghuni, saya ingin kuitansi yang menyertakan bukti on-chain, supaya saya punya tanda bayar yang bisa diperiksa siapa pun.
 
-Prioritas wajib, dibangun di P3, dibuka dari baris tagihan. Terkait demo D2 dan D5.
+Prioritas wajib, dibangun di P3, halaman `/penghuni/tagihan/[id]` yang dibuka dari tombol "Lihat kuitansi" di slip dan tautan "Kuitansi" di kolom Aksi riwayat. Terkait demo D2 dan D5.
 
 - *Isi kuitansi*
-  - **Given** tagihan sudah lunas dan tercatat
+  - **Given** tagihan November 2026 sudah lunas dan tercatat
   - **When** penghuni membuka kuitansi
-  - **Then** tampil properti KB-SMR01, kamar K03, periode 2026-11, nominal Rp1.500.000, waktu dan metode bayar, `order_id`, referensi `keccak256` yang disingkat, tx hash 6+4, nomor blok, cap TERCATAT, dan tautan "Lihat di Etherscan"
-  - **And** kuitansi menyebut data yang tidak pernah dicatat on-chain: nama penghuni dan investor, nomor identitas, rekening, dan berkas nota
+  - **Then** Kuitansi sewa menampilkan nomor tagihan `RENT-SMR01-K03-2026-11`, "Sari Wulandari (dummy)", kamar, periode sewa, metode, waktu bayar, ID transaksi Midtrans, rincian dan total dibayar, serta cap TERCATAT
+  - **And** panel gelap "Yang tercatat di Sepolia" menampilkan argumen `recordRent` dengan nilai mentahnya dalam kurung supaya bisa dicocokkan dengan event `RentRecorded` di Etherscan: kamar `K03 (room = 3)`, periode `2026-11 (period = 202611)`, nominal `1.500.000 (amount = 1500000)`, dan `paymentRef` = `keccak256` nomor tagihan. Properti SMR01 ditandai "dari alamat kontrak" karena bukan argumen. Panel juga memuat hash transaksi dan blok, tombol "Lihat di Etherscan", dan baris "Tidak dicatat: nama penghuni, email, dan nomor virtual account."
 - *Belum tercatat*
   - **Given** pencatatan on-chain belum selesai
-  - **Then** kuitansi menampilkan "Menunggu pencatatan on-chain" tanpa cap TERCATAT
+  - **Then** status panel "Menunggu pencatatan", hash transaksi "Belum ada", tombol Etherscan nonaktif, tanpa cap TERCATAT, dan halaman diperbarui sendiri sampai tercatat
+- *Data lampau*
+  - **Given** tagihan Agu sampai Okt 2026 yang lunas tanpa pembayaran Midtrans
+  - **Then** riwayat menampilkan "Data lampau" tanpa tautan, dan panel kuitansi menyatakan tagihan itu tidak punya catatan on-chain
+  - **And** baris Nomor tagihan berbunyi "Data lampau, tanpa order Midtrans", catatan kaki tidak menyebut Midtrans sandbox, dan tombol "Salin nomor tagihan" tidak ada
+- *Cetak dan salin*
+  - **When** penghuni menekan "Cetak kuitansi"
+  - **Then** cetak peramban hanya memuat kartu kuitansi dengan warna terang
+  - **And** "Salin nomor tagihan" menyalin nomor tagihan lengkap (hanya di desktop)
+- *Tidak ditemukan*
+  - **Given** tagihan tidak ada, milik penghuni lain, atau belum lunas
+  - **Then** tampil "Kuitansi tidak ditemukan" dengan tombol "Kembali ke Tagihan"
 
 ### US-PHN-08 Mengetahui status bila pencatatan on-chain gagal
 
@@ -528,6 +561,7 @@ Prioritas sebaiknya, dibangun di P3, menu Tagihan dan kuitansi.
 - *Gagal dicatat*
   - **Given** worker gagal mencatat setelah semua percobaan otomatis
   - **Then** tagihan tetap "Lunas" dan status on-chain menunjukkan "Pencatatan on-chain gagal" dengan keterangan "Jaringan Sepolia tidak merespons. Pembayaranmu tetap lunas di sistem."
+  - **And** panel kuitansi menulis "Gagal dicatat, diulang operator" dan menegaskan penghuni tidak perlu membayar lagi
   - **And** penghuni tidak mendapat tombol apa pun, karena pengulangan pencatatan adalah tugas operator
 - *Diulang operator*
   - **When** admin menekan "Coba lagi" di antrean admin (P4)
@@ -576,13 +610,20 @@ Prioritas wajib, dibangun di P4, menu Biaya dan nota (`/pengelola/biaya`). Terka
 
 Prioritas wajib, dibangun di P3, menu Verifikasi KYC (`/admin/kyc`). Terkait demo D1.
 
+- *Daftar bertab*
+  - **Given** admin membuka Verifikasi KYC
+  - **Then** tampil tab "Menunggu", "Disetujui", dan "Ditolak" dengan jumlahnya, serta tabel investor dummy, nomor identitas, waktu pengajuan, dompet kustodian, status, dan aksi
+- *Meninjau*
+  - **When** admin menekan baris atau tombol Tinjau
+  - **Then** Sheet tinjau terbuka di kanan berisi data pengajuan dan "Pemeriksaan otomatis" dari backend: nomor berawalan `DUMMY-`, nama sama dengan nama akun, dan tidak ada pengajuan aktif lain
 - *Menyetujui*
-  - **Given** ada pengajuan berstatus "Diajukan"
-  - **When** admin menekan Setujui dan mengonfirmasi
-  - **Then** status investor menjadi "Disetujui", job whitelist masuk antrean, dan setelah worker memanggil `setKycStatus`, status on-chain-nya "Tercatat" dengan tautan Etherscan
+  - **When** admin menekan Setujui
+  - **Then** backend membuat dompet kustodian dan job whitelist dalam satu transaksi, toast "Pengajuan Dimas Pratama disetujui" muncul, dan Sheet menampilkan dompet beserta "Menunggu pencatatan on-chain"
+  - **And** setelah worker memanggil `setKycStatus`, Sheet dan kolom Status tab Disetujui menampilkan "Tercatat" dengan tautan Etherscan
 - *Menolak*
-  - **When** admin menolak pengajuan
-  - **Then** admin wajib mengisi alasan, dan investor melihat status "Ditolak" beserta alasannya
+  - **When** admin menekan Tolak
+  - **Then** Dialog tolak meminta alasan; tanpa alasan muncul "Alasan wajib diisi supaya investor tahu apa yang harus diperbaiki."
+  - **And** setelah dikirim, investor melihat status "Ditolak" beserta alasannya
 
 ### US-ADM-02 Menutup periode
 
