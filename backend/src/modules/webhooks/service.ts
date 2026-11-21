@@ -1,24 +1,21 @@
 // Memproses notifikasi Midtrans yang signature-nya sudah lolos. Ini satu-satunya tempat di
-// aplikasi yang mengubah tagihan menjadi lunas.
+// aplikasi yang mengubah tagihan sewa (RENT-) atau pesanan token (BUY-) menjadi lunas.
 //
-// Keputusan memakai jawaban API status Midtrans, bukan isi notifikasi. Di P2 hanya order RENT-
-// yang diproses; pembelian token (BUY-) ditambahkan di P3.
-import type { PaymentAnomalyType } from '../../generated/prisma/enums.js';
+// Keputusan memakai jawaban API status Midtrans, bukan isi notifikasi. Aturan anti ganda,
+// status monotonik, dan anomali sama untuk kedua jenis order; bedanya hanya di apa yang dilunasi
+// dan job blockchain yang ditulis (RECORD_RENT atau TRANSFER_TOKENS).
 import type { Prisma } from '../../generated/prisma/client.js';
 import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { prisma } from '../../lib/prisma.js';
 import { writeRecordRentJob } from '../../queue/outbox.js';
 import { midtrans, MidtransUnavailableError, type TransactionStatus } from '../payments/midtrans.js';
+import { isOrderIdTakenAttempt } from '../payments/service.js';
 import { classifyTransaction, parseGrossAmount } from '../payments/status.js';
+import { closePurchaseAttempt, type PurchasePayment, purchaseForSettlement, settleTokenPurchase } from './purchase.js';
+import { providerFields, recordAnomaly, updateOpenAttempt, type WebhookOutcome } from './records.js';
 
-export type WebhookOutcome =
-  | 'SETTLED' // tagihan menjadi lunas
-  | 'ALREADY_PAID' // notifikasi ganda untuk order yang sudah terbayar
-  | 'DUPLICATE_BILL_PAYMENT' // tagihan sudah lunas lewat order lain
-  | 'UNKNOWN_ORDER' // order_id tidak dikenal
-  | 'ATTEMPT_UPDATED' // status percobaan berubah, tagihan tidak
-  | 'NO_CHANGE'; // tidak ada yang perlu diubah
+export type { WebhookOutcome } from './records.js';
 
 export interface VerifiedNotification {
   order_id: string;
@@ -27,43 +24,11 @@ export interface VerifiedNotification {
 
 const paymentForSettlement = {
   bill: { include: { room: { include: { property: true } } } },
+  tokenPurchase: { include: purchaseForSettlement },
 } satisfies Prisma.PaymentInclude;
 
 type PaymentForSettlement = Prisma.PaymentGetPayload<{ include: typeof paymentForSettlement }>;
 type RentPayment = PaymentForSettlement & { bill: NonNullable<PaymentForSettlement['bill']>; billId: string };
-
-interface AnomalyInput {
-  type: PaymentAnomalyType;
-  orderId: string;
-  paymentId?: string;
-  expectedAmountIdr?: bigint;
-  receivedAmountIdr?: bigint | null;
-  providerStatus?: string;
-  note?: string;
-}
-
-/** Satu baris per order per jenis, supaya pengiriman ulang Midtrans tidak membanjiri tabel. */
-async function recordAnomaly(db: Prisma.TransactionClient, input: AnomalyInput): Promise<void> {
-  logger.warn({ type: input.type, orderId: input.orderId }, 'Anomali pembayaran dicatat');
-  await db.paymentAnomaly.upsert({
-    where: { orderId_type: { orderId: input.orderId, type: input.type } },
-    create: input,
-    update: {
-      occurrences: { increment: 1 },
-      receivedAmountIdr: input.receivedAmountIdr,
-      providerStatus: input.providerStatus,
-    },
-  });
-}
-
-/** Field Midtrans yang disimpan di percobaan, untuk tampilan metode bayar dan rekonsiliasi. */
-function providerFields(status: TransactionStatus) {
-  return {
-    method: status.payment_type,
-    providerStatus: status.transaction_status,
-    providerTransactionId: status.transaction_id,
-  };
-}
 
 /**
  * Melunasi tagihan dalam satu transaksi DB: tagihan, percobaan, dan baris outbox tersimpan
@@ -119,35 +84,13 @@ async function settleRentPayment(payment: RentPayment, status: TransactionStatus
   });
 }
 
-/**
- * Mencatat status yang belum atau tidak lunas di percobaan. Hanya menyentuh baris PENDING, jadi
- * notifikasi terlambat tidak pernah menimpa status lunas, dan tagihan tidak ikut berubah.
- */
-async function updateOpenAttempt(
-  payment: RentPayment,
-  status: TransactionStatus,
-  nextStatus: 'PENDING' | 'EXPIRED' | 'FAILED',
-): Promise<WebhookOutcome> {
-  const { count } = await prisma.payment.updateMany({
-    where: { id: payment.id, status: 'PENDING' },
-    data: { status: nextStatus, ...providerFields(status) },
-  });
-  if (count === 1) return 'ATTEMPT_UPDATED';
-
-  logger.warn(
-    { orderId: payment.orderId, transactionStatus: status.transaction_status, paymentStatus: payment.status },
-    'Status Midtrans terlambat diabaikan',
-  );
-  return 'NO_CHANGE';
-}
-
-/** Menolak bila nominal notifikasi atau nominal API status berbeda dari tagihan. */
+/** Menolak bila nominal notifikasi atau nominal API status berbeda dari tagihan atau pesanan. */
 async function rejectIfAmountDiffers(
-  payment: RentPayment,
+  payment: PaymentForSettlement,
+  expected: bigint,
   status: TransactionStatus,
   notifiedAmount: string,
 ): Promise<void> {
-  const expected = payment.bill.amountIdr;
   const differing = [notifiedAmount, status.gross_amount].find((raw) => parseGrossAmount(raw) !== expected);
   if (differing === undefined) return;
 
@@ -160,7 +103,7 @@ async function rejectIfAmountDiffers(
     providerStatus: status.transaction_status,
     note: `Notifikasi ${notifiedAmount}, API status ${status.gross_amount}.`,
   });
-  throw new AppError(400, 'AMOUNT_MISMATCH', 'Nominal notifikasi tidak cocok dengan tagihan.');
+  throw new AppError(400, 'AMOUNT_MISMATCH', 'Nominal notifikasi tidak cocok dengan nominal yang ditagihkan.');
 }
 
 async function fetchVerifiedStatus(orderId: string): Promise<TransactionStatus | null> {
@@ -177,8 +120,44 @@ function midtransUnavailable(): AppError {
   return new AppError(503, 'MIDTRANS_UNAVAILABLE', 'Status transaksi belum bisa dicek. Notifikasi akan dikirim ulang.');
 }
 
-function isRentPayment(payment: PaymentForSettlement | null): payment is RentPayment {
-  return payment?.bill != null;
+function isRentPayment(payment: PaymentForSettlement): payment is RentPayment {
+  return payment.bill != null;
+}
+
+function isPurchasePayment(payment: PaymentForSettlement): payment is PaymentForSettlement & PurchasePayment {
+  return payment.tokenPurchase != null;
+}
+
+async function handleRent(payment: RentPayment, status: TransactionStatus): Promise<WebhookOutcome> {
+  switch (classifyTransaction(status)) {
+    case 'PAID':
+      return settleRentPayment(payment, status);
+    case 'WAITING':
+      return (await updateOpenAttempt(prisma, payment, status, 'PENDING')) ? 'ATTEMPT_UPDATED' : 'NO_CHANGE';
+    case 'EXPIRED':
+      return (await updateOpenAttempt(prisma, payment, status, 'EXPIRED')) ? 'ATTEMPT_UPDATED' : 'NO_CHANGE';
+    case 'FAILED':
+      return (await updateOpenAttempt(prisma, payment, status, 'FAILED')) ? 'ATTEMPT_UPDATED' : 'NO_CHANGE';
+    case 'IGNORED':
+      logger.warn({ orderId: payment.orderId, transactionStatus: status.transaction_status }, 'Status Midtrans tidak diproses');
+      return 'NO_CHANGE';
+  }
+}
+
+async function handlePurchase(payment: PurchasePayment, status: TransactionStatus): Promise<WebhookOutcome> {
+  switch (classifyTransaction(status)) {
+    case 'PAID':
+      return settleTokenPurchase(payment, status);
+    case 'WAITING':
+      return (await updateOpenAttempt(prisma, payment, status, 'PENDING')) ? 'ATTEMPT_UPDATED' : 'NO_CHANGE';
+    case 'EXPIRED':
+      return closePurchaseAttempt(payment, status, 'EXPIRED');
+    case 'FAILED':
+      return closePurchaseAttempt(payment, status, 'FAILED');
+    case 'IGNORED':
+      logger.warn({ orderId: payment.orderId, transactionStatus: status.transaction_status }, 'Status Midtrans tidak diproses');
+      return 'NO_CHANGE';
+  }
 }
 
 export async function handleVerifiedNotification(notification: VerifiedNotification): Promise<WebhookOutcome> {
@@ -187,7 +166,7 @@ export async function handleVerifiedNotification(notification: VerifiedNotificat
   const status = await fetchVerifiedStatus(orderId);
   const payment = await prisma.payment.findUnique({ where: { orderId }, include: paymentForSettlement });
 
-  if (!isRentPayment(payment)) {
+  if (!payment || (!isRentPayment(payment) && !isPurchasePayment(payment))) {
     await recordAnomaly(prisma, {
       type: 'UNKNOWN_ORDER',
       orderId,
@@ -197,22 +176,28 @@ export async function handleVerifiedNotification(notification: VerifiedNotificat
     return 'UNKNOWN_ORDER';
   }
 
+  // Transaksi Midtrans untuk order_id ini dibuat sebelum percobaan KosBagi ada (mis. sebelum basis data
+  // diisi ulang), jadi bukan pembayaran untuk tagihan atau pesanan ini. Dicatat sebagai anomali dan
+  // dibalas 200 supaya tidak dikirim ulang. Tidak pernah melunasi apa pun.
+  if (isOrderIdTakenAttempt(payment)) {
+    await recordAnomaly(prisma, {
+      type: 'UNKNOWN_ORDER',
+      orderId,
+      paymentId: payment.id,
+      receivedAmountIdr: parseGrossAmount(status?.gross_amount ?? notifiedAmount),
+      ...(status ? { providerStatus: status.transaction_status } : {}),
+      note: 'ORDER_ID_TAKEN: order_id sudah dipakai di Midtrans sebelum percobaan ini dibuat. Transaksinya bukan milik tagihan atau pesanan ini.',
+    });
+    return 'ORDER_ID_TAKEN';
+  }
+
   // Order dikenal tetapi Midtrans belum mengenalnya: belum ada yang bisa dipercaya, coba lagi nanti.
   if (!status) throw midtransUnavailable();
 
-  await rejectIfAmountDiffers(payment, status, notifiedAmount);
-
-  switch (classifyTransaction(status)) {
-    case 'PAID':
-      return settleRentPayment(payment, status);
-    case 'WAITING':
-      return updateOpenAttempt(payment, status, 'PENDING');
-    case 'EXPIRED':
-      return updateOpenAttempt(payment, status, 'EXPIRED');
-    case 'FAILED':
-      return updateOpenAttempt(payment, status, 'FAILED');
-    case 'IGNORED':
-      logger.warn({ orderId, transactionStatus: status.transaction_status }, 'Status Midtrans tidak diproses');
-      return 'NO_CHANGE';
+  if (isRentPayment(payment)) {
+    await rejectIfAmountDiffers(payment, payment.bill.amountIdr, status, notifiedAmount);
+    return handleRent(payment, status);
   }
+  await rejectIfAmountDiffers(payment, payment.tokenPurchase.amountIdr, status, notifiedAmount);
+  return handlePurchase(payment, status);
 }

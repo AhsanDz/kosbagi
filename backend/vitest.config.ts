@@ -20,6 +20,10 @@ export default defineConfig({
       JWT_SECRET: 'nilai-khusus-test-bukan-rahasia-sungguhan',
       // Kunci rekaan. Semua panggilan ke Midtrans di test ditiru, tanpa jaringan.
       MIDTRANS_SERVER_KEY: 'SB-Mid-server-kunci-rekaan-khusus-test',
+      // Mnemonic uji publik bawaan Hardhat dan alamat kontrak rekaan. Bukan rahasia, dan tidak
+      // pernah dipakai mengirim transaksi: test hanya menurunkan alamat dompet kustodian.
+      CUSTODIAL_WALLET_MNEMONIC: 'test test test test test test test test test test test junk',
+      KOS_LEDGER_ADDRESS: '0x2b9c000000000000000000000000000000007e10',
     },
   },
 });

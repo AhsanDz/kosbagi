@@ -65,3 +65,16 @@ export function parseJobPayload<T extends OutboxJobType>(type: T, payload: unkno
 export function paymentReference(orderId: string): string {
   return keccak256OfText(orderId);
 }
+
+/** Nomor kamar seperti argumen `room` di KosLedger.recordRent: K03 menjadi 3. */
+export function toChainRoom(roomNumber: string): number {
+  const match = /^K(\d+)$/.exec(roomNumber);
+  if (!match?.[1]) throw new Error(`Nomor kamar tidak dikenal: ${roomNumber}`);
+  return Number(match[1]);
+}
+
+/** Periode seperti argumen `period` di KosLedger: 2026-11 menjadi 202611. */
+export function toChainPeriod(period: string): number {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new Error(`Periode tidak dikenal: ${period}`);
+  return Number(period.replace('-', ''));
+}

@@ -5,7 +5,8 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { prisma } from '../../src/lib/prisma.js';
-import { midtrans, MidtransUnavailableError } from '../../src/modules/payments/midtrans.js';
+import { midtrans, MidtransUnavailableError, OrderIdTakenError } from '../../src/modules/payments/midtrans.js';
+import { ORDER_ID_TAKEN } from '../../src/modules/payments/service.js';
 import { paymentReference } from '../../src/queue/jobs.js';
 import {
   bearer,
@@ -532,6 +533,90 @@ describe('status monotonik', () => {
   });
 });
 
+describe('order_id sudah dipakai di Midtrans (basis data diisi ulang)', () => {
+  /** Transaksi lama di akun sandbox dengan order_id yang sama, mis. dari uji sebelum seed ulang. */
+  function oldTransaction(orderId: string) {
+    fake.setStatus(orderId, { transaction_id: `trx-lama-${orderId}` });
+  }
+
+  it('klik pertama: order_id terpakai dilewati dan Snap dibuat dengan sufiks -2 di permintaan yang sama', async () => {
+    oldTransaction(ORDER_1);
+
+    const res = await startPayment(app, fixture.bill.id, authorization);
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.payment).toMatchObject({ orderId: ORDER_2, status: 'PENDING', snapToken: `snap-${ORDER_2}` });
+    expect(fake.createSnap).toHaveBeenCalledOnce();
+    expect(fake.createSnap.mock.calls[0]?.[0].orderId).toBe(ORDER_2);
+    await expect(prisma.payment.findUniqueOrThrow({ where: { orderId: ORDER_1 } })).resolves.toMatchObject({
+      status: 'FAILED',
+      providerStatus: ORDER_ID_TAKEN,
+      snapToken: null,
+    });
+    await expect(readBill()).resolves.toMatchObject({ status: 'UNPAID', paymentState: 'PENDING', payment: { orderId: ORDER_2 } });
+  });
+
+  it('Snap menolak dengan kode 406: percobaan itu juga dilewati', async () => {
+    fake.createSnap.mockRejectedValueOnce(new OrderIdTakenError(ORDER_1));
+
+    const res = await startPayment(app, fixture.bill.id, authorization);
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.payment.orderId).toBe(ORDER_2);
+    await expect(prisma.payment.findUniqueOrThrow({ where: { orderId: ORDER_1 } })).resolves.toMatchObject({
+      providerStatus: ORDER_ID_TAKEN,
+    });
+  });
+
+  it('settlement untuk order_id terpakai menjadi anomali dan tidak pernah melunasi tagihan', async () => {
+    oldTransaction(ORDER_1);
+    await startPayment(app, fixture.bill.id, authorization);
+
+    // Seperti npm run webhook:simulate -- RENT-SMR01-K03-2026-11 setelah seed ulang.
+    const res = await deliver(app, signedNotification(ORDER_1, fake.transactions.get(ORDER_1)!));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ orderId: ORDER_1, outcome: 'ORDER_ID_TAKEN' });
+    const after = await snapshotPaymentData(fixture.bill.id);
+    expect(after.bill).toMatchObject({ status: 'UNPAID', paidAt: null });
+    expect(after.outbox).toHaveLength(0);
+    expect(after.payments.map((payment) => payment.status)).toEqual(['FAILED', 'PENDING']);
+    expect(after.anomalies).toEqual([
+      expect.objectContaining({
+        type: 'UNKNOWN_ORDER',
+        orderId: ORDER_1,
+        paymentId: after.payments[0]?.id,
+        providerStatus: 'settlement',
+        note: expect.stringContaining('ORDER_ID_TAKEN'),
+      }),
+    ]);
+
+    // Pengiriman ulang hanya menaikkan occurrences, dan percobaan -2 tetap bisa melunasi.
+    await deliver(app, signedNotification(ORDER_1, fake.transactions.get(ORDER_1)!));
+    const paid = await notifyStatus(app, fake, ORDER_2);
+    expect(paid.body.data.outcome).toBe('SETTLED');
+    const final = await snapshotPaymentData(fixture.bill.id);
+    expect(final.anomalies).toEqual([expect.objectContaining({ occurrences: 2 })]);
+    expect(final.outbox).toHaveLength(1);
+    expect(final.outbox[0]?.paymentId).toBe(final.payments[1]?.id);
+  });
+
+  it('lima order_id berturut-turut terpakai: 502, klik berikutnya melanjutkan dari sufiks -6', async () => {
+    for (const suffix of ['', '-2', '-3', '-4', '-5']) oldTransaction(`${ORDER_1}${suffix}`);
+
+    const exhausted = await startPayment(app, fixture.bill.id, authorization);
+
+    expect(exhausted.status).toBe(502);
+    expect(exhausted.body.error.code).toBe('MIDTRANS_UNAVAILABLE');
+    expect(fake.createSnap).not.toHaveBeenCalled();
+    await expect(prisma.payment.count({ where: { providerStatus: ORDER_ID_TAKEN } })).resolves.toBe(5);
+
+    const next = await startPayment(app, fixture.bill.id, authorization);
+    expect(next.status).toBe(201);
+    expect(next.body.data.payment.orderId).toBe(`${ORDER_1}-6`);
+  });
+});
+
 describe('order_id tidak dikenal', () => {
   it('signature sah: dicatat UNKNOWN_ORDER dan dibalas 200 supaya tidak dikirim ulang', async () => {
     const orderId = 'RENT-SMR01-K99-2026-11';
@@ -557,7 +642,7 @@ describe('order_id tidak dikenal', () => {
     await expect(prisma.paymentAnomaly.count()).resolves.toBe(1);
   });
 
-  it('order BUY- di P2 diperlakukan sebagai order tidak dikenal', async () => {
+  it('order BUY- yang tidak ada di basis data juga tidak dikenal', async () => {
     const res = await notifyStatus(app, fake, 'BUY-SMR01-0001');
 
     expect(res.body.data.outcome).toBe('UNKNOWN_ORDER');

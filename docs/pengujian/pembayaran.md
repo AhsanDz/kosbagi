@@ -1,8 +1,8 @@
-# Laporan Uji Pembayaran (S1 sampai S7)
+# Laporan Uji Pembayaran (S1 sampai S9)
 
-Laporan skenario uji 1 sampai 7 dari Tabel 4.3 proposal, progress 2. Skenario 8 dan 9 (pembelian token) menyusul di P3; skenario 10 sampai 12 ada di [`kontrak.md`](kontrak.md).
+Laporan skenario uji 1 sampai 9 dari Tabel 4.3 proposal. S1 sampai S7 (pembayaran sewa) dibangun di progress 2, S8 dan S9 (pembelian token) di progress 3. Skenario 10 sampai 12 ada di [`kontrak.md`](kontrak.md).
 
-Tanggal uji: 2 November 2026 (tiruan) dan 3 November 2026 (Midtrans sandbox sungguhan).
+Tanggal uji: 2 November 2026 (S1 sampai S7, tiruan), 3 November 2026 (S1 sampai S7, Midtrans sandbox sungguhan), 4 sampai 15 November 2026 (S8, S9, dan alur pembelian token, tiruan), 15 November 2026 (pembelian token dan skrip demo ke Midtrans sandbox sungguhan, tanpa membayar di simulator).
 
 > [!IMPORTANT]
 > S1 sampai S7 sudah diuji terhadap Midtrans sandbox sungguhan pada 3 November 2026, lihat [Uji sandbox sungguhan](#uji-sandbox-sungguhan-3-november-2026). Notifikasi dikirim ke laptop dengan `npm run webhook:simulate`, bukan langsung oleh Midtrans, karena belum memakai ngrok. Server tetap memverifikasi signature dan mengecek ulang status ke API Midtrans asli. Yang belum terbukti tercantum di [Menunggu uji sandbox](#menunggu-uji-sandbox).
@@ -18,8 +18,12 @@ Tanggal uji: 2 November 2026 (tiruan) dan 3 November 2026 (Midtrans sandbox sung
 | S5 | Webhook dikirim dua kali | Lulus, berurutan dan bersamaan | Lulus, berurutan | Lulus, berurutan |
 | S6 | Signature palsu | Lulus | Lulus | Lulus |
 | S7 | `gross_amount` tidak cocok | Lulus | Lulus | Lulus |
+| S8 | Beli token melebihi sisa penawaran | Lulus | Belum | Tidak perlu: ditolak sebelum Midtrans dipanggil |
+| S9 | Beli melebihi batas 10% (pegang 1.500, pesan 500) | Lulus | Belum | Tidak perlu: ditolak sebelum Midtrans dipanggil |
 
-Untuk S1 dan S2, catatan on-chain dan tautan Etherscan belum bisa diuji karena worker baru ada di P3. Yang terbukti di P2: tagihan lunas, satu baris outbox `RECORD_RENT`, satu job masuk Redis, dan `chain` berstatus `PENDING`.
+Untuk S1 dan S2, catatan on-chain dan tautan Etherscan diuji jalur 3 di [`kontrak.md`](kontrak.md) dan laporan layanan blockchain. Yang dibuktikan di laporan ini: tagihan lunas, satu baris outbox `RECORD_RENT`, `chain` berstatus `PENDING` sampai worker mencatat, lalu `RECORDED` dengan tx hash. Kuitansi `GET /api/bills/:id` menampilkan argumen `recordRent` persis.
+
+S8 dan S9 tidak butuh uji sandbox sungguhan, karena syaratnya justru Midtrans tidak dipanggil sama sekali. Test otomatis memastikan tiruan Snap tidak pernah terpanggil dan tidak ada baris pesanan atau pembayaran yang dibuat.
 
 ## Lingkungan uji
 
@@ -31,12 +35,14 @@ Untuk S1 dan S2, catatan on-chain dan tautan Etherscan belum bisa diuji karena w
 
 Hasil:
 
-| Perintah | Hasil |
-|---|---|
-| `npm test` | 206 test lulus, 21 file, tanpa Docker dan tanpa jaringan |
-| `npm run test:integration` | 82 test lulus, 4 file |
-| Alur penuh | 36 langkah lulus |
-| `npm run typecheck`, `npm run build` | Lulus |
+| Perintah | P2 | P3 (jalur 2) |
+|---|---|---|
+| `npm test` | 206 test lulus, 21 file | 279 test lulus, 27 file, tanpa Docker dan tanpa jaringan |
+| `npm run test:integration` | 82 test lulus, 4 file | 169 test lulus, 7 file |
+| Alur penuh | 36 langkah lulus | Belum diulang untuk pembelian token |
+| `npm run typecheck`, `npm run build` | Lulus | Lulus |
+
+Angka P3 hanya menghitung test milik jalur 2. Di folder kerja gabungan, `npm test` juga menjalankan test kalkulator jalur 1 dan layanan blockchain jalur 3.
 
 ### Menjalankan test integrasi
 
@@ -101,10 +107,79 @@ Dua jalur diuji:
 
 Hasil keduanya: 400 `AMOUNT_MISMATCH`, tagihan dan pembayaran tidak berubah, tanpa outbox, anomali `AMOUNT_MISMATCH` tercatat dengan nominal yang diharapkan dan yang diterima. Pengiriman ulang menaikkan `occurrences`, bukan menambah baris.
 
+### S8: beli token melebihi sisa penawaran
+
+Berkas test: `backend/tests/integration/token-purchase.test.ts` dan `backend/src/modules/offerings/quota.test.ts`.
+
+Langkah: penawaran 12.600 token sudah terjual 12.480 (sisa 120), lalu investor yang lolos KYC memesan 200 token.
+
+Hasil yang terbukti:
+
+- 422 `OFFERING_EXCEEDED` dengan `details: { tokensRemaining: 120 }` dan pesan "Jumlah token melebihi sisa penawaran. Sisa penawaran 120 token."
+- Tidak ada baris pesanan maupun pembayaran, dan Snap tidak dipanggil.
+- Varian sisihan: terjual 12.400, investor lain sedang menunggu bayar 150 token, investor memesan 100. Ditolak dengan `tokensRemaining: 50`, karena pesanan yang menunggu bayar ikut mengurangi sisa.
+- Dua investor berebut 100 token terakhir bersamaan: tepat satu 201 dan satu 422, Snap hanya dipanggil sekali.
+
+### S9: beli melebihi batas kepemilikan 10%
+
+Langkah: investor sudah memegang 1.500 token (pesanan `PAID`), lalu memesan 500 token. Batas per investor 1.800 token.
+
+Hasil yang terbukti:
+
+- 422 `HOLDING_CAP_EXCEEDED` dengan `details: { remainingQuota: 300 }` dan pesan "Jumlah token melebihi batas kepemilikan 1.800 token per investor. Sisa kuota kamu 300 token."
+- Tidak ada baris pesanan maupun pembayaran, dan Snap tidak dipanggil.
+- Memesan tepat 300 token (tombol "Pakai 300 token") diterima.
+- Pesanan sendiri yang masih menunggu bayar ikut mengurangi kuota: memegang 1.500 dan menunggu bayar 200 menyisakan kuota 100.
+
+Batas yang sama ditegakkan lagi di `KosToken` (skenario 10, jalur 3), jadi bila backend salah, transfer on-chain tetap revert.
+
+### Pembelian token lewat webhook `BUY-`
+
+| Kasus | Hasil |
+|---|---|
+| `settlement` | Pesanan dan pembayaran `PAID`, `tokensSold` bertambah, satu outbox `TRANSFER_TOKENS` berisi hanya kode properti, alamat dompet, jumlah, dan `keccak256(order_id)` |
+| Notifikasi ganda berurutan dan 5 bersamaan | Tepat satu `SETTLED`, sisanya `ALREADY_PAID`. Satu outbox, `tokensSold` bertambah sekali |
+| Penawaran habis | Pelunasan terakhir membuat penawaran `CLOSED`, pesanan berikutnya 409 `OFFERING_CLOSED` |
+| `expire` | Pesanan `EXPIRED`, sisihan lepas, sisa penawaran dan kuota kembali, investor boleh memesan lagi |
+| `cancel`, `deny`, `failure` | Pesanan `FAILED`, sisihan lepas |
+| Batas bayar lewat tanpa notifikasi | Pesanan terbaca `EXPIRED`, sisihan tidak lagi dihitung |
+| Bayar ulang setelah kedaluwarsa | `BUY-SMR01-0001-2`, token disisihkan lagi. Ditolak 422 bila tokennya sudah diambil investor lain |
+| `expire` untuk percobaan lama | Tidak melepas sisihan percobaan yang lebih baru |
+| `settlement` setelah sisihan lepas, token masih ada | Tetap lunas |
+| `settlement` setelah sisihan lepas, token sudah habis | 200 `PURCHASE_UNFULFILLABLE`: pembayaran `UNFULFILLED`, pesanan `EXPIRED`, anomali untuk pengembalian dana, tanpa outbox, `tokensSold` tidak berubah |
+| Dua percobaan sama-sama terbayar | Satu `SETTLED`, satu `DUPLICATE_PURCHASE_PAYMENT`, satu outbox |
+| Nominal tidak cocok | 400 `AMOUNT_MISMATCH`, anomali, pesanan tidak berubah |
+| `pending` atau `expire` setelah lunas | `NO_CHANGE` |
+| Outbox gagal ditulis | Transaksi batal: pesanan, pembayaran, dan `tokensSold` tidak berubah |
+| Midtrans gagal saat membuat Snap | 502, pesanan dan percobaan `FAILED`, sisihan lepas |
+| KYC belum disetujui, dompet belum tercatat, penawaran ditutup, pesanan aktif masih ada | 403 `KYC_REQUIRED`, 409 `WALLET_NOT_READY`, 409 `OFFERING_CLOSED`, 409 `PURCHASE_PENDING`, sesuai urutan kontrak, tanpa Snap |
+| Di atas 100 token | Snap hanya menawarkan virtual account |
+| Pesanan investor lain | 404, sama dengan pesanan yang tidak ada |
+
+### Persetujuan KYC
+
+Berkas test: `backend/tests/integration/kyc.test.ts`.
+
+| Kasus | Hasil |
+|---|---|
+| Disetujui | Satu transaksi: `APPROVED`, dompet kustodian indeks 0 (alamat sama dengan akun Hardhat #0 untuk mnemonic uji), dan outbox `WHITELIST_KYC` tanpa data pribadi |
+| Investor berikutnya, juga tiga persetujuan bersamaan | Indeks 1, 2, dan seterusnya, tidak pernah kembar |
+| Job whitelist gagal ditulis, atau dompet gagal dibuat | Semuanya batal, pengajuan tetap `SUBMITTED` |
+| `CUSTODIAL_WALLET_MNEMONIC` kosong | 503 `CUSTODIAL_WALLET_NOT_CONFIGURED`, tidak ada yang berubah |
+| Pemeriksaan otomatis | Awalan `DUMMY-`, nama sama dengan akun (tanpa beda huruf besar kecil dan spasi tepi), dan nomor identitas yang sama dipakai akun lain terdeteksi |
+| `GET /api/kyc/me` | Whitelist `PENDING` lalu `RECORDED` dengan tx hash setelah worker mencatat |
+| Pesan galat worker | `lastError` hanya muncul di daftar admin, tidak di `GET /api/kyc/me` |
+
+### Skrip demo:bayar-sewa
+
+Berkas test: `backend/tests/integration/demo-bank-transfer.test.ts`. VA dibuat lewat Core API dengan aturan percobaan yang sama dengan tombol Bayar, VA aktif dipakai lagi saat skrip dijalankan ulang, tagihan yang sedang dibayar penghuni lewat Snap dilewati, dan pelunasannya tetap lewat webhook dengan satu outbox `RECORD_RENT`.
+
 ## Kasus tambahan
 
 | Kasus | Hasil |
 |---|---|
+| `order_id` percobaan baru sudah punya transaksi di Midtrans | Dilewati otomatis: percobaan `FAILED` dengan penanda `ORDER_ID_TAKEN`, sufiks berikutnya dibuat di klik yang sama. Lima berturut-turut: 502, klik berikutnya melanjutkan dari `-6` |
+| Notifikasi `settlement` untuk `order_id` yang ditandai | 200 `ORDER_ID_TAKEN`, anomali `UNKNOWN_ORDER`, tagihan tetap `UNPAID`; percobaan `-2` tetap bisa melunasi |
 | Dua percobaan sama-sama terbayar, berurutan dan bersamaan | Satu `SETTLED`, satu `DUPLICATE_BILL_PAYMENT`. Satu outbox, satu anomali, percobaan kedua `DUPLICATE_PAID` |
 | Status monotonik | `pending`, `expire`, `cancel`, `deny`, `failure`, dan `refund` setelah lunas: 200 `NO_CHANGE`, data sama persis |
 | Notifikasi `pending` tiba setelah `settlement` | Keputusan memakai API status, jadi tetap lunas |
@@ -166,6 +241,56 @@ Hal lain yang terbukti:
 - Login lewat kartu akun demo dan lewat form email berjalan dengan basis data seed.
 - Jendela Snap tidak mendeteksi sendiri pembayaran VA dari simulator. Penghuni perlu menekan Check status, baru `onSuccess` terpanggil dan halaman masuk ke Memeriksa pembayaran.
 
+## Uji sandbox P3 (15 November 2026)
+
+Lingkungan: server API lokal di port 4010 dengan basis data uji terpisah, PostgreSQL di Docker, kunci Midtrans sandbox di `backend/.env`, worker tidak dijalankan (status whitelist dompet diisi `RECORDED` langsung di basis data uji). Properti uji berkode `UJI03`, supaya `order_id` sandbox (`BUY-UJI03-...`, `RENT-UJI03-...`) tidak memakai nomor `SMR01` yang dibutuhkan demo.
+
+| Langkah | Hasil di Midtrans | Hasil di KosBagi |
+|---|---|---|
+| Investor memesan 1.801 token | Tidak dipanggil | 422 `HOLDING_CAP_EXCEEDED`, `remainingQuota` 1.800 |
+| Investor memesan 101 token | Snap menerima `enabled_payments` hanya VA, `quantity` 101 @ Rp100.000 | 201, `BUY-UJI03-0001`, Rp10.100.000, `reservedUntil` 5 menit |
+| `GET /api/offerings/current` | | `tokensReserved` 101, `tokensRemaining` 12.499, `reservedTokens` 101, `remainingQuota` 1.699, `activePurchase` terisi |
+| Memesan lagi selagi menunggu bayar | Tidak dipanggil | 409 `PURCHASE_PENDING` |
+| Lanjutkan pembayaran | Tidak dipanggil | 200, token Snap sama |
+| Memesan 12.600 token | Tidak dipanggil | 422 `OFFERING_EXCEEDED`, `tokensRemaining` 12.499 |
+| `npm run demo:bayar-sewa -- --period 2026-11` | VA BCA dibuat lewat Core API, `pending` | Nomor VA dan tautan simulator tercetak, batas bayar 5 menit. Dijalankan ulang: VA yang sama dipakai lagi |
+| `npm run webhook:simulate` untuk VA itu | `pending`, `bank_transfer` | 200 `ATTEMPT_UPDATED`, percobaan menyimpan metode `bank_transfer` dan bank `bca` tanpa nomor VA |
+| Core API VA Permata (tanpa server) | `permata_va_number` terbaca | Bank `permata` |
+
+Pembayaran di simulator tidak dilakukan pada uji ini, jadi pelunasan `BUY-` dan sembilan kamar seed lewat skrip baru terbukti dengan Midtrans tiruan.
+
+## order_id yang sudah terpakai di sandbox (16 November 2026)
+
+Temuan QA P3 (T1): akun Midtrans sandbox menyimpan semua `order_id` lama, sedangkan nomor percobaan di KosBagi mulai lagi dari 1 setiap basis data diisi ulang. `RENT-SMR01-K03-2026-11` misalnya sudah `settlement` sejak uji P2 tanggal 3 November.
+
+Perilaku Midtrans yang diukur di sandbox, memakai `order_id` uji berawalan `UJI-T1-`:
+
+| Percobaan | Hasil |
+|---|---|
+| Snap untuk `order_id` yang sudah punya transaksi (pending, cancel, atau expire) | **Diterima**: token Snap tetap terbentuk. Penolakan baru terjadi di popup saat metode dipilih, jadi backend tidak bisa mengandalkan galat Snap |
+| Snap kedua untuk `order_id` yang baru punya token Snap tanpa metode | Diterima |
+| Core API charge untuk `order_id` yang sudah pending | Ditolak `status_code` 406 (dokumen Midtrans "Code 4xx": *Duplicate order ID*) |
+| Core API charge untuk `order_id` yang hanya punya token Snap | Diterima |
+| API status untuk `order_id` yang hanya punya token Snap | 404, sama dengan `order_id` yang belum pernah dipakai |
+
+Karena Snap tidak menolak di depan, backend bertanya ke API status Midtrans sebelum membuat Snap atau VA untuk setiap percobaan baru. Bila transaksinya sudah ada, atau Midtrans membalas 406, percobaan itu ditandai (`status` `FAILED`, `provider_status` `ORDER_ID_TAKEN`) dan percobaan berikutnya dengan sufiks baru dibuat di permintaan yang sama, paling banyak 5 kali. Penghuni dan investor tidak melihat galat. Notifikasi untuk `order_id` yang ditandai dibalas 200 dengan outcome `ORDER_ID_TAKEN`, dicatat sebagai anomali `UNKNOWN_ORDER` dengan catatan berawalan `ORDER_ID_TAKEN:`, dan tidak pernah melunasi apa pun.
+
+Uji ke sandbox sungguhan dengan server lokal dan properti `UJI03`:
+
+| Langkah | Hasil |
+|---|---|
+| Penghuni K01 menekan Bayar sewa; `RENT-UJI03-K01-2026-11` sudah `expire` di Midtrans | 201 `RENT-UJI03-K01-2026-11-2` dalam satu klik |
+| Investor memesan; `BUY-UJI03-0001` hanya punya token Snap lama (404) | 201 `BUY-UJI03-0001`, tidak dilewati |
+| Investor kedua memesan; `BUY-UJI03-0002` sudah punya VA lama | 201, nomor pesanan `BUY-UJI03-0002`, `order_id` pembayaran `BUY-UJI03-0002-2` |
+| `npm run webhook:simulate -- RENT-UJI03-K01-2026-11` dan `-- BUY-UJI03-0002` | 200 `ORDER_ID_TAKEN`, anomali tercatat, tagihan tetap `UNPAID`, pesanan tidak lunas |
+| `npm run demo:bayar-sewa -- --period 2026-11 --rooms K02`; `RENT-UJI03-K02-2026-11` sudah punya VA lama | Mencetak "sudah dipakai di Midtrans sebelumnya, dilewati", lalu VA `RENT-UJI03-K02-2026-11-2` |
+
+Berkas test: `payment-scenarios.test.ts`, `token-purchase.test.ts`, dan `demo-bank-transfer.test.ts` (bagian "order_id sudah dipakai"), serta `midtrans.test.ts` untuk kode 406.
+
+## VA bernominal besar (16 November 2026)
+
+Untuk merencanakan persiapan demo skenario 9 (investor memegang 1.500 token), Core API sandbox diminta membuat VA Rp150.000.000 dengan `order_id` berawalan `BUY-UJI03-R11-`. VA BCA dan BNI sama-sama diterima (`status_code` 201, `pending`, `gross_amount` 150000000.00). Jadi tidak ada batas nominal VA di bawah Rp150 juta di akun sandbox ini. VA tersebut tidak dibayar.
+
 ## Menunggu uji sandbox
 
 | Yang harus dibuktikan | Cara |
@@ -174,14 +299,21 @@ Hal lain yang terbukti:
 | Tes notifikasi dari dashboard dibalas 200 | Tombol Test notification, tercatat `UNKNOWN_ORDER` |
 | Pembayaran GoPay dan ShopeePay lewat deeplink | Simulator deeplink |
 | Popup Snap yang dibiarkan terbuka sampai 5 menit habis | S4 dengan popup tetap terbuka |
+| Pembelian token dibayar di simulator sampai `TRANSFER_TOKENS` tercatat | Bayar VA pesanan di simulator, jalankan `npm run webhook:simulate -- <order_id pesanan>` dan worker jalur 3 |
+| Popup Snap pembelian di atas 100 token benar-benar hanya menampilkan VA | Buka Snap dari `/investor/penawaran` |
+| `npm run demo:bayar-sewa -- --period 2026-11` untuk sembilan kamar seed | Butuh server, basis data seed P3, dan pembayaran di simulator |
 
-Cara menguji dari simulator tanpa ngrok: bayar di simulator sandbox, lalu jalankan
+Cara menguji dari simulator tanpa ngrok: bayar di simulator sandbox, lalu jalankan `webhook:simulate` dengan `order_id` yang tampil di halaman tagihan (atau di keluaran `demo:bayar-sewa`). Setelah basis data diisi ulang, nomor itu bisa bersufiks, mis. `RENT-SMR01-K03-2026-11-2`, karena nomor tanpa sufiks sudah terpakai di sandbox.
 
 ```bash
-npm run webhook:simulate -- RENT-SMR01-K03-2026-11
+npm run webhook:simulate -- <order_id dari halaman tagihan>
 ```
 
-Skrip mengambil status asli dari Midtrans, menandatangani notifikasi, dan mengirimnya ke server lokal. Server tetap mengecek ulang ke Midtrans.
+Mengirim notifikasi untuk `order_id` lama yang sudah ditandai `ORDER_ID_TAKEN` aman: dibalas `ORDER_ID_TAKEN` dan tidak melunasi tagihan.
+
+Skrip mengambil status asli dari Midtrans, menandatangani notifikasi, dan mengirimnya ke server lokal. Server tetap mengecek ulang ke Midtrans. Skrip yang sama berlaku untuk order `BUY-`.
+
+Untuk membayar semua tagihan satu periode sekaligus, `npm run demo:bayar-sewa -- --period 2026-11` membuat VA per kamar lewat Core API, mencetak nomornya, menunggu kamu membayar di simulator, lalu mengirim notifikasi bertanda tangan yang sama. Sandbox Midtrans tidak punya API resmi untuk membayar VA atau QRIS (dokumen "Testing Payment on Sandbox"), jadi langkah di simulator tetap manual: tempel nomor VA, Inquire, Pay.
 
 | Skenario | Perintah tambahan |
 |---|---|
@@ -192,6 +324,8 @@ Skrip mengambil status asli dari Midtrans, menandatangani notifikasi, dan mengir
 
 - `settlement` yang berbalik menjadi `deny`, yang jarang terjadi pada Permata, Mandiri Bill, dan Indomaret, tidak membatalkan status lunas. Status lunas tidak pernah mundur; kejadiannya hanya tercatat di log dan akan terlihat di rekonsiliasi.
 - `refund` tidak diproses di prototipe.
-- Dana percobaan `DUPLICATE_PAID` tidak dikembalikan otomatis. Anomalinya tercatat untuk ditangani manual.
+- Dana percobaan `DUPLICATE_PAID` dan `UNFULFILLED` tidak dikembalikan otomatis. Anomalinya tercatat untuk ditangani manual.
+- Pesanan token yang sisihannya lepas karena waktu, tanpa notifikasi `expire`, tetap berstatus `PENDING_PAYMENT` di basis data tetapi dibaca `EXPIRED` di API dan tidak dihitung di sisihan.
+- Waktu blok di kuitansi belum tersedia, karena tabel `chain_transactions` belum menyimpan waktu blok.
 - Rate limit disimpan di memori proses, jadi kosong lagi saat server restart dan tidak berlaku lintas proses.
 - Bila pool benar-benar habis, permintaan gagal setelah menunggu 5 detik (`connectionTimeoutMillis`) dan dibalas 500. Pool masih berukuran bawaan, 10 koneksi.

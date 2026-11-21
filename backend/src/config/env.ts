@@ -2,6 +2,7 @@
 // Bila ada yang salah atau kurang, aplikasi langsung berhenti dengan pesan jelas
 // (fail fast), bukan gagal diam-diam saat endpoint dipanggil.
 import { config as loadEnv } from 'dotenv';
+import { Mnemonic } from 'ethers';
 import { z } from '../lib/zod.js';
 
 // Muat backend/.env bila ada. Variabel yang sudah diset di sistem tidak ditimpa.
@@ -37,9 +38,21 @@ const envSchema = z.object({
   SEPOLIA_RPC_URL: optional(z.url({ protocol: /^https?$/ })),
   SEPOLIA_RPC_URL_FALLBACK: optional(z.url({ protocol: /^https?$/ })),
   OPERATOR_PRIVATE_KEY: optional(z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'harus 64 karakter heksadesimal berawalan 0x')),
-  CUSTODIAL_WALLET_MNEMONIC: optional(z.string().min(1)),
+  // Dipakai server API saat admin menyetujui KYC: alamat dompet kustodian diturunkan dari sini.
+  // Bila kosong, persetujuan KYC dibalas 503 CUSTODIAL_WALLET_NOT_CONFIGURED.
+  CUSTODIAL_WALLET_MNEMONIC: optional(
+    z
+      .string()
+      .trim()
+      .refine((phrase) => Mnemonic.isValidMnemonic(phrase), 'harus mnemonic BIP-39 yang valid (12 atau 24 kata)'),
+  ),
   KOS_TOKEN_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'harus alamat Ethereum berawalan 0x')),
   KOS_LEDGER_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'harus alamat Ethereum berawalan 0x')),
+  // Jaringan yang diharapkan worker: 11155111 untuk Sepolia, 31337 untuk Hardhat lokal.
+  CHAIN_ID: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().positive().default(11155111),
+  ),
 });
 
 export type Env = z.output<typeof envSchema>;

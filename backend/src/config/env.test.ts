@@ -17,6 +17,7 @@ describe('parseEnv', () => {
       PORT: 4000,
       LOG_LEVEL: 'info',
       CORS_ORIGIN: ['http://localhost:3000'],
+      CHAIN_ID: 11155111,
       ...minimal,
     });
   });
@@ -101,5 +102,39 @@ describe('parseEnv: variabel worker blockchain', () => {
     expect(() => parseEnv({ ...minimal, OPERATOR_PRIVATE_KEY: 'ganti-dengan-private-key' })).toThrow(/OPERATOR_PRIVATE_KEY/);
     expect(() => parseEnv({ ...minimal, KOS_TOKEN_ADDRESS: '0x123' })).toThrow(/KOS_TOKEN_ADDRESS/);
     expect(() => parseEnv({ ...minimal, SEPOLIA_RPC_URL: 'bukan-url' })).toThrow(/SEPOLIA_RPC_URL/);
+  });
+});
+
+describe('parseEnv: CHAIN_ID', () => {
+  it('bawaan Sepolia 11155111, termasuk bila barisnya kosong', () => {
+    expect(parseEnv(minimal).CHAIN_ID).toBe(11155111);
+    expect(parseEnv({ ...minimal, CHAIN_ID: '' }).CHAIN_ID).toBe(11155111);
+  });
+
+  it('menerima jaringan Hardhat lokal dan menolak nilai bukan bilangan bulat positif', () => {
+    expect(parseEnv({ ...minimal, CHAIN_ID: '31337' }).CHAIN_ID).toBe(31337);
+    expect(() => parseEnv({ ...minimal, CHAIN_ID: 'sepolia' })).toThrow(/CHAIN_ID/);
+    expect(() => parseEnv({ ...minimal, CHAIN_ID: '0' })).toThrow(/CHAIN_ID/);
+  });
+});
+
+describe('parseEnv: CUSTODIAL_WALLET_MNEMONIC', () => {
+  // Mnemonic uji publik bawaan Hardhat, bukan rahasia.
+  const HARDHAT_MNEMONIC = 'test test test test test test test test test test test junk';
+
+  it('menerima mnemonic BIP-39 dan membuang spasi di tepi', () => {
+    expect(parseEnv({ ...minimal, CUSTODIAL_WALLET_MNEMONIC: ` ${HARDHAT_MNEMONIC} ` }).CUSTODIAL_WALLET_MNEMONIC).toBe(
+      HARDHAT_MNEMONIC,
+    );
+  });
+
+  it('menolak teks yang bukan mnemonic tanpa menampilkan isinya', () => {
+    const bad = 'kata rahasia yang salah ketik test test test test test test test';
+    expect(() => parseEnv({ ...minimal, CUSTODIAL_WALLET_MNEMONIC: bad })).toThrow(/CUSTODIAL_WALLET_MNEMONIC/);
+    try {
+      parseEnv({ ...minimal, CUSTODIAL_WALLET_MNEMONIC: bad });
+    } catch (error) {
+      expect((error as Error).message).not.toContain('rahasia');
+    }
   });
 });

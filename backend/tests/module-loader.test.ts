@@ -50,8 +50,12 @@ describe('loadModuleRouters', () => {
   });
 });
 
+// createApp memuat semua modul route (termasuk ethers untuk dompet kustodian). Di bawah beban beberapa
+// proses test sekaligus bisa mendekati batas bawaan vitest 5 detik, jadi batasnya dilonggarkan.
+const CREATE_APP_TIMEOUT_MS = 15_000;
+
 describe('createApp', () => {
-  it('memuat modul health dari src/modules dan melewati folder modul yang masih kosong', async () => {
+  it('memuat modul health dari src/modules dan melewati folder modul yang masih kosong', { timeout: CREATE_APP_TIMEOUT_MS }, async () => {
     const app = await createApp();
     const modules = app.locals.modules as string[];
 

@@ -3,6 +3,7 @@
 // memverifikasi signature dan mengecek ulang status ke Midtrans.
 //
 //   npm run webhook:simulate -- <order_id> [opsi]
+//   Berlaku untuk order RENT- dan BUY-.
 //
 //   --gross-amount <teks>  Mengganti gross_amount yang ditandatangani (uji nominal tidak cocok)
 //   --bad-signature        Mengirim signature palsu (uji penolakan)
@@ -10,7 +11,7 @@
 import { parseArgs } from 'node:util';
 import { env } from '../src/config/env.js';
 import { midtrans } from '../src/modules/payments/midtrans.js';
-import { computeSignature } from '../src/modules/webhooks/signature.js';
+import { sendSignedNotification } from './lib/notification.js';
 
 function fail(message: string): never {
   console.error(`Gagal: ${message}`);
@@ -36,26 +37,12 @@ if (!serverKey) fail('MIDTRANS_SERVER_KEY belum diisi di backend/.env.');
 const status = await midtrans.getTransactionStatus(orderId);
 if (!status) fail(`Midtrans belum mengenal ${orderId}. Pilih metode bayar di Snap lebih dulu.`);
 
-const fields = {
-  order_id: orderId,
-  status_code: status.status_code,
-  gross_amount: values['gross-amount'] ?? status.gross_amount,
-};
-const notification = {
-  ...fields,
-  transaction_status: status.transaction_status,
-  payment_type: status.payment_type,
-  fraud_status: status.fraud_status,
-  signature_key: values['bad-signature'] ? 'signature-palsu' : computeSignature(fields, serverKey),
-};
-
 console.log(`Mengirim ${status.transaction_status} untuk ${orderId} ke ${values.url}`);
 
-const response = await fetch(values.url, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(notification),
+const response = await sendSignedNotification(values.url, orderId, status, serverKey, {
+  ...(values['gross-amount'] === undefined ? {} : { grossAmount: values['gross-amount'] }),
+  badSignature: values['bad-signature'],
 });
-console.log(`HTTP ${response.status}: ${await response.text()}`);
+console.log(`HTTP ${response.status}: ${response.body}`);
 
-if (!response.ok) process.exitCode = 1;
+if (response.status < 200 || response.status >= 300) process.exitCode = 1;
