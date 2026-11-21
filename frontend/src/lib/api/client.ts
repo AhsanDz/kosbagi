@@ -13,11 +13,28 @@ export class ApiError extends Error {
     message: string,
     readonly status: number,
     readonly code: string,
-    readonly requestId?: string
+    readonly requestId?: string,
+    /** Rincian galat dari backend, mis. { tokensRemaining } atau daftar field yang salah. */
+    readonly details?: unknown
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+/** Galat validasi per field dari backend: [{ path, message }]. */
+export function fieldErrors(error: ApiError): Record<string, string> {
+  if (!Array.isArray(error.details)) return {};
+  const result: Record<string, string> = {};
+  for (const item of error.details as unknown[]) {
+    if (item && typeof item === "object" && "path" in item && "message" in item) {
+      const { path, message } = item as { path: unknown; message: unknown };
+      if (typeof path === "string" && typeof message === "string" && !(path in result)) {
+        result[path] = message;
+      }
+    }
+  }
+  return result;
 }
 
 /** Mengubah galat apa pun menjadi ApiError supaya pesannya selalu bisa ditampilkan. */
@@ -49,7 +66,8 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
     failure?.message ?? UNKNOWN_ERROR_MESSAGE,
     response.status,
     failure?.code ?? "UNKNOWN",
-    failure?.requestId
+    failure?.requestId,
+    failure?.details
   );
 }
 

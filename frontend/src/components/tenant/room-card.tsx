@@ -1,17 +1,16 @@
 import type { TenantRoomDto } from "@/lib/api/types";
-import { getDemoAccount } from "@/lib/data/demo-accounts";
 import { kosSumbersari01 } from "@/lib/data/properties";
 import { formatMonthYear, formatRupiah } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
- * Kartu kamar (Figma: "Kartu kamar"). Sewa dan masa sewa berasal dari API.
- * Alamat dan pengelola belum ada di TenantRoomDto, jadi sementara memakai data
- * statis properti yang sama dengan halaman publik.
+ * Kartu kamar (Figma: "Kartu kamar"). Alamat, pengelola, sewa, dan masa sewa
+ * berasal dari API. Hanya nama kota di bawah judul yang masih memakai data
+ * statis properti, karena API tidak mengirimnya terpisah dari alamat.
  */
 export function RoomCard({ room, className }: { room: TenantRoomDto; className?: string }) {
   const details = [
-    { label: "Alamat", value: kosSumbersari01.shortAddress },
+    { label: "Alamat", value: room.propertyAddress },
     { label: "Sewa", value: `${formatRupiah(room.monthlyRentIdr)} per bulan` },
     ...(room.leaseStart && room.leaseEnd
       ? [
@@ -21,7 +20,7 @@ export function RoomCard({ room, className }: { room: TenantRoomDto; className?:
           },
         ]
       : []),
-    { label: "Pengelola", value: getDemoAccount("pengelola").name },
+    ...(room.managerName ? [{ label: "Pengelola", value: room.managerName }] : []),
   ];
 
   return (

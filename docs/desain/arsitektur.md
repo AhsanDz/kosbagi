@@ -311,7 +311,7 @@ sequenceDiagram
     API->>DB: Hitung sisa penawaran dan sisa kuota investor
     alt N melebihi sisa penawaran (skenario 8)
         API-->>FE: Ditolak sebelum pembayaran dibuat
-        FE-->>I: Melebihi sisa penawaran. Maksimal 8.240 token.
+        FE-->>I: Melebihi sisa penawaran. Maksimal 120 token.
     else saldo ditambah N melebihi 1.800 token (skenario 9)
         API-->>FE: Ditolak sebelum pembayaran dibuat
         FE-->>I: Melebihi batas kepemilikan 10%. Sisa kuota kamu 300 token.
@@ -337,14 +337,15 @@ sequenceDiagram
             KT-->>W: revert, token tidak berpindah
             W->>DB: Pembelian gagal dicatat, muncul di rekonsiliasi
         end
-        FE->>API: Muat ulang portofolio
-        API-->>FE: Token bertambah, status tercatat, tx hash
-        FE-->>I: Portofolio dan tautan Etherscan
+        FE->>API: Muat ulang daftar pesanan (GET /purchases)
+        API-->>FE: Pesanan lunas, transfer tercatat, tx hash
+        FE-->>I: Tiket beli: token sudah di dompetmu, tautan Etherscan
     end
 ```
 
 - **Prasyarat KYC.** Persetujuan admin memicu job whitelist. Worker memanggil `setKycStatus` untuk alamat dompet kustodian investor, sehingga alamat itu boleh menerima token.
-- **Langkah 3 sampai 7.** Batas sisa penawaran (skenario 8) dan batas 10% per investor (skenario 9) diperiksa backend **sebelum** transaksi Midtrans dibuat, jadi investor tidak pernah membayar untuk token yang tidak bisa diterimanya. Pesan galatnya sama dengan desain komponen "Kuota beli token" di Figma.
+- **Langkah 3 sampai 7.** Batas sisa penawaran (skenario 8) dan batas 10% per investor (skenario 9) diperiksa **dua kali sebelum** transaksi Midtrans dibuat: di Tiket beli saat jumlah diketik (tombol Bayar nonaktif dan pesan tampil di bawah isian), lalu di backend sebagai penentu. Urutannya sama di keduanya: sisa penawaran dulu, lalu sisa kuota. Bila backend menolak dengan `OFFERING_EXCEEDED` atau `HOLDING_CAP_EXCEEDED`, frontend memperbarui angkanya dari `details` sehingga pesan inline yang sama muncul.
+- **Pesanan menyisihkan token.** Selama pesanan menunggu bayar (sampai `reservedUntil`, 5 menit), tokennya dihitung "sedang dipesan" dan tidak bisa dipesan investor lain. `GET /offerings/current` hanya mengirim pesanan yang masih menyisihkan token, jadi hasil akhirnya (lunas, token dikirim, kedaluwarsa, gagal) dibaca frontend dari `GET /purchases`.
 - **Langkah 13 sampai 16.** Webhook pembelian melewati pemeriksaan yang sama dengan sewa (bagian 4A).
 - **Langkah 17 sampai 24.** `transferFromTreasury` memindahkan token dari dompet perbendaharaan ke dompet kustodian investor. Kontrak menolak referensi pembelian yang sama dipakai dua kali, dan tetap menegakkan KYC serta batas 10% (skenario 10). Cabang revert terakhir seharusnya tidak terjadi karena backend sudah memeriksa aturan yang sama; bila terjadi, pembelian muncul di halaman rekonsiliasi untuk ditangani admin.
 
@@ -395,11 +396,71 @@ Di basis data, tagihan hanya punya dua status: belum dibayar dan lunas. Menunggu
 | Tagihan | Kedaluwarsa | Saga | "Batas 5 menit terlewat. Tagihan tetap belum dibayar.", tombol Bayar ulang |
 | Tagihan | Gagal | Saga | "Midtrans menolak atau kamu membatalkan pembayaran. Tagihan tetap belum dibayar.", tombol Bayar ulang |
 | On-chain | Menunggu pencatatan | Nila | "Transaksi sedang dikirim ke jaringan Sepolia. Biasanya selesai dalam 1 menit." |
-| On-chain | Tercatat | Lime | Tx hash 6+4, nomor blok, tautan "Lihat di Etherscan" |
+| On-chain | Tercatat | Lime | Tx hash 6+4, nomor blok, tautan "Lihat di Etherscan". Bila tx asalnya tidak ditemukan (txHash kosong), tetap "Tercatat" tanpa tautan |
+| On-chain | Data lampau | Abu | Tagihan lunas sebelum pencatatan on-chain dimulai, tanpa tautan |
 | On-chain | Gagal dicatat | Saga | "Jaringan Sepolia tidak merespons. Pembayaranmu tetap lunas di sistem." Penghuni tidak punya tombol; Coba lagi ada di antrean admin (P4) |
 | KYC | Belum mengajukan, Diajukan, Disetujui, Ditolak | Abu, nila, lime, saga | Disetujui memicu whitelist di KosToken |
 
 Lime hanya muncul pada status yang menjadi bukti: Lunas, Tercatat, dan Disetujui.
+
+### 6A. Kuitansi sewa (P3)
+
+Kuitansi di `/penghuni/tagihan/[id]` memakai status on-chain yang sama dengan slip tagihan, ditambah satu keadaan untuk data lampau seed.
+
+| Status on-chain | Panel "Yang tercatat di Sepolia" | Cap TERCATAT |
+|---|---|---|
+| Menunggu pencatatan | Argumen `recordRent` sudah tampil, hash transaksi dan waktu blok "Belum ada", tombol Etherscan nonaktif, halaman diperbarui tiap 5 detik | Tidak |
+| Tercatat | Status "Tercatat di blok …", hash transaksi, tombol "Lihat di Etherscan" dan "Salin hash", langkah memeriksa sendiri | Ya |
+| Tercatat tanpa hash | Catatan sudah ada on-chain tetapi transaksi asalnya tidak ditemukan: status Tercatat, hash "Tidak tersedia", tanpa tautan Etherscan | Ya |
+| Gagal dicatat | "Gagal dicatat, diulang operator", tanpa tombol untuk penghuni | Tidak |
+| Data lampau (`NOT_RECORDED`) | "Tidak dicatat, data lampau": tagihan lunas tanpa pembayaran Midtrans, tidak pernah dicatat dan tanpa tautan. Kuitansinya menulis Nomor tagihan "Data lampau, tanpa order Midtrans" dan tidak menyebut Midtrans sandbox | Tidak |
+
+Baris argumen di panel memakai label yang mudah dibaca diikuti nilai mentah yang benar-benar dikirim worker, mis. `K03 (room = 3)`, `2026-11 (period = 202611)`, dan `1.500.000 (amount = 1500000)`, supaya cocok satu per satu dengan event `RentRecorded(period, room, paymentRef, amount)` di Etherscan. Properti bukan argumen `recordRent`; satu KosLedger melayani satu properti, jadi baris Properti ditandai "dari alamat kontrak".
+
+### 6B. Tiket beli dan KYC investor (P3)
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state "Perlu KYC" as PerluKyc
+    state "Mendaftarkan dompet" as Mendaftarkan
+    state "Form beli" as Form {
+        state "Belum setuju" as BelumSetuju
+        state "Siap bayar" as Siap
+        state "Melebihi sisa" as LebihSisa
+        state "Melebihi batas" as LebihBatas
+    }
+    state "Menunggu pembayaran" as Menunggu
+    state "Memeriksa pembayaran" as Memeriksa
+    state "Lunas, mengirim token" as Mengirim
+    state "Lunas, token tercatat" as Tercatat
+    state "Kedaluwarsa" as Kedaluwarsa
+    state "Gagal" as Gagal
+    state "Penawaran penuh" as Penuh
+
+    [*] --> PerluKyc: belum ada KYC disetujui
+    PerluKyc --> Mendaftarkan: admin menyetujui KYC
+    Mendaftarkan --> Form: setKycStatus tercatat
+    Form --> Menunggu: Bayar (lolos skenario 8 dan 9)
+    Menunggu --> Memeriksa: Snap onSuccess
+    Menunggu --> Mengirim: settlement terverifikasi
+    Memeriksa --> Mengirim: settlement terverifikasi
+    Menunggu --> Kedaluwarsa: reservedUntil lewat
+    Menunggu --> Gagal: cancel, deny, failure
+    Mengirim --> Tercatat: transferFromTreasury tercatat
+    Kedaluwarsa --> Form: Buat pesanan baru
+    Gagal --> Form: Buat pesanan baru
+    Tercatat --> Form: Beli lagi
+    [*] --> Penuh: penawaran ditutup
+
+    classDef bukti fill:#D4F55A,stroke:#2C3604,color:#0E0F0C
+    class Tercatat bukti
+```
+
+- **Siap bayar dan Belum setuju** dibedakan oleh centang ringkasan risiko. **Melebihi sisa** dan **Melebihi batas** dihitung di peramban dari `tokensRemaining` dan `remainingQuota`; keduanya menonaktifkan tombol Bayar. Melebihi batas menawarkan tombol "Pakai 300 token" yang mengisi jumlah dengan sisa kuota.
+- **Memeriksa pembayaran** adalah state klien yang sama dengan tagihan: polling tiap 3 detik sampai 60 detik setelah Snap `onSuccess`.
+- **Halaman KYC investor** mengikuti urutan yang sama sampai "Mendaftarkan dompet": Belum mengajukan (form), Diajukan (Kartu status KYC), Disetujui dan dompet sedang didaftarkan, Disetujui dan dompet tercatat, atau Ditolak (kartu dengan alasan admin lalu form Ajukan lagi). Jejak KYC empat tahap di kanan menandai tahap yang sudah lewat dengan tinta dan tahap Tercatat dengan lime.
+- **Admin KYC.** Menyetujui pengajuan langsung membuat dompet kustodian dan job `WHITELIST_KYC` di backend; Sheet tinjau lalu memantau status whitelist sampai tercatat. Menolak wajib disertai alasan karena investor membacanya.
 
 ## 7. Deployment
 
@@ -565,3 +626,7 @@ Repositori hanya berisi `.env.example` dengan nilai contoh. Semua yang diawali `
 - **Keputusan:** `POST /api/session` di Next.js meneruskan login ke backend dan menyimpan JWT di cookie httpOnly `kosbagi_session`. Semua panggilan data dari peramban lewat `/api/backend/[...path]`, yang menempelkan header `Authorization`. Halaman peran dijaga `proxy.ts` sebelum dirender, lalu sesi diverifikasi ke backend lewat `GET /auth/me`.
 - **Alasan:** token di `localStorage` bisa dibaca skrip apa pun yang berjalan di halaman, termasuk pustaka pihak ketiga. Cookie httpOnly tidak bisa dibaca JavaScript, dan `SameSite=Lax` ditambah pemeriksaan `Origin` menutup CSRF pada permintaan yang mengubah data.
 - **Akibat:** ada satu lompatan tambahan lewat server Next.js. `proxy.ts` hanya membaca isi token tanpa memverifikasi tanda tangan, karena `JWT_SECRET` hanya ada di backend, jadi hasilnya dipakai untuk mengarahkan halaman saja. Keputusan akses data tetap di backend.
+
+### K10. Polling dengan interval berupa angka
+
+Halaman yang menunggu sesuatu di luar peramban (konfirmasi Midtrans, pencatatan `recordRent`, whitelist dompet, transfer token) meminta data ulang secara berkala lewat SWR. Intervalnya disimpan sebagai angka dari hasil terakhir (`onSuccess`), bukan sebagai fungsi. Alasannya: SWR hanya memasang pewaktu bila interval bukan 0 saat efeknya dipasang, jadi fungsi yang mengembalikan 0 sebelum data pertama datang tidak pernah memulai polling, sedangkan fungsi yang dibuat ulang setiap render terus mengulang pewaktunya dari nol. Polling berhenti sendiri begitu tidak ada lagi yang ditunggu.

@@ -7,7 +7,7 @@ Folder ini berisi dokumen desain KosBagi yang dikelola jalur 4 (Frontend & Desai
 | Dokumen | Isi |
 |---|---|
 | [arsitektur.md](arsitektur.md) | Diagram konteks, komponen, dompet dan token, sekuens pembayaran sewa dan pembelian token, status di layar, deployment, dan keputusan arsitektur |
-| [user-stories.md](user-stories.md) | 41 user stories per aktor dengan kriteria penerimaan Given/When/Then, prioritas, progress, serta kaitannya dengan demo wajib dan skenario uji |
+| [user-stories.md](user-stories.md) | User stories per aktor dengan kriteria penerimaan Given/When/Then, prioritas, progress, serta kaitannya dengan demo wajib dan skenario uji |
 | [erd.md](erd.md) | ERD basis data dari `backend/prisma/schema.prisma`: skema v2 (P2) dengan penjelasan kolom, relasi, constraint, dan enum, ditambah rencana entitas P4. Diperbarui setiap kali skema berubah |
 | Alur demo | Storyboard video demo, menyusul di P5 |
 
@@ -15,7 +15,7 @@ Folder ini berisi dokumen desain KosBagi yang dikelola jalur 4 (Frontend & Desai
 
 File: [KosBagi Desain UI](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI). Bila Figma meminta izin, minta akses lihat ke koordinator.
 
-Seluruh layar P1 disetujui pada 29 Okt 2026 dan layar P2 pada 2 Nov 2026. Layar P3 dan P4 (kuitansi, KYC, penawaran, portofolio, pengelola, admin) menyusul di file yang sama, jadi tautan file tidak berubah.
+Seluruh layar P1 disetujui pada 29 Okt 2026, layar P2 pada 2 Nov 2026, dan layar P3 (kuitansi, KYC investor, penawaran token, KYC admin) pada 3 Nov 2026. Layar P4 (portofolio, pengelola, tutup periode) menyusul di file yang sama, jadi tautan file tidak berubah.
 
 ### Frame P1
 
@@ -68,6 +68,47 @@ Frame penghuni belum punya versi mode gelap di Figma. Warnanya memakai variabel 
 | Untuk pemilik kos, pengajuan terkirim | `/pemilik` | - | [76-2267](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=76-2267) |
 
 Komponen baru P2 ada di frame main component: [Slip tagihan](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=70-1033), [Slip ringkas](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=70-1258), [Cap tercatat](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=70-699), [Jejak pembayaran](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1044), [Baris riwayat](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1155), [Kartu riwayat](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1335), [Kartu kamar](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1350), [Kartu bukti](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=75-1026), [Header ponsel](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1403).
+
+### Frame P3
+
+Frame P3 belum punya versi mode gelap, kecuali Panel catatan on-chain yang memang selalu gelap. Warnanya memakai variabel tema, jadi hasil gelapnya diperiksa langsung di aplikasi.
+
+| Layar | Rute | Desktop | Ponsel |
+|---|---|---|---|
+| Kuitansi, tercatat | `/penghuni/tagihan/[id]` | [109-4361](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=109-4361) | [109-5339](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=109-5339) |
+| Kuitansi, menunggu pencatatan | `/penghuni/tagihan/[id]` | [109-4603](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=109-4603) | - |
+| Kuitansi, gagal dicatat | `/penghuni/tagihan/[id]` | [109-4829](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=109-4829) | - |
+| Kuitansi, memuat | `/penghuni/tagihan/[id]` | [109-5055](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=109-5055) | - |
+| Kuitansi, tidak ditemukan | `/penghuni/tagihan/[id]` | [109-5214](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=109-5214) | - |
+| KYC, belum mengajukan | `/investor/kyc` | [111-146](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=111-146) | [111-1469](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=111-1469) |
+| KYC, form error | `/investor/kyc` | [111-327](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=111-327) | - |
+| KYC, diajukan | `/investor/kyc` | [111-507](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=111-507) | - |
+| KYC, disetujui, dompet sedang didaftarkan | `/investor/kyc` | [111-689](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=111-689) | - |
+| KYC, disetujui, dompet tercatat | `/investor/kyc` | [111-895](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=111-895) | - |
+| KYC, ditolak | `/investor/kyc` | [111-1123](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=111-1123) | - |
+| KYC, memuat | `/investor/kyc` | [111-1336](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=111-1336) | - |
+| Penawaran, siap bayar | `/investor/penawaran` | [113-2430](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-2430) | [114-3682](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=114-3682) |
+| Penawaran, melebihi sisa (skenario 8) | `/investor/penawaran` | [113-2665](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-2665) | - |
+| Penawaran, melebihi batas (skenario 9) | `/investor/penawaran` | [113-2896](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-2896) | [114-3937](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=114-3937) |
+| Penawaran, perlu KYC | `/investor/penawaran` | [113-3143](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-3143) | - |
+| Penawaran, mendaftarkan dompet | `/investor/penawaran` | [113-3348](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-3348) | - |
+| Penawaran, menunggu pembayaran | `/investor/penawaran` | [113-3563](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-3563) | - |
+| Penawaran, memeriksa pembayaran | `/investor/penawaran` | [113-3781](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-3781) | - |
+| Penawaran, lunas, token dikirim | `/investor/penawaran` | [113-3987](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-3987) | - |
+| Penawaran, lunas, token tercatat | `/investor/penawaran` | [113-4212](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-4212) | [114-4182](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=114-4182) |
+| Penawaran, kedaluwarsa | `/investor/penawaran` | [113-4448](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-4448) | - |
+| Penawaran, gagal | `/investor/penawaran` | [113-4652](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-4652) | - |
+| Penawaran, penuh | `/investor/penawaran` | [113-4864](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-4864) | - |
+| Penawaran, memuat | `/investor/penawaran` | [113-5066](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=113-5066) | - |
+| KYC admin, menunggu | `/admin/kyc` | [115-146](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=115-146) | - |
+| KYC admin, Sheet tinjau terbuka | `/admin/kyc` | [115-335](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=115-335) | - |
+| KYC admin, Dialog tolak | `/admin/kyc` | [115-589](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=115-589) | - |
+| KYC admin, setelah disetujui | `/admin/kyc` | [115-857](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=115-857) | - |
+| KYC admin, tab Disetujui | `/admin/kyc` | [115-1084](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=115-1084) | - |
+| KYC admin, kosong | `/admin/kyc` | [115-1365](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=115-1365) | - |
+| KYC admin, memuat | `/admin/kyc` | [115-1517](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=115-1517) | - |
+
+Komponen baru P3 ada di frame main component: [Kuitansi sewa](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=104-1136), [Panel catatan on-chain](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=104-1356), [Tiket beli](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=105-1655), [Jejak KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=107-1514), [Kartu status KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=107-1656), [Baris KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=108-1493), [Sheet tinjau KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=108-1696), [Dialog tolak KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=108-1746). Komponen lama yang ikut diperbarui: Input jumlah token, Checkbox (label membungkus), Button (ikon mewarisi warna label), dan Baris riwayat (kolom Aksi dan panah ponsel kini tampil).
 
 ## Arah visual: Lime kuitansi
 
