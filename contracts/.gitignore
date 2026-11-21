@@ -18,3 +18,9 @@ node_modules/
 
 # Deploy Ignition ke node lokal (chain 31337) tidak perlu disimpan
 /ignition/deployments/chain-31337/
+# Gladi deploy di Hardhat node lokal (npm run deploy:local)
+/ignition/deployments/lokal-*/
+/deployments/lokal.json
+# Jejak Ignition Sepolia (±4 MB) disimpan koordinator di luar repo; yang di-commit
+# hanya deployments/sepolia.json dan ignition/parameters/sepolia.json
+/ignition/deployments/sepolia-smr01/
