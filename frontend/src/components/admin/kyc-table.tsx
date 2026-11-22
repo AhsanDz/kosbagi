@@ -51,7 +51,7 @@ function TableHeadRow() {
         <TableHead className="w-[170px]">Diajukan</TableHead>
         <TableHead className="w-[190px]">Dompet kustodian</TableHead>
         <TableHead className="w-[210px]">Status</TableHead>
-        <TableHead className="w-[120px] text-right">Aksi</TableHead>
+        <TableHead className="w-[140px]">Aksi</TableHead>
       </TableRow>
     </TableHeader>
   );
@@ -148,11 +148,11 @@ export function KycTable({ status, items, onOpen }: KycTableProps) {
                   <TableCell>
                     <StatusCell item={item} />
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell>
+                    {/* Revisi P4: tombol kolom Aksi memakai Outline dan rata kiri bersama judul kolom. */}
                     <Button
                       type="button"
-                      variant="ghost"
-                      className="-mr-3"
+                      variant="outline"
                       onClick={(event) => {
                         event.stopPropagation();
                         onOpen(item);
