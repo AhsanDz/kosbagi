@@ -8,14 +8,14 @@ Folder ini berisi dokumen desain KosBagi yang dikelola jalur 4 (Frontend & Desai
 |---|---|
 | [arsitektur.md](arsitektur.md) | Diagram konteks, komponen, dompet dan token, sekuens pembayaran sewa dan pembelian token, status di layar, deployment, dan keputusan arsitektur |
 | [user-stories.md](user-stories.md) | User stories per aktor dengan kriteria penerimaan Given/When/Then, prioritas, progress, serta kaitannya dengan demo wajib dan skenario uji |
-| [erd.md](erd.md) | ERD basis data dari `backend/prisma/schema.prisma`: skema v2 (P2) dengan penjelasan kolom, relasi, constraint, dan enum, ditambah rencana entitas P4. Diperbarui setiap kali skema berubah |
+| [erd.md](erd.md) | ERD basis data dari `backend/prisma/schema.prisma`: skema v4 (P4, 18 tabel) dengan penjelasan kolom, relasi, constraint, enum, dan riwayat skema v1 sampai v4. Diperbarui setiap kali skema berubah |
 | Alur demo | Storyboard video demo, menyusul di P5 |
 
 ## Desain antarmuka di Figma
 
 File: [KosBagi Desain UI](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI). Bila Figma meminta izin, minta akses lihat ke koordinator.
 
-Seluruh layar P1 disetujui pada 29 Okt 2026, layar P2 pada 2 Nov 2026, dan layar P3 (kuitansi, KYC investor, penawaran token, KYC admin) pada 3 Nov 2026. Layar P4 (portofolio, pengelola, tutup periode) menyusul di file yang sama, jadi tautan file tidak berubah.
+Seluruh layar P1 disetujui pada 29 Okt 2026, layar P2 pada 2 Nov 2026, dan layar P3 (kuitansi, KYC investor, penawaran token, KYC admin) pada 3 Nov 2026. Layar P4 (ringkasan dan portofolio investor, status kamar dan biaya pengelola, ringkasan admin, tutup periode, rekonsiliasi) disetujui pada 16 Nov 2026 setelah satu revisi gaya tombol kolom Aksi. Semua layar ada di file yang sama, jadi tautan file tidak berubah.
 
 ### Frame P1
 
@@ -109,6 +109,47 @@ Frame P3 belum punya versi mode gelap, kecuali Panel catatan on-chain yang meman
 | KYC admin, memuat | `/admin/kyc` | [115-1517](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=115-1517) | - |
 
 Komponen baru P3 ada di frame main component: [Kuitansi sewa](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=104-1136), [Panel catatan on-chain](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=104-1356), [Tiket beli](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=105-1655), [Jejak KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=107-1514), [Kartu status KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=107-1656), [Baris KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=108-1493), [Sheet tinjau KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=108-1696), [Dialog tolak KYC](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=108-1746). Komponen lama yang ikut diperbarui: Input jumlah token, Checkbox (label membungkus), Button (ikon mewarisi warna label), dan Baris riwayat (kolom Aksi dan panah ponsel kini tampil).
+
+### Frame P4
+
+Frame P4 hanya untuk desktop dan belum punya versi mode gelap, kecuali Kartu saldo bagi hasil yang selalu gelap. Di aplikasi, tata letaknya menyusun ulang menjadi satu kolom di bawah 1280 px dan tabel bisa digulir mendatar di ponsel; warnanya memakai variabel tema sehingga mode gelap tetap terbaca.
+
+| Layar | Rute | Desktop | Ponsel |
+|---|---|---|---|
+| Ringkasan, setelah distribusi | `/investor` | [149-2589](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=149-2589) | - |
+| Ringkasan, periode berjalan | `/investor` | [149-2859](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=149-2859) | - |
+| Ringkasan, belum punya token | `/investor` | [149-3120](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=149-3120) | - |
+| Ringkasan, memuat | `/investor` | [149-3319](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=149-3319) | - |
+| Portofolio | `/investor/portofolio` | [150-3185](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=150-3185) | - |
+| Portofolio, kosong | `/investor/portofolio` | [150-3442](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=150-3442) | - |
+| Portofolio, memuat | `/investor/portofolio` | [150-3572](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=150-3572) | - |
+| Status kamar, periode berjalan | `/pengelola` | [144-1782](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=144-1782) | - |
+| Status kamar, semua tercatat | `/pengelola` | [144-2007](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=144-2007) | - |
+| Status kamar, memuat | `/pengelola` | [144-2217](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=144-2217) | - |
+| Biaya, semua tercatat | `/pengelola/biaya` | [145-429](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=145-429) | - |
+| Biaya, Sheet catat biaya | `/pengelola/biaya` | [145-662](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=145-662) | - |
+| Biaya, baru dicatat | `/pengelola/biaya` | [145-957](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=145-957) | - |
+| Biaya, nota ganda | `/pengelola/biaya` | [145-1191](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=145-1191) | - |
+| Biaya, kosong | `/pengelola/biaya` | [145-1515](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=145-1515) | - |
+| Biaya, periode ditutup | `/pengelola/biaya` | [145-1649](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=145-1649) | - |
+| Biaya, memuat | `/pengelola/biaya` | [145-1879](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=145-1879) | - |
+| Admin ringkasan | `/admin` | [146-1041](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=146-1041) | - |
+| Admin ringkasan, antrean bersih | `/admin` | [146-1270](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=146-1270) | - |
+| Admin ringkasan, memuat | `/admin` | [146-1449](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=146-1449) | - |
+| Tutup periode, belum siap | `/admin/periode` | [147-1292](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=147-1292) | - |
+| Tutup periode, siap | `/admin/periode` | [147-1501](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=147-1501) | - |
+| Tutup periode, konfirmasi | `/admin/periode` | [147-1706](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=147-1706) | - |
+| Tutup periode, menutup | `/admin/periode` | [147-1927](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=147-1927) | - |
+| Tutup periode, gagal | `/admin/periode` | [147-2115](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=147-2115) | - |
+| Tutup periode, ditutup | `/admin/periode` | [147-2304](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=147-2304) | - |
+| Tutup periode, terdistribusi | `/admin/periode` | [147-2580](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=147-2580) | - |
+| Tutup periode, memuat | `/admin/periode` | [147-2869](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=147-2869) | - |
+| Rekonsiliasi, semua (jalur 1) | `/admin/rekonsiliasi` | [148-2360](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=148-2360) | - |
+| Rekonsiliasi, hanya selisih (jalur 1) | `/admin/rekonsiliasi` | [148-2857](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=148-2857) | - |
+| Rekonsiliasi, tidak ada selisih (jalur 1) | `/admin/rekonsiliasi` | [148-3089](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=148-3089) | - |
+| Rekonsiliasi, memuat (jalur 1) | `/admin/rekonsiliasi` | [148-3246](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=148-3246) | - |
+
+Komponen baru P4 ada di frame main component: [Kartu saldo bagi hasil](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=142-1767), [Daftar sewa masuk](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=142-1939), [Baris biaya](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=138-1541), [Sheet catat biaya](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=138-1751), [Struk penutupan](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=140-1576), [Kartu syarat penutupan](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=140-1812), [Baris job on-chain](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=141-1710), [Baris rekonsiliasi](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=141-1818). Revisi pengguna di P4: tombol di kolom Aksi tabel memakai varian Outline dan rata kiri bersama judul kolom, termasuk tombol Tinjau dan Detail di tabel KYC admin (P3). Tautan yang berpindah halaman, seperti Kuitansi di riwayat tagihan, tetap berupa Tautan.
 
 ## Arah visual: Lime kuitansi
 
@@ -239,9 +280,9 @@ Semua layar setelah masuk memakai app shell yang sama: sidebar tinta berisi menu
 
 | Peran | Menu di sidebar | Rute | Isi dibangun |
 |---|---|---|---|
-| Investor | Ringkasan | `/investor` | P3, P4 |
+| Investor | Ringkasan | `/investor` | P4 |
 | | Penawaran | `/investor/penawaran` | P3 |
-| | Portofolio (termasuk riwayat) | `/investor/portofolio` | P3, P4 |
+| | Portofolio (termasuk riwayat) | `/investor/portofolio` | P4 |
 | | Verifikasi KYC | `/investor/kyc` | P3 |
 | Penghuni | Ringkasan | `/penghuni` | P2 |
 | | Tagihan (termasuk kuitansi) | `/penghuni/tagihan` | P2, P3 |
@@ -252,4 +293,4 @@ Semua layar setelah masuk memakai app shell yang sama: sidebar tinta berisi menu
 | | Tutup periode | `/admin/periode` | P4 |
 | | Rekonsiliasi | `/admin/rekonsiliasi` | P4 (jalur 1) |
 
-Nama menu mengikuti frame app shell di Figma, dan menu serta rutenya sama dengan daftar di `frontend/src/components/app-shell/role-menus.ts`. Halaman `/admin/rekonsiliasi` (P4) dan `/pemilik` (P2) dikerjakan jalur 1; di P1 menu Rekonsiliasi sudah tampil di sidebar admin, tetapi halamannya belum ada.
+Nama menu mengikuti frame app shell di Figma, dan menu serta rutenya sama dengan daftar di `frontend/src/components/app-shell/role-menus.ts`. Halaman `/admin/rekonsiliasi` (P4) dan `/pemilik` (P2) dikerjakan jalur 1. Menu Rekonsiliasi di sidebar admin dan butir Rekonsiliasi di kartu Perlu perhatian `/admin` menaut ke halaman itu.

@@ -15,16 +15,23 @@ Variabel lingkungan ada di `.env.example`. Hanya variabel berawalan `NEXT_PUBLIC
 | `NEXT_PUBLIC_API_URL` | ya | Alamat backend tanpa `/api` |
 | `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY` | tidak | Client key sandbox untuk `snap.js`. Kalau kosong, tombol bayar menampilkan pesan yang jelas |
 
-## Status progress 3
+## Status progress 4
 
 - Masuk berfungsi sungguhan lewat backend. Kartu akun demo memakai kata sandi `demo-kosbagi`, dan form email menerima akun yang sama.
 - Penghuni: `/penghuni`, `/penghuni/tagihan`, dan kuitansi `/penghuni/tagihan/[id]` memakai API sungguhan. Slip lunas punya tombol Lihat kuitansi, riwayat punya kolom Aksi (desktop) dan baris yang bisa diketuk (ponsel). Kuitansi bisa dicetak; stylesheet cetak hanya menampilkan kartu kuitansi.
 - Investor: `/investor/kyc` (form, Kartu status KYC, Jejak KYC) dan `/investor/penawaran` (Ringkasan penawaran, dokumen, risiko, dan Tiket beli dengan 13 keadaan, termasuk skenario 8 dan 9 yang ditolak sebelum pembayaran dibuat).
 - Admin: `/admin/kyc` dengan tab Menunggu, Disetujui, dan Ditolak, Sheet tinjau berisi pemeriksaan otomatis, dan Dialog tolak dengan alasan wajib.
-- Status on-chain di semua layar: Menunggu pencatatan, Tercatat (tautan Etherscan Sepolia bila tx hash ada), Gagal dicatat, dan Data lampau untuk tagihan seed yang lunas tanpa pembayaran Midtrans.
+- Status on-chain: Menunggu pencatatan, Tercatat (tautan Etherscan Sepolia bila tx hash ada), dan Data lampau untuk tagihan seed yang lunas tanpa pembayaran Midtrans. "Gagal dicatat" hanya tampil untuk admin dan pengelola; penghuni dan investor melihat Menunggu pencatatan (P4).
 - Sidebar menandai menu aktif, termasuk subhalaman seperti kuitansi.
 - Dokumen penerbitan di tab Dokumen `/kos/sumbersari-01` dan kartu dokumen `/investor/penawaran` memakai tiga file di `docs/bisnis/dokumen-penerbitan` dengan hash SHA-256 final. Alamat kontrak dan tx hash di halaman publik masih contoh; koordinator menggantinya setelah deploy Sepolia.
-- Halaman `/investor` (ringkasan), `/investor/portofolio`, pengelola, `/admin`, dan `/admin/periode` masih kerangka memuat sampai progress 4.
+- Investor (P4): `/investor` berisi Kartu saldo bagi hasil yang selalu gelap dengan grafik sewa tercatat per tanggal bayar, Daftar sewa masuk per kamar, dan jalur kepemilikan; `/investor/portofolio` berisi kepemilikan, dompet kustodian, Bagi hasil per periode, dan Riwayat transaksi. Investor tidak pernah melihat kata gagal untuk pencatatan.
+- Pengelola (P4): `/pengelola` berisi ringkasan sewa masuk dengan bilah dua segmen, papan 10 Ubin kamar, dan kartu Perlu ditindaklanjuti; `/pengelola/biaya` berisi total biaya, tabel Baris biaya, dan Sheet catat biaya dengan hash SHA-256 nota yang dihitung di peramban serta Alert untuk nota ganda (409).
+- Admin (P4): `/admin` berisi kartu Periode berjalan, kartu Perlu perhatian (KYC, rekonsiliasi, antrean), dan Antrean job on-chain dengan tab dan Coba lagi; `/admin/periode` berisi Struk penutupan, kartu syarat, Dialog konfirmasi, status menutup atau gagal, blok snapshot, Jalankan distribusi (sekali), dan Bagian pemegang termasuk bagian perbendaharaan untuk pemilik lama.
+- Revisi P4: tombol di kolom Aksi tabel memakai varian Outline dan rata kiri, termasuk Tinjau dan Detail di `/admin/kyc`.
+- `/pengelola`, `/pengelola/biaya`, dan `/admin/periode` menerima `?periode=YYYY-MM`. Tanpa parameter, halaman memanggil API tanpa periode dan memakai periode berjalan yang dikembalikan backend.
+- Penghuni (P4): tagihan periode yang sudah ditutup tidak bisa dibayar (tombol nonaktif dengan keterangan), dan pembayaran yang masuk setelah periode ditutup tampil sebagai "Dana dikembalikan". Admin melihat butir "Dana perlu dikembalikan" di kartu Perlu perhatian.
+- Antrean job admin: job yang gagal permanen bisa ditandai ditangani lewat Dialog dengan catatan wajib; job itu tampil di tab Semua dengan nama admin dan catatannya.
+- Penerus `/api/backend` ikut meneruskan `X-Content-Type-Options`, `Content-Disposition`, dan `Content-Security-Policy` dari backend (penting untuk file nota).
 
 ## Sesi dan pemanggilan API
 
@@ -38,9 +45,9 @@ JWT tidak pernah sampai ke JavaScript peramban.
 | Verifikasi sesi | `src/components/app-shell/session-account.tsx` | Menanyakan token ke backend lewat `GET /auth/me` dan menampilkan pengguna di sidebar |
 | Klien API | `src/lib/api/` | Tipe respons, panggilan dari peramban, dan penanganan galat |
 
-Halaman penghuni mengambil data di klien dengan SWR lewat `TenantBillingProvider` di `src/components/tenant/`, yang juga mengatur Snap, polling Memeriksa pembayaran, dan keadaan tagihan. Halaman investor dan admin memakai SWR langsung di komponen halamannya (`src/components/investor/`, `src/components/admin/`).
+Halaman penghuni mengambil data di klien dengan SWR lewat `TenantBillingProvider` di `src/components/tenant/`, yang juga mengatur Snap, polling Memeriksa pembayaran, dan keadaan tagihan. Halaman investor, pengelola, dan admin memakai SWR langsung di komponen halamannya (`src/components/investor/`, `src/components/manager/`, `src/components/admin/`).
 
-Halaman yang menunggu proses di luar peramban (konfirmasi Midtrans, pencatatan on-chain, whitelist dompet, transfer token) meminta data ulang berkala. Intervalnya berupa angka yang ditentukan dari hasil terakhir, karena SWR tidak memulai polling bila intervalnya 0 saat pertama dipasang.
+Halaman yang menunggu proses di luar peramban (konfirmasi Midtrans, pencatatan on-chain, whitelist dompet, transfer token, nota biaya, penutupan periode, job yang diulang) meminta data ulang berkala. Intervalnya berupa angka yang ditentukan dari hasil terakhir, karena SWR tidak memulai polling bila intervalnya 0 saat pertama dipasang.
 
 ## Rute
 
@@ -51,21 +58,21 @@ Halaman yang menunggu proses di luar peramban (konfirmasi Midtrans, pencatatan o
 | `/kos/[slug]` | publik | Detail kos (`/kos/sumbersari-01`): tab Ringkasan, Keuangan, Dokumen, Blockchain, Risiko (bisa ditautkan, mis. `?tab=keuangan`) dan panel penawaran | P1 |
 | `/pemilik` | publik | Untuk pemilik kos, simulasi dana, form pengajuan (jalur 1) | P2 |
 | `/masuk` | publik | Kartu akun demo dan form email dengan state error dari server | P1 tampilan, P2 berfungsi |
-| `/investor` | investor | Ringkasan | P3, P4 |
+| `/investor` | investor | Kartu saldo bagi hasil, grafik sewa tercatat, Daftar sewa masuk, kepemilikan | P4 |
 | `/investor/penawaran` | investor | Ringkasan penawaran, dokumen, risiko, Tiket beli dengan pemeriksaan skenario 8 dan 9, bayar lewat Snap | P3 |
-| `/investor/portofolio` | investor | Portofolio dan riwayat | P4 |
+| `/investor/portofolio` | investor | Kepemilikan, dompet kustodian, Bagi hasil per periode, Riwayat transaksi | P4 |
 | `/investor/kyc` | investor | Form KYC dummy, Kartu status KYC, Jejak KYC sampai dompet tercatat di KosToken | P3 |
 | `/penghuni` | penghuni | Ringkasan: Slip ringkas, riwayat, kamar, bukti | P2 |
 | `/penghuni/tagihan` | penghuni | Slip tagihan, bayar via Snap, jejak pembayaran, riwayat dengan kolom Aksi | P2, P3 |
 | `/penghuni/tagihan/[id]` | penghuni | Kuitansi sewa, panel argumen recordRent di Sepolia, cetak kuitansi | P3 |
-| `/pengelola` | pengelola | Status kamar | P4 |
-| `/pengelola/biaya` | pengelola | Biaya dan unggah nota | P4 |
-| `/admin` | admin | Ringkasan | P4 |
+| `/pengelola` | pengelola | Ringkasan sewa masuk, papan kamar, Perlu ditindaklanjuti | P4 |
+| `/pengelola/biaya` | pengelola | Total biaya, Baris biaya, Sheet catat biaya dengan hash nota | P4 |
+| `/admin` | admin | Periode berjalan, Perlu perhatian, Antrean job on-chain dengan Coba lagi | P4 |
 | `/admin/kyc` | admin | Tab pengajuan, Sheet tinjau dengan pemeriksaan otomatis, Dialog tolak | P3 |
-| `/admin/periode` | admin | Tutup periode dan distribusi | P4 |
+| `/admin/periode` | admin | Struk penutupan, syarat, Dialog konfirmasi, distribusi, Bagian pemegang | P4 |
 | `/admin/rekonsiliasi` | admin | Rekonsiliasi Midtrans, basis data, blockchain (jalur 1) | P4 |
 
-Rute peran memakai layout app shell (sidebar per peran, banner "Mode sandbox: data dummy, tanpa uang nyata", header halaman) dan dilindungi `src/proxy.ts`. Halaman yang belum dibangun masih kerangka memuat sampai progressnya, kecuali `/pemilik` dan `/admin/rekonsiliasi` yang dibangun jalur 1.
+Rute peran memakai layout app shell (sidebar per peran, banner "Mode sandbox: data dummy, tanpa uang nyata", header halaman) dan dilindungi `src/proxy.ts`. Semua rute di atas sudah berisi sejak P4. `/pemilik` dan `/admin/rekonsiliasi` dibangun jalur 1; menu Rekonsiliasi di sidebar admin menaut ke sana.
 
 ## Struktur
 
@@ -85,19 +92,20 @@ frontend/
 │   │   └── not-found.tsx     halaman 404
 │   ├── components/
 │   │   ├── ui/               komponen shadcn/ui yang sudah dikustom (termasuk dialog sejak P3)
-│   │   ├── admin/            KYC admin: tabel, Sheet tinjau, Dialog tolak
+│   │   ├── admin/            KYC admin, ringkasan admin, antrean job, struk dan kartu tutup periode, Bagian pemegang
 │   │   ├── app-shell/        sidebar, blok akun dari sesi, header, banner sandbox, skeleton
 │   │   ├── auth/             kartu akun demo, form masuk
 │   │   ├── brand/            logo
 │   │   ├── common/           tautan, status on-chain, badge tagihan, dll.
 │   │   ├── home/             bagian-bagian beranda
-│   │   ├── investor/         KYC investor dan penawaran: form, Kartu status KYC, Jejak KYC, Tiket beli
+│   │   ├── investor/         KYC, penawaran, Kartu saldo bagi hasil, Daftar sewa masuk, portofolio
+│   │   ├── manager/          pengelola: ringkasan sewa, papan kamar, tindak lanjut, biaya, Sheet catat biaya
 │   │   ├── property/         kartu kos, papan kamar, tab dan panel detail kos
 │   │   ├── public/           navbar, footer, judul bagian, daftar langkah
 │   │   ├── tenant/           halaman penghuni: slip, kuitansi, panel on-chain, jejak, riwayat, kartu
 │   │   └── theme/            penyedia tema dan tombol ganti tema
 │   ├── hooks/                use-mobile (dipakai sidebar)
-│   ├── lib/                  tipe, format, data statis, konfigurasi, keadaan tagihan, KYC, dan pesanan token
+│   ├── lib/                  tipe, format, periode, data statis, konfigurasi, keadaan tagihan, KYC, pesanan token, grafik investor, biaya, syarat penutupan
 │   │   ├── api/              klien API, tipe respons, helper route handler
 │   │   ├── auth/             peran, cookie sesi, verifikasi sesi di server
 │   │   └── midtrans/         pemuat snap.js
@@ -111,5 +119,6 @@ frontend/
 - Desain: Figma "KosBagi Desain UI" (`SiWSQc651BxoJmt67erq2d`), arah "Lime kuitansi". Token warna di `src/app/globals.css` sama persis dengan variabel Figma (mode Terang = `:root`, Gelap = `.dark`).
 - Lime (`success`) hanya untuk bukti: lunas, tercatat on-chain, cap TERCATAT, garis grafik. Tombol memakai tinta (`primary`).
 - Ikon: `@phosphor-icons/react` (weight regular). Komponen yang dipakai di Server Component mengimpor dari `@phosphor-icons/react/ssr`.
-- Frame penghuni, investor, dan admin belum punya versi gelap di Figma. Warnanya memakai token tema, dan hasil gelapnya diperiksa langsung di aplikasi. Panel catatan on-chain dan Kartu bukti selalu gelap lewat class `dark`.
+- Frame penghuni, investor, pengelola, dan admin belum punya versi gelap di Figma. Warnanya memakai token tema, dan hasil gelapnya diperiksa langsung di aplikasi. Panel catatan on-chain, Kartu bukti, dan Kartu saldo bagi hasil selalu gelap lewat class `dark`.
+- Frame P4 hanya desktop. Di bawah 1280 px kolom kanan turun ke bawah, dan tabel lebar bisa digulir mendatar di dalam kartunya tanpa membuat halaman melebar.
 - Menambah komponen shadcn: `npx shadcn@4.23.0 add <nama>`. CLI menulis `import { cn } from "cn"`; ganti menjadi `import { cn } from "@/lib/utils"` supaya token tipografi KosBagi (mis. `text-button`) tidak terhapus saat class digabung.

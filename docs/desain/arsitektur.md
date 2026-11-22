@@ -2,7 +2,7 @@
 
 Dokumen ini menggambarkan cara komponen KosBagi bekerja sama: siapa memakai apa, bagaimana pembayaran sewa sampai tercatat di blockchain, bagaimana investor membeli token, status apa yang tampil di layar, dan di mana aplikasi dijalankan. Semua diagram ditulis dengan Mermaid sehingga tampil langsung di GitHub.
 
-Status: versi P2 (2 Nov 2026). Dokumen ini diperbarui bila alurnya berubah, paling lambat saat prototipe lengkap di P4.
+Status: versi P4 (19 Nov 2026), prototipe lengkap. Bagian 9 menambah alur biaya dan nota, tutup periode, dan distribusi bagi hasil; bagian 6C menjelaskan status on-chain yang dilihat tiap peran.
 
 Rincian teknis yang dimiliki dokumen lain:
 
@@ -22,6 +22,7 @@ Bila ada perbedaan, dokumen API dan dokumen kontrak yang menjadi acuan, lalu dia
 6. [Status yang tampil di layar](#6-status-yang-tampil-di-layar)
 7. [Deployment](#7-deployment)
 8. [Keputusan arsitektur](#8-keputusan-arsitektur)
+9. [Biaya, penutupan periode, dan distribusi](#9-biaya-penutupan-periode-dan-distribusi)
 
 ## Arti warna di diagram
 
@@ -287,7 +288,7 @@ sequenceDiagram
 - **Langkah 4.** Referensi on-chain adalah `keccak256(order_id)`: angka 32 byte yang bisa dicocokkan dengan basis data, tanpa nama penghuni.
 - **Langkah 5.** Data yang dikirim hanya kamar, periode, nominal, dan referensi. Transaksi ditandatangani dompet operator; hanya alamat dengan peran operator yang boleh memanggil `recordRent` (skenario 11).
 - **Langkah 8.** Bila job terulang, KosLedger menolak referensi yang sudah tercatat. Ini lapis ketiga pencegahan transaksi ganda (skenario 5).
-- **Langkah 10.** Kegagalan RPC atau jaringan dicoba ulang dengan jeda yang makin panjang. Bila tetap gagal, halaman penghuni menampilkan "Pencatatan on-chain gagal" tanpa tombol, karena pengulangan adalah tugas operator di antrean admin (P4). Mengulang aman karena kontrak menolak catatan ganda. Pembayaran tetap lunas di sistem selama menunggu.
+- **Langkah 10.** Kegagalan RPC atau jaringan dicoba ulang dengan jeda yang makin panjang. Bila tetap gagal, halaman penghuni tetap menampilkan "Menunggu pencatatan" tanpa tombol (sejak P4), karena pengulangan adalah tugas admin di antrean job. Mengulang aman karena kontrak menolak catatan ganda. Pembayaran tetap lunas di sistem selama menunggu.
 - **Langkah 15.** Tautan Etherscan berbentuk `https://sepolia.etherscan.io/tx/<tx hash>`, dan hash ditampilkan disingkat 6+4 karakter.
 
 ## 5. Alur pembelian token
@@ -398,7 +399,9 @@ Di basis data, tagihan hanya punya dua status: belum dibayar dan lunas. Menunggu
 | On-chain | Menunggu pencatatan | Nila | "Transaksi sedang dikirim ke jaringan Sepolia. Biasanya selesai dalam 1 menit." |
 | On-chain | Tercatat | Lime | Tx hash 6+4, nomor blok, tautan "Lihat di Etherscan". Bila tx asalnya tidak ditemukan (txHash kosong), tetap "Tercatat" tanpa tautan |
 | On-chain | Data lampau | Abu | Tagihan lunas sebelum pencatatan on-chain dimulai, tanpa tautan |
-| On-chain | Gagal dicatat | Saga | "Jaringan Sepolia tidak merespons. Pembayaranmu tetap lunas di sistem." Penghuni tidak punya tombol; Coba lagi ada di antrean admin (P4) |
+| On-chain | Gagal dicatat | Saga | Hanya untuk admin dan pengelola. Sejak P4 penghuni dan investor melihat Menunggu pencatatan (bagian 6C); Coba lagi ada di antrean admin |
+| Tagihan | Dana dikembalikan | Kunyit | P4: "Pembayaran diterima setelah periode ditutup, dana akan dikembalikan" dengan nominal, waktu bayar, dan nomor order, tanpa tombol bayar |
+| Tagihan | Belum dibayar, periode ditutup | Abu | P4: tombol Bayar sewa nonaktif dengan keterangan bahwa tagihan tidak bisa dibayar lewat KosBagi |
 | KYC | Belum mengajukan, Diajukan, Disetujui, Ditolak | Abu, nila, lime, saga | Disetujui memicu whitelist di KosToken |
 
 Lime hanya muncul pada status yang menjadi bukti: Lunas, Tercatat, dan Disetujui.
@@ -412,7 +415,7 @@ Kuitansi di `/penghuni/tagihan/[id]` memakai status on-chain yang sama dengan sl
 | Menunggu pencatatan | Argumen `recordRent` sudah tampil, hash transaksi dan waktu blok "Belum ada", tombol Etherscan nonaktif, halaman diperbarui tiap 5 detik | Tidak |
 | Tercatat | Status "Tercatat di blok …", hash transaksi, tombol "Lihat di Etherscan" dan "Salin hash", langkah memeriksa sendiri | Ya |
 | Tercatat tanpa hash | Catatan sudah ada on-chain tetapi transaksi asalnya tidak ditemukan: status Tercatat, hash "Tidak tersedia", tanpa tautan Etherscan | Ya |
-| Gagal dicatat | "Gagal dicatat, diulang operator", tanpa tombol untuk penghuni | Tidak |
+| Gagal dicatat | Sejak P4 dibaca "Menunggu pencatatan", sama dengan baris pertama | Tidak |
 | Data lampau (`NOT_RECORDED`) | "Tidak dicatat, data lampau": tagihan lunas tanpa pembayaran Midtrans, tidak pernah dicatat dan tanpa tautan. Kuitansinya menulis Nomor tagihan "Data lampau, tanpa order Midtrans" dan tidak menyebut Midtrans sandbox | Tidak |
 
 Baris argumen di panel memakai label yang mudah dibaca diikuti nilai mentah yang benar-benar dikirim worker, mis. `K03 (room = 3)`, `2026-11 (period = 202611)`, dan `1.500.000 (amount = 1500000)`, supaya cocok satu per satu dengan event `RentRecorded(period, room, paymentRef, amount)` di Etherscan. Properti bukan argumen `recordRent`; satu KosLedger melayani satu properti, jadi baris Properti ditandai "dari alamat kontrak".
@@ -461,6 +464,50 @@ stateDiagram-v2
 - **Memeriksa pembayaran** adalah state klien yang sama dengan tagihan: polling tiap 3 detik sampai 60 detik setelah Snap `onSuccess`.
 - **Halaman KYC investor** mengikuti urutan yang sama sampai "Mendaftarkan dompet": Belum mengajukan (form), Diajukan (Kartu status KYC), Disetujui dan dompet sedang didaftarkan, Disetujui dan dompet tercatat, atau Ditolak (kartu dengan alasan admin lalu form Ajukan lagi). Jejak KYC empat tahap di kanan menandai tahap yang sudah lewat dengan tinta dan tahap Tercatat dengan lime.
 - **Admin KYC.** Menyetujui pengajuan langsung membuat dompet kustodian dan job `WHITELIST_KYC` di backend; Sheet tinjau lalu memantau status whitelist sampai tercatat. Menolak wajib disertai alasan karena investor membacanya.
+
+### 6C. Status on-chain per peran (P4)
+
+Satu pencatatan yang sama ditulis berbeda menurut siapa yang membaca. Penghuni dan investor tidak bisa berbuat apa pun terhadap pencatatan yang gagal, jadi mereka tidak pernah melihat kata gagal. Backend memetakan `FAILED` menjadi `PENDING` di semua API untuk investor (termasuk `GET /kyc/me` dan pesanan token), dan frontend memetakannya sekali lagi sebagai pengaman.
+
+| Peran | Pencatatan berhasil | Masih dikirim | Gagal setelah 5 percobaan otomatis |
+|---|---|---|---|
+| Penghuni | Tercatat + tautan Etherscan | Menunggu pencatatan | Menunggu pencatatan (slip, jejak, riwayat, kuitansi), tanpa tombol |
+| Investor | Tercatat + tautan Etherscan | Menunggu pencatatan | Menunggu pencatatan |
+| Pengelola | Ubin lime + hash | Ubin Menunggu, "Belum tercatat" | Ubin Menunggu, ditambah butir "Lunas …, belum tercatat" di kartu Perlu ditindaklanjuti dan "Gagal dicatat" di tabel biaya. Tanpa tombol mengulang |
+| Admin | Tercatat + hash | Menunggu pencatatan, Aksi "Otomatis" | Gagal dicatat + tombol Coba lagi dan Tandai ditangani di antrean job |
+
+Coba lagi (`POST /admin/jobs/:id/retry`) hanya untuk job `FAILED`. Processor jalur 3 memeriksa status on-chain dulu, jadi transaksi yang ternyata sudah masuk blok diakui sebagai tercatat, bukan dikirim dua kali.
+
+Job yang gagal permanen (mis. nota yang sudah tercatat lewat transaksi lain) bisa ditandai ditangani lewat `POST /admin/jobs/:id/resolve` dengan catatan 5 sampai 300 karakter. Job itu tidak dikirim ulang lagi (Coba lagi ditolak 409 `JOB_RESOLVED`), tidak lagi dihitung syarat `JOB_FAILED` sehingga tidak menahan penutupan periode, dan tampil di tab Semua dengan nama admin dan catatannya.
+
+Penghuni yang membayar setelah periode ditutup melihat status "Dana dikembalikan" (dari `paymentState: PAID_AFTER_CLOSE` atau `refund`), dan admin melihat butir "Dana perlu dikembalikan" di kartu Perlu perhatian (`attention.refundsPending`).
+
+### 6D. Status periode (P4)
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state "Berjalan (OPEN)" as Open
+    state "Siap ditutup" as Siap
+    state "Menutup (CLOSING)" as Closing
+    state "Penutupan gagal (CLOSE_FAILED)" as Failed
+    state "Ditutup (CLOSED)" as Closed
+    state "Terdistribusi (DISTRIBUTED)" as Distributed
+
+    [*] --> Open
+    Open --> Siap: semua sewa dan nota tercatat, tidak ada job gagal
+    Siap --> Open: ada pencatatan baru yang belum selesai
+    Siap --> Closing: Tutup periode (Dialog konfirmasi)
+    Closing --> Closed: closePeriod tercatat
+    Closing --> Failed: percobaan otomatis habis
+    Failed --> Closing: Coba lagi oleh admin
+    Closed --> Distributed: Jalankan distribusi (sekali)
+
+    classDef bukti fill:#D4F55A,stroke:#2C3604,color:#0E0F0C
+    class Closed,Distributed bukti
+```
+
+"Siap ditutup" bukan status di backend: periodenya tetap `OPEN`, tetapi semua `requirements` dari `GET /periods/:period` bernilai `ok`. Selama belum siap, struk berlabel "Struk sementara" dan memakai angka yang sudah tercatat on-chain saja (contoh November: Rp12.000.000 dan Rp2.400.000 menghasilkan Rp390 per token).
 
 ## 7. Deployment
 
@@ -630,3 +677,102 @@ Repositori hanya berisi `.env.example` dengan nilai contoh. Semua yang diawali `
 ### K10. Polling dengan interval berupa angka
 
 Halaman yang menunggu sesuatu di luar peramban (konfirmasi Midtrans, pencatatan `recordRent`, whitelist dompet, transfer token) meminta data ulang secara berkala lewat SWR. Intervalnya disimpan sebagai angka dari hasil terakhir (`onSuccess`), bukan sebagai fungsi. Alasannya: SWR hanya memasang pewaktu bila interval bukan 0 saat efeknya dipasang, jadi fungsi yang mengembalikan 0 sebelum data pertama datang tidak pernah memulai polling, sedangkan fungsi yang dibuat ulang setiap render terus mengulang pewaktunya dari nol. Polling berhenti sendiri begitu tidak ada lagi yang ditunggu.
+
+### K11. Investor dan penghuni tidak pernah melihat kata gagal untuk pencatatan
+
+- **Keputusan:** pencatatan on-chain yang gagal ditampilkan "Menunggu pencatatan" kepada investor dan penghuni. Hanya pengelola dan admin yang melihat "Gagal dicatat", dan hanya admin yang punya tombol Coba lagi dan Tandai ditangani.
+- **Alasan:** pembayaran dan pembelian mereka sudah sah di sistem; kegagalan pencatatan adalah urusan operator dan selalu diulang. Kata gagal di layar mereka membuat orang membayar ulang tanpa perlu.
+- **Akibat:** backend memetakan status untuk peran investor dan penghuni, frontend memetakannya lagi (`feedStatus`, `investorChainStatus`, `tenantChain`). Kegagalan tetap terlihat di antrean admin dan rekonsiliasi.
+
+### K12. Tutup periode dan distribusi adalah dua langkah
+
+- **Keputusan:** Tutup periode mengirim `closePeriod` lewat antrean (job `CLOSE_PERIOD`). Setelah tercatat, admin menekan Jalankan distribusi, yang membaca `KosLedger.periods(period)` dan `getPastVotes` di blok snapshot lalu menulis bagian tiap pemegang dalam satu transaksi basis data. Bagian token yang belum terjual (perbendaharaan) masuk ke saldo pemilik lama.
+- **Alasan:** `closePeriod` permanen di blockchain dan bisa gagal karena jaringan; distribusi hanya pekerjaan basis data yang membaca kontrak. Memisahkannya membuat kegagalan jaringan tidak pernah menghasilkan saldo setengah jadi.
+- **Akibat:** distribusi dijaga constraint unik per properti dan periode, jadi tombol kedua kali ditolak 409 `ALREADY_DISTRIBUTED`. Sebelum siap, tombol Tutup periode nonaktif dan kartu syarat menyebut apa yang belum tercatat.
+
+### K13. Hash nota dihitung di peramban sebagai pratinjau, backend menjadi acuan
+
+- **Keputusan:** Sheet catat biaya menghitung SHA-256 isi file dengan Web Crypto dan menampilkannya sebelum disimpan. Backend menghitung ulang dari file yang diterima; hash itulah yang disimpan, diperiksa keunikannya, dan dikirim ke `recordExpense`.
+- **Alasan:** pengelola bisa melihat hash yang akan tercatat on-chain tanpa menunggu unggahan, tetapi peramban tidak boleh dipercaya untuk data yang dicatat permanen.
+- **Akibat:** nota yang sama ditolak 409 `RECEIPT_ALREADY_RECORDED` sebelum job dibuat, dan Alert di Sheet menyebut biaya serta tanggal nota pertama. Web Crypto hanya tersedia di konteks aman (HTTPS atau localhost); di luar itu Sheet tetap bisa menyimpan dan hash ditampilkan setelah tercatat.
+
+## 9. Biaya, penutupan periode, dan distribusi
+
+### 9A. Dari nota biaya sampai recordExpense
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor P as Pengelola
+    participant FE as Frontend
+    participant API as Backend API
+    participant DB as PostgreSQL
+    participant Q as BullMQ
+    participant W as Worker
+    participant L as KosLedger
+
+    P->>FE: Catat biaya: kategori, nominal, tanggal, keterangan, file nota
+    FE->>FE: SHA-256 isi file (Web Crypto), tampilkan hash 6+4
+    P->>FE: Simpan dan catat
+    FE->>API: POST /expenses (multipart)
+    API->>API: Validasi isian, tipe dan ukuran file, hitung SHA-256
+    alt Hash nota sudah pernah dicatat
+        API-->>FE: 409 RECEIPT_ALREADY_RECORDED (biaya dan tanggal nota pertama)
+        FE-->>P: Alert "Nota ini sudah tercatat", pilih file lain
+    else Periode sudah ditutup
+        API-->>FE: 409 PERIOD_CLOSED
+    else Nota baru
+        API->>DB: Satu transaksi: baris expenses + outbox RECORD_EXPENSE
+        API-->>FE: 201, status Menunggu pencatatan
+        API->>Q: Dispatcher memasukkan job
+        Q->>W: Ambil job
+        W->>L: isReceiptRecorded? lalu recordExpense(period, category, amount, receiptHash)
+        L-->>W: event ExpenseRecorded, tx hash
+        W->>DB: Simpan tx hash, status Tercatat
+        FE->>API: Polling GET /expenses?period=
+        API-->>FE: Tercatat + tx hash
+        FE-->>P: Baris biaya: Tercatat + tautan Etherscan
+    end
+```
+
+### 9B. Tutup periode dan distribusi
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Admin
+    participant FE as Frontend
+    participant API as Backend API
+    participant DB as PostgreSQL
+    participant W as Worker
+    participant L as KosLedger
+    participant T as KosToken
+
+    A->>FE: Buka /admin/periode
+    FE->>API: GET /periods/2026-11
+    API-->>FE: Struk sementara, syarat penutupan, status OPEN
+    Note over FE: Tombol Tutup periode aktif hanya bila semua syarat ok
+    A->>FE: Tutup periode, lalu konfirmasi di Dialog
+    FE->>API: POST /periods/2026-11/close
+    API->>DB: Satu transaksi: period_closings + outbox CLOSE_PERIOD
+    API-->>FE: 202, status CLOSING
+    W->>L: closePeriod(202611)
+    L->>T: totalSupply di blok snapshot (block.number - 1)
+    L-->>W: event PeriodClosed: sewa bersih, nilai per token (sen)
+    W->>DB: Status Tercatat
+    FE->>API: Polling GET /periods/2026-11
+    API->>L: periods(202611)
+    API-->>FE: Struk penutupan final, cap TERCATAT, status CLOSED
+    A->>FE: Jalankan distribusi
+    FE->>API: POST /periods/2026-11/distribute
+    API->>L: periods(202611)
+    API->>T: getPastVotes pemilik lama, perbendaharaan, dompet kustodian di blok snapshot
+    API->>API: Jumlah saldo = totalSupply, bagian = floor(sewa bersih x saldo / suplai)
+    API->>DB: Satu transaksi: distributions + distribution_shares
+    API-->>FE: 200, Bagian pemegang
+    FE-->>A: Distribusi selesai, tombol nonaktif
+```
+
+Angka November yang keluar persis: sewa kotor Rp13.500.000, biaya Rp2.700.000, fee 5% Rp675.000, laba kena pajak Rp10.125.000, PPh 22% Rp2.227.500, sewa bersih Rp7.897.500, nilai per token Rp438,75 (43875 sen). Bagian pemegang: pemilik lama Rp2.369.250, Bagas Rp789.750, Citra Rp526.500, Eko Rp351.000, Fajar Rp245.700, Dimas Rp43.875, perbendaharaan Rp3.571.425 untuk pemilik lama, sisa pembulatan Rp0.
+
+Setelah distribusi, `GET /portfolio/summary` menjumlahkan bagian investor menjadi saldo bagi hasil di Kartu saldo `/investor`, dan `GET /portfolio` menulis satu baris per periode di tabel Bagi hasil per periode.

@@ -1,8 +1,8 @@
 # ERD KosBagi
 
-Diagram entitas dan relasi (ERD) basis data KosBagi. ERD ini disusun dari [`backend/prisma/schema.prisma`](../../backend/prisma/schema.prisma) dan migrasinya, [`20261029120000_init`](../../backend/prisma/migrations/20261029120000_init/migration.sql) serta [`20261102120000_skema_v2`](../../backend/prisma/migrations/20261102120000_skema_v2/migration.sql). Bila ada perbedaan, skema Prisma yang menjadi acuan dan ERD ini disesuaikan.
+Diagram entitas dan relasi (ERD) basis data KosBagi. ERD ini disusun dari [`backend/prisma/schema.prisma`](../../backend/prisma/schema.prisma) dan migrasinya: [`20261029120000_init`](../../backend/prisma/migrations/20261029120000_init/migration.sql), [`20261102120000_skema_v2`](../../backend/prisma/migrations/20261102120000_skema_v2/migration.sql), [`20261103120000_skema_v3`](../../backend/prisma/migrations/20261103120000_skema_v3/migration.sql), dan [`20261116120000_skema_v4`](../../backend/prisma/migrations/20261116120000_skema_v4/migration.sql). Bila ada perbedaan, skema Prisma yang menjadi acuan dan ERD ini disesuaikan.
 
-Status: skema v2 (P2, 2 Nov 2026) dengan 13 tabel. Empat tabel v1 (`users`, `properties`, `rooms`, `bills`) tidak berubah; sembilan tabel baru mengurus pembayaran, antrean blockchain, KYC dummy, penawaran token, dan pengajuan pemilik kos. Tabel P4 masih berupa rencana dan dipisahkan di bagian [Rencana entitas P4](#rencana-entitas-p4).
+Status: skema v4 (P4, 16 Nov 2026) dengan 18 tabel. Skema v3 (P3) tidak menambah tabel, hanya kolom `payments.bank`, `token_purchases.order_number`, status pembayaran `UNFULFILLED`, dan dua jenis anomali. Skema v4 menambah lima tabel untuk biaya dan nota, penutupan periode, distribusi bagi hasil, dan riwayat Coba lagi admin. Ringkasan perubahan per versi ada di bagian [Riwayat skema](#riwayat-skema).
 
 ## Cara membaca
 
@@ -42,10 +42,15 @@ Nama model di kode memakai camelCase, sedangkan nama tabel dan kolom di PostgreS
 | `Offering` | `offerings` | `tokensOffered` menjadi `tokens_offered` |
 | `TokenPurchase` | `token_purchases` | `reservedUntil` menjadi `reserved_until` |
 | `OwnerApplication` | `owner_applications` | `applicationNumber` menjadi `application_number` |
+| `Expense` | `expenses` | `receiptHash` menjadi `receipt_hash` |
+| `PeriodClosing` | `period_closings` | `valuePerTokenSen` menjadi `value_per_token_sen` |
+| `Distribution` | `distributions` | `roundingRemainderIdr` menjadi `rounding_remainder_idr` |
+| `DistributionShare` | `distribution_shares` | `creditedTo` menjadi `credited_to` |
+| `OutboxJobRetry` | `outbox_job_retries` | `requestedById` menjadi `requested_by_id` |
 
-## Diagram ERD v2 (P2)
+## Diagram ERD v4 (P4)
 
-Agar tetap terbaca, diagram dibagi dua. Bagian A berisi data sewa dan pembayaran, bagian B berisi investor dan penawaran token. Tabel `users`, `properties`, dan `payments` muncul di kedua bagian dengan isi kolom yang sama.
+Agar tetap terbaca, diagram dibagi tiga. Bagian A berisi data sewa dan pembayaran, bagian B berisi investor dan penawaran token, dan bagian C berisi biaya, penutupan periode, dan distribusi (baru di v4). Tabel yang muncul di lebih dari satu bagian ditulis lengkap sekali dan diringkas di bagian lain.
 
 ### A. Sewa, pembayaran, dan pencatatan on-chain
 
@@ -117,6 +122,7 @@ erDiagram
         bigint amount_idr
         PaymentStatus status "bawaan PENDING"
         text method "payment_type Midtrans, boleh kosong"
+        text bank "bank virtual account, boleh kosong (v3)"
         text snap_token "boleh kosong"
         text snap_redirect_url "boleh kosong"
         text provider_status "boleh kosong"
@@ -225,6 +231,7 @@ erDiagram
         uuid id PK
         uuid offering_id FK
         uuid investor_id FK
+        text order_number UK "mis. BUY-SMR01-0003, boleh kosong (v3)"
         integer token_amount
         bigint amount_idr
         TokenPurchaseStatus status "bawaan PENDING_PAYMENT"
@@ -250,6 +257,108 @@ erDiagram
 ```
 
 `owner_applications` berdiri sendiri tanpa foreign key karena pemilik kos tidak punya akun.
+
+### C. Biaya, penutupan periode, dan distribusi (v4)
+
+```mermaid
+erDiagram
+    properties ||--o{ expenses : "dibebani (property_id)"
+    users ||--o{ expenses : "mencatat (created_by_id)"
+    outbox_jobs ||--o| expenses : "mencatat hash nota (outbox_job_id)"
+    properties ||--o{ period_closings : "ditutup per bulan (property_id)"
+    users ||--o{ period_closings : "meminta (requested_by_id)"
+    outbox_jobs ||--o| period_closings : "menjalankan closePeriod (outbox_job_id)"
+    period_closings ||--o| distributions : "dibagikan lewat (period_closing_id)"
+    properties ||--o{ distributions : "membagikan (property_id)"
+    users ||--o{ distributions : "menjalankan (distributed_by_id)"
+    distributions ||--|{ distribution_shares : "berisi (distribution_id)"
+    users |o..o{ distribution_shares : "menerima (user_id)"
+    outbox_jobs ||--o{ outbox_job_retries : "diulang (outbox_job_id)"
+    users ||--o{ outbox_job_retries : "meminta (requested_by_id)"
+
+    users {
+        uuid id PK
+        Role role "MANAGER mencatat biaya, ADMIN menutup periode"
+    }
+    properties {
+        uuid id PK
+        text code UK
+    }
+    outbox_jobs {
+        uuid id PK
+        OutboxJobType type "RECORD_EXPENSE atau CLOSE_PERIOD"
+    }
+    expenses {
+        uuid id PK
+        uuid property_id FK
+        char(7) period "YYYY-MM"
+        smallint category_code "1 sampai 5, uint8 di KosLedger"
+        text description "3 sampai 120 karakter"
+        bigint amount_idr "lebih dari 0"
+        date receipt_date "tanggal nota"
+        text receipt_hash UK "SHA-256 isi file, 0x + 64 hex"
+        text file_name "nama asli untuk tampilan"
+        text stored_file_name UK "nama file di UPLOAD_DIR"
+        text content_type "PDF, JPG, atau PNG"
+        integer file_size_bytes "paling besar 5 MB"
+        uuid outbox_job_id FK, UK "job RECORD_EXPENSE"
+        uuid created_by_id FK
+        timestamp(3) created_at
+        timestamp(3) updated_at
+    }
+    period_closings {
+        uuid id PK
+        uuid property_id FK "unik bersama period"
+        char(7) period
+        uuid outbox_job_id FK, UK "job CLOSE_PERIOD"
+        uuid requested_by_id FK
+        timestamp(3) requested_at
+        bigint gross_rent_idr "dari KosLedger.periods, boleh kosong"
+        bigint total_expenses_idr "boleh kosong"
+        bigint platform_fee_idr "boleh kosong"
+        bigint tax_idr "boleh kosong"
+        bigint net_rent_idr "boleh kosong"
+        integer total_supply "boleh kosong"
+        bigint value_per_token_sen "43875 = Rp438,75, boleh kosong"
+        bigint snapshot_block "block.number - 1, boleh kosong"
+        timestamp(3) chain_read_at "boleh kosong"
+        timestamp(3) created_at
+        timestamp(3) updated_at
+    }
+    distributions {
+        uuid id PK
+        uuid property_id FK "unik bersama period"
+        char(7) period
+        uuid period_closing_id FK, UK
+        uuid distributed_by_id FK
+        timestamp(3) distributed_at
+        bigint net_rent_idr
+        integer total_supply
+        bigint value_per_token_sen
+        bigint snapshot_block
+        bigint total_shares_idr "termasuk perbendaharaan"
+        bigint rounding_remainder_idr "tidak negatif"
+        timestamp(3) created_at
+    }
+    distribution_shares {
+        uuid id PK
+        uuid distribution_id FK "unik bersama wallet_address"
+        DistributionHolderType holder_type "ORIGINAL_OWNER, INVESTOR, TREASURY"
+        uuid user_id FK "hanya untuk INVESTOR"
+        text wallet_address
+        integer token_balance "saldo di blok snapshot"
+        bigint share_idr "floor(sewa bersih x saldo / total suplai)"
+        DistributionHolderType credited_to "TREASURY dikreditkan ke ORIGINAL_OWNER"
+    }
+    outbox_job_retries {
+        uuid id PK
+        uuid outbox_job_id FK
+        uuid requested_by_id FK
+        timestamp(3) requested_at
+    }
+```
+
+Di v4, satu baris `outbox_jobs` bisa dimiliki pembayaran (`RECORD_RENT`, `TRANSFER_TOKENS`), biaya (`RECORD_EXPENSE`), atau penutupan periode (`CLOSE_PERIOD`). Kepemilikan itu dipegang kolom unik di tabel pemilik (`expenses.outbox_job_id`, `period_closings.outbox_job_id`), jadi model `OutboxJob` yang dipakai worker jalur 3 tidak berubah.
 
 Kolom yang wajib diisi adalah semua kolom yang tidak bertanda "boleh kosong".
 
@@ -322,6 +431,7 @@ Satu percobaan pembayaran Midtrans. Satu tagihan bisa punya beberapa percobaan k
 | `amount_idr` | `bigint` | Nominal yang ditagihkan ke Midtrans |
 | `status` | `PaymentStatus` | Status percobaan, lihat bagian Enum. `PENDING` yang melewati `expires_at` dibaca sebagai kedaluwarsa |
 | `method` | `text` | `payment_type` dari Midtrans, mis. `bank_transfer`, `qris`. Kosong sampai metode dipilih |
+| `bank` | `text` | Bank virtual account, mis. `bca`, untuk kuitansi (v3). Kosong untuk metode lain |
 | `snap_token`, `snap_redirect_url` | `text` | Kosong selama transaksi belum berhasil dibuat di Midtrans |
 | `provider_status`, `provider_transaction_id` | `text` | `transaction_status` terakhir dan `transaction_id` dari Midtrans, untuk telusur dan rekonsiliasi |
 | `expires_at` | `timestamp(3)` | Batas bayar, 5 menit sejak transaksi dibuat. Hitung mundur di layar membaca nilai ini |
@@ -409,6 +519,7 @@ Pesanan token seorang investor. Dibayar lewat baris `payments` berawalan `BUY-` 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | `offering_id`, `investor_id` | `uuid` | Penawaran dan investor pemesan. Wajib |
+| `order_number` | `text` | Unik. Nomor pesanan, sama dengan `order_id` percobaan pertama, mis. `BUY-SMR01-0003` (v3) |
 | `token_amount` | `integer` | Jumlah token yang dipesan |
 | `amount_idr` | `bigint` | Nominal pesanan |
 | `status` | `TokenPurchaseStatus` | Bawaan `PENDING_PAYMENT` |
@@ -426,6 +537,73 @@ Pengajuan pemilik kos dari halaman publik `/pemilik`. Pemilik kos tidak punya ak
 | `room_count`, `monthly_rent_idr`, `occupancy_percent` | `integer`, `bigint`, `double` | Data kos dummy. Okupansi 0 sampai 100 persen |
 | `status` | `OwnerApplicationStatus` | Lima tahap pengajuan, bawaan `SUBMITTED` |
 | `submitted_at` | `timestamp(3)` | Waktu pengajuan |
+
+### `expenses` (model `Expense`, v4)
+
+Biaya operasional satu periode beserta notanya, dicatat pengelola di `/pengelola/biaya`. File nota disimpan di folder `UPLOAD_DIR` backend, bukan di basis data maupun blockchain. Yang dicatat on-chain hanya hash SHA-256 isi file lewat job `RECORD_EXPENSE`, yang ditulis dalam transaksi basis data yang sama dengan baris biaya.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `property_id`, `period` | `uuid`, `char(7)` | Properti dan periode biaya |
+| `category_code` | `smallint` | Kode kategori yang juga dikirim ke `KosLedger.recordExpense`: 1 Listrik dan air, 2 Kebersihan, 3 Internet, 4 Perbaikan, 5 Keamanan |
+| `description` | `text` | Keterangan 3 sampai 120 karakter, mis. "Ganti keran kamar mandi K07" |
+| `amount_idr` | `bigint` | Nominal biaya, lebih dari 0 |
+| `receipt_date` | `date` | Tanggal pada nota |
+| `receipt_hash` | `text` | Unik. SHA-256 isi file nota, `0x` + 64 hex. Nota yang sama ditolak 409 sebelum job dibuat |
+| `file_name`, `stored_file_name` | `text` | Nama asli untuk tampilan, dan nama file di `UPLOAD_DIR` (unik) |
+| `content_type`, `file_size_bytes` | `text`, `integer` | PDF, JPG, atau PNG, paling besar 5 MB |
+| `outbox_job_id` | `uuid` | Unik. Job `RECORD_EXPENSE` milik biaya ini; status on-chain dibaca dari job ini |
+| `created_by_id` | `uuid` | Pengelola yang mencatat |
+
+### `period_closings` (model `PeriodClosing`, v4)
+
+Permintaan tutup periode satu properti, dibuat bersama job `CLOSE_PERIOD`. Sejak baris ini ada, tagihan periode itu tidak bisa dibayar lagi (409 `PERIOD_CLOSED`) dan biaya baru ditolak.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `property_id`, `period` | `uuid`, `char(7)` | Unik gabungan: satu properti hanya bisa ditutup sekali per periode |
+| `outbox_job_id` | `uuid` | Unik. Job `CLOSE_PERIOD` |
+| `requested_by_id`, `requested_at` | `uuid`, `timestamp(3)` | Admin yang menekan Tutup periode dan waktunya |
+| `gross_rent_idr` sampai `value_per_token_sen` | `bigint`, `integer` | Salinan `KosLedger.periods(period)` setelah `closePeriod` tercatat: sewa kotor, biaya, fee, pajak, sewa bersih, total suplai, nilai per token dalam sen. Kosong sampai dibaca dari kontrak |
+| `snapshot_block` | `bigint` | Blok acuan saldo pemegang (`block.number - 1` saat `closePeriod`) |
+| `chain_read_at` | `timestamp(3)` | Waktu angka di atas dibaca dari kontrak |
+
+### `distributions` (model `Distribution`, v4)
+
+Distribusi bagi hasil satu periode. Unik per properti dan periode serta per penutupan, jadi tombol Jalankan distribusi tidak bisa menghasilkan dua distribusi.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `property_id`, `period` | `uuid`, `char(7)` | Unik gabungan |
+| `period_closing_id` | `uuid` | Unik. Penutupan yang menjadi dasar distribusi |
+| `distributed_by_id`, `distributed_at` | `uuid`, `timestamp(3)` | Admin yang menjalankan dan waktunya |
+| `net_rent_idr`, `total_supply`, `value_per_token_sen`, `snapshot_block` | `bigint`, `integer` | Angka dari `KosLedger.periods(period)` yang dipakai |
+| `total_shares_idr` | `bigint` | Jumlah bagian semua pemegang, termasuk perbendaharaan |
+| `rounding_remainder_idr` | `bigint` | Sewa bersih dikurangi jumlah bagian; masuk cadangan periode itu |
+
+### `distribution_shares` (model `DistributionShare`, v4)
+
+Bagian satu pemegang dalam satu distribusi. Saldo bagi hasil investor di `/investor` adalah jumlah `share_idr` miliknya.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `distribution_id`, `wallet_address` | `uuid`, `text` | Unik gabungan: satu dompet sekali per distribusi |
+| `holder_type` | `DistributionHolderType` | Pemilik lama, investor, atau perbendaharaan |
+| `user_id` | `uuid` | Investor pemilik dompet kustodian. Terisi hanya untuk `INVESTOR` (CHECK di SQL) |
+| `token_balance` | `integer` | Saldo di blok snapshot (`getPastVotes`) |
+| `share_idr` | `bigint` | `floor(sewa bersih × saldo / total suplai)`, sama dengan `shareOf` di kontrak |
+| `credited_to` | `DistributionHolderType` | Penerima bagian. Bagian `TREASURY` dikreditkan ke `ORIGINAL_OWNER` (keputusan 16 Nov 2026) |
+
+Contoh November 2026: pemilik lama 5.400 token Rp2.369.250, Bagas 1.800 token Rp789.750, Citra 1.200 token Rp526.500, Eko 800 token Rp351.000, Fajar 560 token Rp245.700, Dimas 100 token Rp43.875, dan perbendaharaan 8.140 token Rp3.571.425 untuk pemilik lama. Jumlahnya Rp7.897.500, sisa pembulatan Rp0.
+
+### `outbox_job_retries` (model `OutboxJobRetry`, v4)
+
+Satu kali admin menekan Coba lagi untuk job yang gagal. Dibuat tabel terpisah supaya model `OutboxJob` v3 yang dipakai worker jalur 3 tidak berubah. Jumlah baris per job menentukan id job BullMQ berikutnya, karena job lama yang gagal masih tersimpan di BullMQ dengan id aslinya.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `outbox_job_id` | `uuid` | Job yang diulang |
+| `requested_by_id`, `requested_at` | `uuid`, `timestamp(3)` | Admin dan waktu permintaan |
 
 ## Relasi
 
@@ -447,6 +625,15 @@ Pengajuan pemilik kos dari halaman publik `/pemilik`. Pemilik kos tidak punya ak
 | `properties` ke `offerings` | Satu properti punya nol atau banyak penawaran | `offerings.property_id` | Ditolak (RESTRICT) | Properti dengan penawaran tidak bisa dihapus |
 | `offerings` ke `token_purchases` | Satu penawaran punya nol atau banyak pesanan | `token_purchases.offering_id` | Ditolak (RESTRICT) | Pesanan selalu punya penawaran |
 | `users` ke `token_purchases` | Satu investor punya nol atau banyak pesanan | `token_purchases.investor_id` | Ditolak (RESTRICT) | Riwayat pembelian tetap terjaga |
+| `properties` ke `expenses` | Satu properti punya nol atau banyak biaya | `expenses.property_id` | Ditolak (RESTRICT) | Biaya adalah catatan keuangan (v4) |
+| `users` ke `expenses` | Satu pengelola mencatat nol atau banyak biaya | `expenses.created_by_id` | Ditolak (RESTRICT) | Siapa yang mencatat tetap terjaga |
+| `outbox_jobs` ke `expenses` | Satu job dimiliki nol atau satu biaya | `expenses.outbox_job_id` (unik) | Ditolak (RESTRICT) | Status on-chain nota dibaca dari job ini |
+| `properties` ke `period_closings` | Satu properti punya paling banyak satu penutupan per periode | `period_closings.property_id` | Ditolak (RESTRICT) | Penutupan tidak bisa hilang |
+| `outbox_jobs` ke `period_closings` | Satu job dimiliki nol atau satu penutupan | `period_closings.outbox_job_id` (unik) | Ditolak (RESTRICT) | Status `closePeriod` dibaca dari job ini |
+| `period_closings` ke `distributions` | Satu penutupan punya nol atau satu distribusi | `distributions.period_closing_id` (unik) | Ditolak (RESTRICT) | Distribusi hanya sekali per penutupan |
+| `distributions` ke `distribution_shares` | Satu distribusi punya satu atau banyak bagian | `distribution_shares.distribution_id` | Ditolak (RESTRICT) | Rincian bagian tidak bisa terpisah dari distribusinya |
+| `users` ke `distribution_shares` | Satu investor menerima nol atau banyak bagian; pemilik lama dan perbendaharaan tanpa akun | `distribution_shares.user_id` | Ditolak (RESTRICT) | Saldo bagi hasil investor dijumlahkan dari sini |
+| `outbox_jobs` ke `outbox_job_retries` | Satu job punya nol atau banyak permintaan Coba lagi | `outbox_job_retries.outbox_job_id` | Ditolak (RESTRICT) | Jejak siapa mengulang job tetap ada |
 
 Semua foreign key memakai `ON UPDATE CASCADE`. Karena primary key berupa UUID yang tidak pernah berubah, aturan ini praktis tidak pernah terpakai.
 
@@ -489,8 +676,16 @@ Semua foreign key memakai `ON UPDATE CASCADE`. Karena primary key berupa UUID ya
 | `token_purchases_investor_id_status_idx` | `token_purchases.investor_id`, `.status` | Indeks gabungan | Mempercepat hitung sisa kuota investor |
 | `owner_applications_application_number_key` | `owner_applications.application_number` | Unik | Satu nomor untuk satu pengajuan |
 | `owner_applications_year_sequence_key` | `owner_applications.year`, `.sequence` | Unik gabungan | Nomor urut tidak kembar dalam satu tahun |
+| `token_purchases_order_number_key` | `token_purchases.order_number` | Unik | Satu nomor untuk satu pesanan token (v3) |
+| `expenses_receipt_hash_key` | `expenses.receipt_hash` | Unik | Lapis basis data penolakan nota ganda, sebelum job `RECORD_EXPENSE` dibuat (v4) |
+| `expenses_stored_file_name_key`, `expenses_outbox_job_id_key` | `expenses` | Unik | Satu file dan satu job per biaya |
+| `expenses_property_id_period_idx` | `expenses.property_id`, `.period` | Indeks gabungan | Mempercepat daftar biaya per periode |
+| `period_closings_property_id_period_key` | `period_closings.property_id`, `.period` | Unik gabungan | Satu properti hanya ditutup sekali per periode |
+| `distributions_property_id_period_key`, `distributions_period_closing_id_key` | `distributions` | Unik | Distribusi tidak bisa dijalankan dua kali |
+| `distribution_shares_distribution_id_wallet_address_key` | `distribution_shares` | Unik gabungan | Satu dompet sekali per distribusi |
+| CHECK v4 (`expenses_*_check`, `distribution_shares_*_check`, `distributions_rounding_remainder_idr_check`) | `expenses`, `distribution_shares`, `distributions` | CHECK | Kategori 1 sampai 255, nominal lebih dari 0, format hash, `user_id` hanya untuk investor, saldo dan bagian tidak negatif |
 
-Empat aturan di atas (`payments_bill_id_paid_key`, `payments_token_purchase_id_paid_key`, `payments_exactly_one_target_check`, dan `kyc_submissions_user_id_active_key`) tidak bisa ditulis di `schema.prisma`, jadi ditulis di SQL migrasi skema v2.
+Empat aturan di atas (`payments_bill_id_paid_key`, `payments_token_purchase_id_paid_key`, `payments_exactly_one_target_check`, dan `kyc_submissions_user_id_active_key`) tidak bisa ditulis di `schema.prisma`, jadi ditulis di SQL migrasi skema v2. Constraint CHECK v4 ditulis di SQL migrasi skema v4 dengan alasan yang sama.
 
 Constraint unik gabungan pada `bills` juga menjamin bahwa kombinasi kode properti, nomor kamar, dan periode tidak kembar. Kombinasi itulah yang membentuk `order_id` percobaan pertama, mis. `RENT-SMR01-K03-2026-11` dari `properties.code` = `SMR01`, `rooms.number` = `K03`, dan `bills.period` = `2026-11`. Percobaan berikutnya bersufiks `-2`, `-3`.
 
@@ -531,6 +726,8 @@ Pembayaran yang gagal, batal, atau kedaluwarsa tidak pernah mengubah status tagi
 | `DUPLICATE_PAID` | Terbayar, tetapi tagihan sudah lunas lewat order lain; ada anomali `DUPLICATE_BILL_PAYMENT` |
 | `EXPIRED` | Midtrans mengirim `expire`, atau digantikan percobaan baru setelah batas waktu lewat |
 | `FAILED` | Midtrans mengirim `cancel`, `deny`, atau `failure`, atau transaksi gagal dibuat di Midtrans |
+| `UNFULFILLED` | Terbayar setelah sisihan token lepas dan tokennya sudah habis; ada anomali `PURCHASE_UNFULFILLABLE` (v3) |
+| `PAID_AFTER_CLOSE` | Terbayar setelah periode tagihannya ditutup; tagihan tidak berubah dan tidak ada job on-chain, ada anomali `PAID_AFTER_PERIOD_CLOSED` (v4) |
 
 **`PaymentAnomalyType`**: jenis anomali.
 
@@ -539,6 +736,9 @@ Pembayaran yang gagal, batal, atau kedaluwarsa tidak pernah mengubah status tagi
 | `AMOUNT_MISMATCH` | Nominal notifikasi atau API status berbeda dari tagihan (skenario 7) |
 | `UNKNOWN_ORDER` | Signature sah, tetapi `order_id` tidak dikenal |
 | `DUPLICATE_BILL_PAYMENT` | Dua order untuk satu tagihan sama-sama terbayar |
+| `DUPLICATE_PURCHASE_PAYMENT` | Dua order untuk satu pesanan token sama-sama terbayar (v3) |
+| `PURCHASE_UNFULFILLABLE` | Pesanan terbayar setelah sisihannya lepas, tetapi token sudah habis atau melewati batas 10% (v3) |
+| `PAID_AFTER_PERIOD_CLOSED` | Sewa terbayar setelah periodenya ditutup; dana perlu dikembalikan dan muncul sebagai Selisih di rekonsiliasi (v4) |
 
 **`OutboxJobType`**: jenis job blockchain.
 
@@ -559,6 +759,14 @@ Pembayaran yang gagal, batal, atau kedaluwarsa tidak pernah mengubah status tagi
 | `PENDING` | Sedang dikirim atau belum terkonfirmasi | Menunggu pencatatan |
 | `RECORDED` | Tercatat di blok | Tercatat |
 | `FAILED` | Percobaan otomatis habis | Gagal dicatat |
+
+**`DistributionHolderType`** (v4): pemegang token dalam distribusi.
+
+| Nilai | Arti |
+|---|---|
+| `ORIGINAL_OWNER` | Dompet pemilik lama (5.400 token) |
+| `INVESTOR` | Dompet kustodian investor |
+| `TREASURY` | Dompet perbendaharaan properti: token yang belum terjual. Bagiannya dikreditkan ke pemilik lama |
 
 **`KycStatus`**: `SUBMITTED` (diajukan), `APPROVED` (disetujui), `REJECTED` (ditolak, boleh mengajukan lagi).
 
@@ -586,24 +794,13 @@ Pembayaran yang gagal, batal, atau kedaluwarsa tidak pernah mengubah status tagi
 
 **Waktu disimpan sebagai `timestamp(3)`.** Presisinya milidetik. `created_at` diisi basis data saat baris dibuat, sedangkan `updated_at` diisi Prisma saat baris dibuat dan setiap kali baris diubah. `due_date` memakai `date` karena jatuh tempo tidak butuh jam.
 
-## Rencana entitas P4
+## Riwayat skema
 
-> [!IMPORTANT]
-> Bagian ini **rencana**, bukan skema yang sedang berjalan. Nama tabel masih sementara; nama, kolom, dan relasi finalnya ditetapkan jalur 2 di migrasi P4, lalu ERD ini diperbarui.
+| Versi | Migrasi | Progress | Perubahan |
+|---|---|---|---|
+| v1 | `20261029120000_init` | P1 | `users`, `properties`, `rooms`, `bills` |
+| v2 | `20261102120000_skema_v2` | P2 | Pembayaran Midtrans, anomali, outbox, transaksi chain, KYC, dompet kustodian, penawaran, pesanan token, pengajuan pemilik (sembilan tabel) |
+| v3 | `20261103120000_skema_v3` | P3 | `payments.bank`, `token_purchases.order_number`, status `UNFULFILLED`, anomali `DUPLICATE_PURCHASE_PAYMENT` dan `PURCHASE_UNFULFILLABLE` |
+| v4 | `20261116120000_skema_v4` | P4 | `expenses`, `period_closings`, `distributions`, `distribution_shares`, `outbox_job_retries`, enum `DistributionHolderType`, status `PAID_AFTER_CLOSE`, anomali `PAID_AFTER_PERIOD_CLOSED` |
 
-```mermaid
-erDiagram
-    users ||--o{ expenses : "mencatat"
-    users ||--o{ distributions : "menerima"
-    properties ||--o{ expenses : "dibebani"
-    properties ||--o{ periods : "ditutup per bulan"
-    periods ||--o{ distributions : "dibagikan lewat"
-```
-
-| Entitas (nama sementara) | Isi utama | Relasi | Progress | Kaitan |
-|---|---|---|---|---|
-| `expenses` | Biaya operasional: kategori, tanggal, nominal, lokasi berkas nota, hash nota | Satu properti punya banyak biaya, dicatat pengelola | P4 | Demo D3, US-PGL-02 |
-| `periods` | Penutupan periode: sewa kotor, biaya, fee pengelolaan 5%, pajak, sewa bersih, nilai per token, blok penutupan | Satu baris per properti per bulan | P4 | Demo D4, skenario S12 |
-| `distributions` | Bagian setiap investor dalam satu periode: saldo token pada blok penutupan × nilai per token | Satu baris per periode per investor | P4 | Demo D4 dan D5 |
-
-Saldo bagi hasil investor direncanakan sebagai jumlah semua distribusinya, dikurangi penarikan bila fitur penarikan (opsional, P5) dibangun.
+Rencana P2 menyebut entitas sementara `periods` dan saldo investor sebagai tabel tersendiri. Skema v4 memisahkan penutupan (`period_closings`) dari distribusi (`distributions`) karena keduanya dua tombol terpisah. Saldo bagi hasil tidak disimpan sebagai angka: saldo dihitung dari jumlah `distribution_shares.share_idr` milik investor, sehingga selalu cocok dengan rincian per periode. Penarikan saldo belum dibangun (tombol Tarik saldo nonaktif).
