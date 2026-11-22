@@ -16,3 +16,14 @@ export function formatMidtransTime(date: Date): string {
 export function wibYear(date: Date): number {
   return toWibClock(date).getUTCFullYear();
 }
+
+/** Tanggal menurut WIB berformat YYYY-MM-DD (P4), mis. untuk grafik sewa per tanggal bayar. */
+export function wibDate(date: Date): string {
+  return toWibClock(date).toISOString().slice(0, 10);
+}
+
+/** Selisih hari kalender WIB dari `from` (tanggal tanpa jam, YYYY-MM-DD) sampai `now`. */
+export function wibDaysSince(from: string, now: Date): number {
+  const today = Date.parse(`${wibDate(now)}T00:00:00.000Z`);
+  return Math.round((today - Date.parse(`${from}T00:00:00.000Z`)) / 86_400_000);
+}

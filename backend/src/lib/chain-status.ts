@@ -43,3 +43,16 @@ export function toChainJobDto(job: { chainTransactions: ChainFields[] } | null |
 export function toChainJobAdminDto(job: { chainTransactions: ChainFieldsWithError[] } | null | undefined): ChainJobAdminDto {
   return { ...toChainJobDto(job), lastError: job?.chainTransactions[0]?.lastError ?? null };
 }
+
+/** Status pencatatan yang dilihat investor (P4): Gagal dibaca Menunggu pencatatan. */
+export interface ChainJobInvestorDto extends ChainJobDto {
+  status: 'PENDING' | 'RECORDED';
+}
+
+/**
+ * Untuk respons peran INVESTOR (P4): FAILED menjadi PENDING. Investor tidak pernah melihat kata
+ * gagal untuk pencatatan on-chain; pengulangannya urusan admin lewat antrean job.
+ */
+export function toInvestorChainJobDto(dto: ChainJobDto): ChainJobInvestorDto {
+  return { ...dto, status: dto.status === 'RECORDED' ? 'RECORDED' : 'PENDING' };
+}

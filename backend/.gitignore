@@ -9,3 +9,6 @@ src/generated/
 
 # Laporan cakupan test
 coverage/
+
+# File nota biaya yang diunggah saat pengembangan (UPLOAD_DIR bawaan)
+uploads/

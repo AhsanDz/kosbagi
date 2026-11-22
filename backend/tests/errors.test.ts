@@ -4,6 +4,7 @@ import type { Express } from 'express';
 import request from 'supertest';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app.js';
+import { AppError } from '../src/lib/errors.js';
 import { errorHandler } from '../src/middleware/error-handler.js';
 
 const FIXTURE_MODULES = fileURLToPath(new URL('./fixtures/modules/', import.meta.url));
@@ -111,11 +112,20 @@ describe('format error', () => {
 // Dipanggil langsung (tanpa HTTP) supaya pencatatan log bisa diamati.
 describe('errorHandler: pencatatan log', () => {
   function handle(error: unknown) {
-    const log = { error: vi.fn() };
-    const res = { headersSent: false, status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const log = { error: vi.fn(), warn: vi.fn() };
+    const res = { headersSent: false, locals: {} as Record<string, unknown>, status: vi.fn().mockReturnThis(), json: vi.fn() };
     errorHandler(error, { log, id: 'uji-1' } as never, res as never, vi.fn());
     return { log, res };
   }
+
+  it('galat 5xx yang dikenal (mis. 502 CHAIN_UNAVAILABLE) dicatat WARN, bukan ERROR', () => {
+    const { log, res } = handle(new AppError(502, 'CHAIN_UNAVAILABLE', 'KosLedger gagal dibaca.'));
+
+    expect(res.status).toHaveBeenCalledWith(502);
+    expect(log.warn).toHaveBeenCalledOnce();
+    expect(log.error).not.toHaveBeenCalled();
+    expect(res.locals['knownServerFailure']).toBe(true);
+  });
 
   it('mencatat error berstatus 4xx dari layanan luar sebagai error server', () => {
     const { log, res } = handle(Object.assign(new Error('Midtrans membalas 401'), { status: 401 }));

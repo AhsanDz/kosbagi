@@ -1,10 +1,14 @@
-// Skema basis data KosBagi v3 (progress 3).
+// Skema basis data KosBagi v4 (progress 4).
 // v1 (P1): pengguna, properti, kamar, tagihan sewa.
 // v2 (P2): pembayaran Midtrans, anomali, outbox job blockchain, transaksi chain, KYC dummy,
 //          dompet kustodian, penawaran, pembelian token, pengajuan pemilik kos.
 // v3 (P3): nomor pesanan token, bank virtual account, status UNFULFILLED, dua jenis anomali
 //          pembelian, dan CHECK jumlah token. Semua tambahan opsional atau berdefault, jadi seed
 //          jalur 1 dan worker jalur 3 yang memakai model v2 tetap jalan.
+// v4 (P4): biaya dan nota, penutupan periode, distribusi bagi hasil, pembayaran telat setelah
+//          periode ditutup, riwayat Coba lagi, dan tanda "sudah ditangani" job antrean. Kolom
+//          model v3 tidak berubah (hanya
+//          nilai enum dan relasi baru), jadi kode yang memakai model v3 tetap jalan.
 //
 // Konvensi:
 // - Semua nilai uang dalam rupiah bilangan bulat (BigInt), tanpa pecahan.
@@ -13,7 +17,7 @@
 //   lewat @@map dan @map.
 // - ID memakai UUID v7: acak sehingga tidak bisa ditebak, tetapi terurut waktu.
 // - Aturan yang tidak bisa ditulis di file ini (index unik parsial, CHECK) ada di SQL migrasi
-//   skema_v2 dan skema_v3, dan dijelaskan di komentar model terkait.
+//   skema_v2, skema_v3, dan skema_v4, dan dijelaskan di komentar model terkait.
 //
 // Setelah mengubah file ini: npm run prisma:generate, lalu buat migrasi baru
 // dengan npm run db:migrate (butuh PostgreSQL yang sedang jalan).
@@ -61,6 +65,7 @@ enum PaymentStatus {
   EXPIRED /// Midtrans mengirim expire, atau digantikan percobaan baru setelah batas waktu lewat
   FAILED /// Midtrans mengirim cancel, deny, atau failure, atau transaksi gagal dibuat di Midtrans
   UNFULFILLED /// terbayar setelah sisihan token lepas dan tokennya sudah habis; ada anomali PURCHASE_UNFULFILLABLE (v3)
+  PAID_AFTER_CLOSE /// terbayar setelah periode tagihannya ditutup; tagihan tidak berubah, ada anomali PAID_AFTER_PERIOD_CLOSED (v4)
 }
 
 /// Jenis notifikasi Midtrans yang tidak diproses normal dan perlu ditinjau manusia.
@@ -70,6 +75,7 @@ enum PaymentAnomalyType {
   DUPLICATE_BILL_PAYMENT /// dua order untuk satu tagihan sama-sama terbayar
   DUPLICATE_PURCHASE_PAYMENT /// dua order untuk satu pesanan token sama-sama terbayar (v3)
   PURCHASE_UNFULFILLABLE /// pesanan terbayar setelah sisihannya lepas, tetapi token sudah habis atau melewati batas 10% (v3)
+  PAID_AFTER_PERIOD_CLOSED /// sewa terbayar setelah periodenya ditutup; tidak dicatat on-chain, dana perlu dikembalikan (v4)
 }
 
 /// Jenis job blockchain. Isi tiap jenis didefinisikan di src/queue/jobs.ts.
@@ -92,6 +98,13 @@ enum ChainTransactionStatus {
   PENDING /// sedang dikirim atau belum terkonfirmasi
   RECORDED /// tercatat di blok
   FAILED /// percobaan otomatis habis
+}
+
+/// Pemegang token dalam distribusi bagi hasil (v4).
+enum DistributionHolderType {
+  ORIGINAL_OWNER /// dompet pemilik lama
+  INVESTOR /// dompet kustodian investor
+  TREASURY /// dompet perbendaharaan properti (token yang belum terjual)
 }
 
 /// Status pengajuan KYC dummy. Label "Belum mengajukan" berarti belum ada baris pengajuan.
@@ -138,19 +151,31 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   /// Properti yang dikelola pengguna ini (peran MANAGER).
-  managedProperties Property[]
+  managedProperties    Property[]
   /// Kamar yang sedang ditempati (peran TENANT).
-  room              Room?
+  room                 Room?
   /// Tagihan sewa atas nama pengguna ini (peran TENANT).
-  bills             Bill[]
+  bills                Bill[]
   /// Pengajuan KYC dummy (peran INVESTOR).
-  kycSubmissions    KycSubmission[]  @relation("KycApplicant")
+  kycSubmissions       KycSubmission[]       @relation("KycApplicant")
   /// Pengajuan KYC yang ditinjau pengguna ini (peran ADMIN).
-  reviewedKyc       KycSubmission[]  @relation("KycReviewer")
+  reviewedKyc          KycSubmission[]       @relation("KycReviewer")
   /// Dompet kustodian (peran INVESTOR).
-  custodialWallet   CustodialWallet?
+  custodialWallet      CustodialWallet?
   /// Pesanan token (peran INVESTOR).
-  tokenPurchases    TokenPurchase[]
+  tokenPurchases       TokenPurchase[]
+  /// Biaya yang dicatat pengguna ini (peran MANAGER, v4).
+  expensesCreated      Expense[]
+  /// Penutupan periode yang diminta pengguna ini (peran ADMIN, v4).
+  periodClosings       PeriodClosing[]
+  /// Distribusi yang dijalankan pengguna ini (peran ADMIN, v4).
+  distributionsRun     Distribution[]
+  /// Bagian bagi hasil milik investor ini (v4). Jumlahnya adalah saldo bagi hasil.
+  distributionShares   DistributionShare[]
+  /// Coba lagi job antrean yang diminta pengguna ini (peran ADMIN, v4).
+  outboxJobRetries     OutboxJobRetry[]
+  /// Job gagal yang ditandai sudah ditangani oleh pengguna ini (peran ADMIN, v4).
+  outboxJobResolutions OutboxJobResolution[]
 
   @@map("users")
 }
@@ -181,9 +206,12 @@ model Property {
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
-  manager   User?      @relation(fields: [managerId], references: [id], onDelete: SetNull)
-  rooms     Room[]
-  offerings Offering[]
+  manager        User?           @relation(fields: [managerId], references: [id], onDelete: SetNull)
+  rooms          Room[]
+  offerings      Offering[]
+  expenses       Expense[]
+  periodClosings PeriodClosing[]
+  distributions  Distribution[]
 
   @@index([managerId])
   @@map("properties")
@@ -331,8 +359,16 @@ model OutboxJob {
   createdAt    DateTime        @default(now()) @map("created_at")
   updatedAt    DateTime        @updatedAt @map("updated_at")
 
-  payment           Payment?           @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  payment           Payment?             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   chainTransactions ChainTransaction[]
+  /// Biaya asal job RECORD_EXPENSE (v4).
+  expense           Expense?
+  /// Penutupan periode asal job CLOSE_PERIOD (v4).
+  periodClosing     PeriodClosing?
+  /// Riwayat Coba lagi oleh admin (v4).
+  retries           OutboxJobRetry[]
+  /// Tanda "sudah ditangani" dari admin untuk job yang gagal permanen (v4).
+  resolution        OutboxJobResolution?
 
   @@index([status, createdAt])
   @@map("outbox_jobs")
@@ -466,4 +502,173 @@ model OwnerApplication {
 
   @@unique([year, sequence])
   @@map("owner_applications")
+}
+
+/// Biaya operasional satu periode beserta nota (v4). File nota disimpan di UPLOAD_DIR, bukan di
+/// basis data maupun blockchain; yang dicatat on-chain hanya hash SHA-256 isinya lewat job
+/// RECORD_EXPENSE yang ditulis dalam transaksi DB yang sama.
+///
+/// CHECK di SQL migrasi skema_v4: kode kategori 1-255, nominal > 0, dan hash berformat 0x + 64 hex.
+model Expense {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  propertyId     String   @map("property_id") @db.Uuid
+  /// Periode biaya berformat YYYY-MM.
+  period         String   @db.Char(7)
+  /// Kode kategori uint8, sama dengan argumen `category` KosLedger.recordExpense. Daftarnya di
+  /// src/modules/expenses/categories.ts: 1 Listrik dan air, 2 Kebersihan, 3 Internet, 4 Perbaikan, 5 Keamanan.
+  categoryCode   Int      @map("category_code") @db.SmallInt
+  description    String
+  amountIdr      BigInt   @map("amount_idr")
+  /// Tanggal pada nota (tanpa jam).
+  receiptDate    DateTime @map("receipt_date") @db.Date
+  /// SHA-256 isi file nota, 0x + 64 hex. Unik: satu nota hanya dicatat sekali, sama seperti KosLedger.
+  receiptHash    String   @unique @map("receipt_hash")
+  /// Nama file asli yang sudah dibersihkan, hanya untuk tampilan.
+  fileName       String   @map("file_name")
+  /// Nama file di UPLOAD_DIR: hash tanpa 0x ditambah ekstensi.
+  storedFileName String   @unique @map("stored_file_name")
+  contentType    String   @map("content_type")
+  fileSizeBytes  Int      @map("file_size_bytes")
+  /// Job RECORD_EXPENSE milik biaya ini.
+  outboxJobId    String   @unique @map("outbox_job_id") @db.Uuid
+  createdById    String   @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  property  Property  @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  outboxJob OutboxJob @relation(fields: [outboxJobId], references: [id], onDelete: Restrict)
+  createdBy User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([propertyId, period])
+  @@map("expenses")
+}
+
+/// Permintaan tutup periode satu properti (v4). Dibuat bersama job CLOSE_PERIOD dalam satu
+/// transaksi DB. Sejak baris ini ada, tagihan periode itu tidak bisa dibayar dan biaya baru ditolak.
+///
+/// Angka on-chain diisi sekali dari KosLedger.periods(period) setelah closePeriod tercatat. Periode
+/// yang sudah ditutup tidak bisa berubah lagi di kontrak, jadi salinan ini aman dipakai ulang.
+model PeriodClosing {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  propertyId       String    @map("property_id") @db.Uuid
+  period           String    @db.Char(7)
+  /// Job CLOSE_PERIOD milik penutupan ini.
+  outboxJobId      String    @unique @map("outbox_job_id") @db.Uuid
+  requestedById    String    @map("requested_by_id") @db.Uuid
+  requestedAt      DateTime  @default(now()) @map("requested_at")
+  grossRentIdr     BigInt?   @map("gross_rent_idr")
+  totalExpensesIdr BigInt?   @map("total_expenses_idr")
+  platformFeeIdr   BigInt?   @map("platform_fee_idr")
+  taxIdr           BigInt?   @map("tax_idr")
+  netRentIdr       BigInt?   @map("net_rent_idr")
+  totalSupply      Int?      @map("total_supply")
+  /// Nilai per token dalam sen: 43875 berarti Rp438,75.
+  valuePerTokenSen BigInt?   @map("value_per_token_sen")
+  /// Blok acuan saldo pemegang (block.number - 1 saat closePeriod).
+  snapshotBlock    BigInt?   @map("snapshot_block")
+  /// Kapan angka di atas dibaca dari kontrak. Kosong selama belum dibaca.
+  chainReadAt      DateTime? @map("chain_read_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  outboxJob    OutboxJob     @relation(fields: [outboxJobId], references: [id], onDelete: Restrict)
+  requestedBy  User          @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  distribution Distribution?
+
+  @@unique([propertyId, period])
+  @@map("period_closings")
+}
+
+/// Distribusi bagi hasil satu periode (v4). Unik per properti dan periode, jadi tidak bisa
+/// dijalankan dua kali. Bagian tiap pemegang ada di DistributionShare.
+model Distribution {
+  id                   String   @id @default(uuid(7)) @db.Uuid
+  propertyId           String   @map("property_id") @db.Uuid
+  period               String   @db.Char(7)
+  periodClosingId      String   @unique @map("period_closing_id") @db.Uuid
+  distributedById      String   @map("distributed_by_id") @db.Uuid
+  distributedAt        DateTime @default(now()) @map("distributed_at")
+  /// Sewa bersih dari KosLedger.periods(period).
+  netRentIdr           BigInt   @map("net_rent_idr")
+  totalSupply          Int      @map("total_supply")
+  valuePerTokenSen     BigInt   @map("value_per_token_sen")
+  snapshotBlock        BigInt   @map("snapshot_block")
+  /// Jumlah bagian semua pemegang, termasuk perbendaharaan.
+  totalSharesIdr       BigInt   @map("total_shares_idr")
+  /// Sisa pembulatan: sewa bersih - jumlah bagian. Masuk cadangan periode itu.
+  roundingRemainderIdr BigInt   @map("rounding_remainder_idr")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  property      Property            @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  periodClosing PeriodClosing       @relation(fields: [periodClosingId], references: [id], onDelete: Restrict)
+  distributedBy User                @relation(fields: [distributedById], references: [id], onDelete: Restrict)
+  shares        DistributionShare[]
+
+  @@unique([propertyId, period])
+  @@map("distributions")
+}
+
+/// Bagian satu pemegang dalam satu distribusi (v4). Saldo bagi hasil investor adalah jumlah
+/// shareIdr miliknya. Bagian perbendaharaan dikreditkan ke pemilik lama (keputusan 16 Nov 2026).
+///
+/// CHECK di SQL migrasi skema_v4: user_id terisi tepat untuk holder_type INVESTOR, saldo token dan
+/// bagian >= 0. Pemilik lama dan perbendaharaan selalu dicatat; investor bersaldo 0 tidak.
+model DistributionShare {
+  id             String                 @id @default(uuid(7)) @db.Uuid
+  distributionId String                 @map("distribution_id") @db.Uuid
+  holderType     DistributionHolderType @map("holder_type")
+  /// Investor pemilik dompet kustodian. Kosong untuk pemilik lama dan perbendaharaan.
+  userId         String?                @map("user_id") @db.Uuid
+  walletAddress  String                 @map("wallet_address")
+  /// Saldo token di blok snapshot (getPastVotes).
+  tokenBalance   Int                    @map("token_balance")
+  /// floor(sewa bersih x saldo / total suplai).
+  shareIdr       BigInt                 @map("share_idr")
+  /// Penerima bagian: perbendaharaan dikreditkan ke ORIGINAL_OWNER, yang lain ke dirinya sendiri.
+  creditedTo     DistributionHolderType @map("credited_to")
+
+  distribution Distribution @relation(fields: [distributionId], references: [id], onDelete: Restrict)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([distributionId, walletAddress])
+  @@index([userId])
+  @@map("distribution_shares")
+}
+
+/// Satu kali admin menekan Coba lagi untuk job yang gagal (v4). Tabel terpisah, bukan kolom baru di
+/// outbox_jobs, supaya bentuk model OutboxJob v3 yang dipakai worker jalur 3 tidak berubah.
+///
+/// Jumlah baris per job menentukan id job BullMQ berikutnya (<id outbox>-retry-<n>), karena job
+/// lama yang gagal masih tersimpan di BullMQ dengan id aslinya. Selama worker belum menulis hasil
+/// yang lebih baru dari requestedAt, job terbaca QUEUED.
+model OutboxJobRetry {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  outboxJobId   String   @map("outbox_job_id") @db.Uuid
+  requestedById String   @map("requested_by_id") @db.Uuid
+  requestedAt   DateTime @default(now()) @map("requested_at")
+
+  outboxJob   OutboxJob @relation(fields: [outboxJobId], references: [id], onDelete: Restrict)
+  requestedBy User      @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([outboxJobId, requestedAt])
+  @@map("outbox_job_retries")
+}
+
+/// Job gagal yang ditandai "sudah ditangani" oleh admin (v4), mis. gagal permanen karena data di
+/// kontrak sudah ada lewat referensi lain. Satu job paling banyak satu tanda, dan job itu tidak bisa
+/// dicoba lagi sesudahnya. Job yang sudah ditangani tidak lagi menghalangi Tutup periode dan tidak
+/// tampil di tab "Menunggu atau gagal". Tabel terpisah supaya model OutboxJob v3 tidak berubah.
+model OutboxJobResolution {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  outboxJobId  String   @unique @map("outbox_job_id") @db.Uuid
+  resolvedById String   @map("resolved_by_id") @db.Uuid
+  resolvedAt   DateTime @default(now()) @map("resolved_at")
+  /// Alasan atau tindakan admin, 5 sampai 300 karakter.
+  note         String
+
+  outboxJob  OutboxJob @relation(fields: [outboxJobId], references: [id], onDelete: Restrict)
+  resolvedBy User      @relation(fields: [resolvedById], references: [id], onDelete: Restrict)
+
+  @@map("outbox_job_resolutions")
 }

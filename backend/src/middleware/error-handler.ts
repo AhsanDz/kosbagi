@@ -56,11 +56,23 @@ export function toAppError(error: unknown): AppError {
   return new AppError(500, 'INTERNAL_ERROR', 'Terjadi kesalahan pada server. Silakan coba lagi.');
 }
 
+/**
+ * Ditandai di `res.locals` untuk galat 5xx yang memang dilempar kode aplikasi (mis. 502
+ * CHAIN_UNAVAILABLE saat RPC mati, 503 MIDTRANS_UNAVAILABLE), supaya log permintaannya WARN, bukan
+ * ERROR. Galat yang tidak dikenal tetap ERROR.
+ */
+export const KNOWN_FAILURE_LOCAL = 'knownServerFailure';
+
 export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   const appError = toAppError(error);
 
   if (appError.status >= 500) {
-    req.log.error({ err: error }, 'Kesalahan tak terduga saat memproses permintaan');
+    if (error instanceof AppError) {
+      req.log.warn({ code: appError.code, err: appError.message }, 'Permintaan gagal karena layanan pendukung bermasalah');
+      if (res.locals) res.locals[KNOWN_FAILURE_LOCAL] = true;
+    } else {
+      req.log.error({ err: error }, 'Kesalahan tak terduga saat memproses permintaan');
+    }
   }
 
   // Bila sebagian respons sudah terkirim, serahkan ke penangan bawaan Express (menutup koneksi).

@@ -1,12 +1,17 @@
 // Membaca dan memvalidasi environment variable sekali saat aplikasi start.
 // Bila ada yang salah atau kurang, aplikasi langsung berhenti dengan pesan jelas
 // (fail fast), bukan gagal diam-diam saat endpoint dipanggil.
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config as loadEnv } from 'dotenv';
 import { Mnemonic } from 'ethers';
 import { z } from '../lib/zod.js';
 
 // Muat backend/.env bila ada. Variabel yang sudah diset di sistem tidak ditimpa.
 loadEnv({ quiet: true });
+
+/** Folder backend/, baik saat dijalankan dari src/ (tsx) maupun dari dist/ (hasil build). */
+export const BACKEND_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
 
@@ -48,6 +53,15 @@ const envSchema = z.object({
   ),
   KOS_TOKEN_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'harus alamat Ethereum berawalan 0x')),
   KOS_LEDGER_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'harus alamat Ethereum berawalan 0x')),
+  // Folder file nota biaya (P4). Path relatif dibaca dari folder backend/, bukan dari folder
+  // tempat perintah dijalankan, supaya npm run dev dan skrip demo menyimpan ke tempat yang sama.
+  UPLOAD_DIR: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z
+      .string()
+      .default('uploads')
+      .transform((dir) => path.resolve(BACKEND_ROOT, dir)),
+  ),
   // Jaringan yang diharapkan worker: 11155111 untuk Sepolia, 31337 untuk Hardhat lokal.
   CHAIN_ID: z.preprocess(
     (value) => (value === '' ? undefined : value),
