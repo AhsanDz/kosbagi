@@ -1,8 +1,8 @@
 # Laporan Uji Pembayaran (S1 sampai S9)
 
-Laporan skenario uji 1 sampai 9 dari Tabel 4.3 proposal. S1 sampai S7 (pembayaran sewa) dibangun di progress 2, S8 dan S9 (pembelian token) di progress 3. Skenario 10 sampai 12 ada di [`kontrak.md`](kontrak.md).
+Laporan final skenario uji 1 sampai 9 dari Tabel 4.3 proposal. S1 sampai S7 (pembayaran sewa) dibangun di progress 2, S8 dan S9 (pembelian token) di progress 3. Progress 4 menambah aturan pembayaran sewa setelah periode ditutup, biaya dengan nota, distribusi bagi hasil, dan skrip persiapan demo, lihat [Tambahan progress 4](#tambahan-progress-4). Skenario 10 sampai 12 ada di [`kontrak.md`](kontrak.md).
 
-Tanggal uji: 2 November 2026 (S1 sampai S7, tiruan), 3 November 2026 (S1 sampai S7, Midtrans sandbox sungguhan), 4 sampai 15 November 2026 (S8, S9, dan alur pembelian token, tiruan), 15 November 2026 (pembelian token dan skrip demo ke Midtrans sandbox sungguhan, tanpa membayar di simulator).
+Tanggal uji: 2 November 2026 (S1 sampai S7, tiruan), 3 November 2026 (S1 sampai S7, Midtrans sandbox sungguhan), 4 sampai 15 November 2026 (S8, S9, dan alur pembelian token, tiruan), 15 November 2026 (pembelian token dan skrip demo ke Midtrans sandbox sungguhan, tanpa membayar di simulator), 16 sampai 19 November 2026 (tambahan P4: tiruan, PostgreSQL, Hardhat lokal, dan Midtrans sandbox sungguhan tanpa membayar).
 
 > [!IMPORTANT]
 > S1 sampai S7 sudah diuji terhadap Midtrans sandbox sungguhan pada 3 November 2026, lihat [Uji sandbox sungguhan](#uji-sandbox-sungguhan-3-november-2026). Notifikasi dikirim ke laptop dengan `npm run webhook:simulate`, bukan langsung oleh Midtrans, karena belum memakai ngrok. Server tetap memverifikasi signature dan mengecek ulang status ke API Midtrans asli. Yang belum terbukti tercantum di [Menunggu uji sandbox](#menunggu-uji-sandbox).
@@ -35,14 +35,15 @@ S8 dan S9 tidak butuh uji sandbox sungguhan, karena syaratnya justru Midtrans ti
 
 Hasil:
 
-| Perintah | P2 | P3 (jalur 2) |
-|---|---|---|
-| `npm test` | 206 test lulus, 21 file | 279 test lulus, 27 file, tanpa Docker dan tanpa jaringan |
-| `npm run test:integration` | 82 test lulus, 4 file | 169 test lulus, 7 file |
-| Alur penuh | 36 langkah lulus | Belum diulang untuk pembelian token |
-| `npm run typecheck`, `npm run build` | Lulus | Lulus |
+| Perintah | P2 | P3 (jalur 2) | P4 (paket jalur 2 di atas `main` P3) |
+|---|---|---|---|
+| `npm test` | 206 test lulus, 21 file | 279 test lulus, 27 file, tanpa Docker dan tanpa jaringan | 518 lulus, 12 dilewati, 49 file. Termasuk test P3 jalur 1 dan 3 yang sudah ada di `main`; 12 yang dilewati adalah e2e jalur 3 tanpa Hardhat node |
+| `npm run test:integration` | 82 test lulus, 4 file | 169 test lulus, 7 file | 234 lulus, 1 dilewati, 12 file |
+| Distribusi dari kontrak di Hardhat lokal (`DISTRIBUTION_E2E=1`) | | | 1 lulus, diulang tiga kali di node yang sama |
+| Alur penuh | 36 langkah lulus | Belum diulang untuk pembelian token | Lewat skrip demo terhadap server sungguhan, lihat [uji sandbox P4](#uji-sandbox-p4-19-november-2026) |
+| `npm run typecheck`, `npm run build` | Lulus | Lulus | Lulus |
 
-Angka P3 hanya menghitung test milik jalur 2. Di folder kerja gabungan, `npm test` juga menjalankan test kalkulator jalur 1 dan layanan blockchain jalur 3.
+Di folder kerja gabungan (keempat paket P4), `npm test` juga menjalankan test kalkulator dan rekonsiliasi jalur 1 serta layanan blockchain jalur 3: 638 lulus dan 32 dilewati pada 20 November 2026, dan `npm run test:integration` 234 lulus dan 1 dilewati.
 
 ### Menjalankan test integrasi
 
@@ -52,7 +53,7 @@ npm run db:up             # PostgreSQL dan Redis lewat Docker
 npm run test:integration
 ```
 
-Test integrasi memakai basis data `kosbagi_test`, yang dibuat dan dimigrasi otomatis, jadi data pengembangan di `kosbagi` tidak tersentuh. Isinya dikosongkan di awal setiap test. Alamat bisa diganti lewat `TEST_DATABASE_URL` dan `TEST_REDIS_URL`. `npm test` biasa tidak menjalankan folder `tests/integration`, jadi tetap lulus tanpa Docker.
+Test integrasi memakai basis data `kosbagi_test`, yang dibuat dan dimigrasi otomatis (termasuk migrasi skema v4), jadi data pengembangan di `kosbagi` tidak tersentuh. Isinya dikosongkan di awal setiap test. Alamat bisa diganti lewat `TEST_DATABASE_URL` dan `TEST_REDIS_URL`. `npm test` biasa tidak menjalankan folder `tests/integration`, jadi tetap lulus tanpa Docker.
 
 ## Rincian per skenario
 
@@ -174,6 +175,78 @@ Berkas test: `backend/tests/integration/kyc.test.ts`.
 
 Berkas test: `backend/tests/integration/demo-bank-transfer.test.ts`. VA dibuat lewat Core API dengan aturan percobaan yang sama dengan tombol Bayar, VA aktif dipakai lagi saat skrip dijalankan ulang, tagihan yang sedang dibayar penghuni lewat Snap dilewati, dan pelunasannya tetap lewat webhook dengan satu outbox `RECORD_RENT`.
 
+## Tambahan progress 4
+
+### Pembayaran sewa setelah periode ditutup (keputusan 16 November 2026)
+
+Berkas test: `backend/tests/integration/periods.test.ts` dan `demo-p4.test.ts`.
+
+| Kasus | Hasil |
+|---|---|
+| Penghuni menekan Bayar untuk tagihan periode yang sudah ditutup | 409 `PERIOD_CLOSED`, tidak ada percobaan dan Midtrans tidak dipanggil |
+| Skrip `demo:bayar-sewa` untuk periode tertutup | 409 `PERIOD_CLOSED` tanpa VA |
+| Pembayaran dimulai sebelum penutupan, `settlement` tiba sesudahnya | 200 `PAID_AFTER_PERIOD_CLOSED`: percobaan `PAID_AFTER_CLOSE`, anomali `PAID_AFTER_PERIOD_CLOSED` untuk pengembalian dana, tagihan tetap `UNPAID`, tanpa outbox `RECORD_RENT` |
+| Notifikasi yang sama dikirim lagi | 200 `ALREADY_PAID`, anomali tidak bertambah |
+| Pelunasan masuk lebih dulu, lalu admin menutup periode | Tutup periode 409 `PERIOD_NOT_READY` (`RENT_UNRECORDED` 1), jadi sewa itu tidak tertinggal dari `closePeriod` |
+| Tampilan penghuni setelah pelunasan telat (keputusan pasca-QA) | `GET /api/bills/current` dan `/api/bills/:id`: `status` `UNPAID`, `paymentState` `PAID_AFTER_CLOSE`, `periodClosed` `true`, `refund` berisi nominal, waktu bayar, dan `order_id`. Ringkasan admin `refundsPending` 1 |
+
+Pelunasan sewa dan Tutup periode memegang kunci advisory yang sama per properti dan periode, jadi hanya dua urutan di atas yang mungkin.
+
+### Biaya dan nota
+
+Berkas test: `backend/tests/integration/expenses.test.ts`, `src/modules/expenses/files.test.ts`.
+
+| Kasus | Hasil |
+|---|---|
+| Unggah nota PDF | 201, hash = SHA-256 isi file, file tersimpan dengan nama hash-nya, satu outbox `RECORD_EXPENSE` berisi hanya kode properti, periode, kode kategori, nominal, dan hash |
+| Nota yang sama diunggah lagi, juga tiga unggahan bersamaan | 409 `RECEIPT_ALREADY_RECORDED` dengan data biaya pertama; tetap satu baris dan satu job |
+| Periode sudah ditutup | 409 `PERIOD_CLOSED` |
+| File teks bernama `.pdf`, file lebih dari 5 MB | 415 `UNSUPPORTED_FILE_TYPE`, 413 `FILE_TOO_LARGE` |
+| Field tidak valid (kategori, nominal 0, pecahan, lebih dari Rp100 juta, tanggal 31 November, tanpa file) | 400 `VALIDATION_ERROR` per field, tanpa baris |
+| Nama file `../../rahasia.jpg` | Disimpan sebagai nama tampilan `rahasia.jpg`; file di server bernama hash |
+| Unduh nota | Pengelola dan admin mendapat isi persis; pengelola properti lain 404 |
+| Pesan nominal (temuan QA R3) | 0: "Nominal minimal Rp1."; di atas batas: "Nominal maksimal Rp100.000.000 per nota."; pecahan: "Nominal harus rupiah bulat, tanpa koma."; teks: "Nominal harus angka." |
+| Periode tanpa tagihan, mis. 2027-01 (temuan QA R7) | 400 `VALIDATION_ERROR` di field `period`, tanpa baris |
+| Tanggal nota lebih dari satu bulan dari periode (temuan QA R7) | 2026-09-30 untuk periode 2026-11 ditolak 400 di field `receiptDate`; 2026-10-28 dan 2026-12-02 diterima |
+
+### Distribusi bagi hasil
+
+Berkas test: `backend/tests/integration/periods.test.ts` (kontrak tiruan) dan `distribution-chain.test.ts` (kontrak sungguhan di Hardhat lokal).
+
+| Kasus | Hasil |
+|---|---|
+| Struk sementara: 8 sewa dan 4 nota tercatat | Rp12.000.000, Rp2.400.000, fee Rp600.000, PPh Rp1.980.000, sewa bersih Rp7.020.000, 39000 sen (sama dengan frame Figma "belum siap") |
+| Syarat penutupan | Sewa lunas belum tercatat, nota belum tercatat, transfer token belum tercatat, dan job gagal dihitung; Tutup periode 409 `PERIOD_NOT_READY` |
+| Tutup periode ditekan tiga kali bersamaan | Satu 202, dua 409 `PERIOD_ALREADY_CLOSED`, satu job `CLOSE_PERIOD` |
+| `closePeriod` gagal lalu Coba lagi admin | `CLOSE_FAILED`, lalu kembali `CLOSING` |
+| Distribusi November | Pemilik lama 5.400 → Rp2.369.250; Bagas 1.800 → Rp789.750; Citra 1.200 → Rp526.500; Eko 800 → Rp351.000; Fajar 560 → Rp245.700; Dimas 100 → Rp43.875; perbendaharaan 8.140 → Rp3.571.425 untuk pemilik lama; sisa pembulatan Rp0 |
+| Distribusi ditekan dua kali, juga tiga kali bersamaan | Tepat satu distribusi, sisanya 409 `ALREADY_DISTRIBUTED` |
+| Kontrak tidak terbaca, kontrak milik properti lain, saldo tidak sama dengan suplai | 502 `CHAIN_UNAVAILABLE`, 502 `CHAIN_UNAVAILABLE`, 409 `HOLDERS_MISMATCH`, tanpa data tersimpan |
+
+Test Hardhat lokal memakai kontrak hasil deploy modul Ignition `LocalDeployment` (jalur 3, P2) di Hardhat node port 8548. Test berperan sebagai worker dengan akun operator bawaan Hardhat: mencatat lolos KYC dan memindahkan token ke lima dompet kustodian, `recordRent` untuk sembilan kamar, `recordExpense` untuk lima nota yang diunggah lewat API (hash dari file `backend/scripts/demo/nota/`), lalu admin menutup periode lewat API dan test mengirim `closePeriod`. Hasilnya: struk dari `KosLedger.periods(202611)` persis angka November, `snapshotBlock` = blok `closePeriod` − 1, setiap bagian sama dengan `KosLedger.shareOf(202611, saldo)` yang dihitung kontrak sendiri, dan saldo bagi hasil Dimas Rp43.875. State node dikembalikan dengan `evm_revert`, jadi test diulang tiga kali di node yang sama dengan hasil sama.
+
+### Antrean job dan status untuk investor
+
+| Kasus | Hasil |
+|---|---|
+| Coba lagi untuk job `RECORDED`, job tidak ada | 409 `JOB_NOT_FAILED`, 404 |
+| Coba lagi untuk job `FAILED` | 202, baris outbox kembali `PENDING`, satu baris `outbox_job_retries`, dispatcher mengirim ulang dengan id job `<id>-retry-1`; ditekan lagi sebelum worker bekerja: 409 |
+| Status setelah Coba lagi | Admin `QUEUED`, pengelola `PENDING`, lalu `RECORDED` setelah worker menulis hasil |
+| Transfer token atau whitelist gagal dicatat | Investor melihat `PENDING` di `/kyc/me`, pesanan, dan portofolio; kata `FAILED` tidak muncul di respons investor |
+| Sewa gagal dicatat (temuan QA S1) | Penghuni melihat `chain.status` `PENDING` di `/api/bills/current`, `/api/bills`, dan `/api/bills/:id`; kata `FAILED` tidak muncul di respons penghuni |
+| Tandai ditangani (temuan QA S4) | 200 dengan `resolution` (nama admin, waktu, catatan); job hilang dari tab "Menunggu atau gagal", tidak dihitung `jobsFailed`, tidak lagi menjadi tindak lanjut pengelola. Catatan kurang dari 5 karakter 400, job `RECORDED` 409 `JOB_NOT_FAILED`, dua klik bersamaan: satu 200 dan satu 409 `JOB_ALREADY_RESOLVED`. Coba lagi sesudahnya 409 `JOB_RESOLVED` |
+| Cakupan `JOB_FAILED` (temuan QA S4) | Whitelist gagal dan sewa Oktober gagal tidak menghalangi penutupan November. Sewa K08 November yang gagal menghalangi (`RENT_UNRECORDED` 1, `JOB_FAILED` 1) sampai ditandai ditangani, lalu Tutup periode 202 |
+
+### Skrip persiapan demo
+
+| Kasus | Hasil |
+|---|---|
+| `demo:catat-biaya` dijalankan sebagai proses terpisah terhadap server uji, dua kali | Pertama 4 biaya baru (Rp2.400.000), kedua 0 biaya baru dan empat "sudah tercatat". Hash sama dengan SHA-256 file nota di repo; nota K07 tidak ikut |
+| Pesanan 1.800 token dengan VA (bagian `demo:siapkan-investor`) | VA Rp180.000.000 tanpa Snap, token disisihkan sampai batas bayar, dijalankan ulang memakai VA yang sama, pelunasan tetap lewat webhook dengan satu job `TRANSFER_TOKENS` |
+| Skenario 9 lewat jalur skrip | Tetap 422 `HOLDING_CAP_EXCEEDED` dengan sisa kuota 300 sebelum VA dibuat |
+| VA gagal dibuat | Sisihan dilepas, pesanan pecahan berikutnya mendapat nomor baru |
+| Login skrip kena batas 10 per menit (temuan QA R5) | Skrip menunggu sesuai header `Retry-After` sekali lalu login lagi; bila masih kena batas, berhenti dengan pesan API (`tests/demo-api-client.test.ts`) |
+
 ## Kasus tambahan
 
 | Kasus | Hasil |
@@ -291,6 +364,17 @@ Berkas test: `payment-scenarios.test.ts`, `token-purchase.test.ts`, dan `demo-ba
 
 Untuk merencanakan persiapan demo skenario 9 (investor memegang 1.500 token), Core API sandbox diminta membuat VA Rp150.000.000 dengan `order_id` berawalan `BUY-UJI03-R11-`. VA BCA dan BNI sama-sama diterima (`status_code` 201, `pending`, `gross_amount` 150000000.00). Jadi tidak ada batas nominal VA di bawah Rp150 juta di akun sandbox ini. VA tersebut tidak dibayar.
 
+## Uji sandbox P4 (19 November 2026)
+
+Lingkungan: server API lokal di port 4010 dengan basis data uji `kosbagi_j2` (bukan `kosbagi`), PostgreSQL dan Redis di Docker, kunci Midtrans sandbox dari `backend/.env`, mnemonic uji bawaan Hardhat untuk dompet kustodian. Properti uji berkode `UJI04`, supaya `order_id` sandbox tidak memakai nomor `SMR01` yang dibutuhkan demo. Worker tidak dijalankan: status whitelist dompet ditulis `RECORDED` langsung di basis data uji. Tidak ada yang dibayar di simulator.
+
+| Langkah | Hasil di Midtrans | Hasil di KosBagi |
+|---|---|---|
+| `npm run demo:catat-biaya -- --period 2026-11 --url http://localhost:4010` | Tidak dipanggil | Empat biaya Rp1.150.000, Rp600.000, Rp450.000, Rp200.000 tercatat lewat API pengelola, total Rp2.400.000 menunggu pencatatan; nota K07 disisakan |
+| `npm run demo:siapkan-investor -- --only bagas --url http://localhost:4010` | Core API membuat VA BCA Rp180.000.000 untuk `BUY-UJI04-0001`, status `pending` | KYC Bagas disetujui lewat API admin (dompet dibuat), skrip menunggu whitelist, lalu mencetak nomor VA dan batas bayar 5 menit. Pesanan `PENDING_PAYMENT` 1.800 token, pembayaran tanpa token Snap dengan bank `bca` |
+
+Jadi VA BCA Rp180.000.000 diterima sandbox, dan pesanan Bagas tidak perlu dipecah (keputusan 2). Skrip tetap memecah otomatis bila VA bernominal di atas Rp100 juta ditolak, dan `--max-tokens-per-order` bisa dipakai bila perlu. Skrip dihentikan sebelum VA dibayar, jadi VA itu kedaluwarsa sendiri.
+
 ## Menunggu uji sandbox
 
 | Yang harus dibuktikan | Cara |
@@ -302,6 +386,8 @@ Untuk merencanakan persiapan demo skenario 9 (investor memegang 1.500 token), Co
 | Pembelian token dibayar di simulator sampai `TRANSFER_TOKENS` tercatat | Bayar VA pesanan di simulator, jalankan `npm run webhook:simulate -- <order_id pesanan>` dan worker jalur 3 |
 | Popup Snap pembelian di atas 100 token benar-benar hanya menampilkan VA | Buka Snap dari `/investor/penawaran` |
 | `npm run demo:bayar-sewa -- --period 2026-11` untuk sembilan kamar seed | Butuh server, basis data seed P3, dan pembayaran di simulator |
+| `npm run demo:siapkan-investor` sampai empat investor memegang token di Sepolia | Butuh server, worker jalur 3 di Sepolia, dan pembayaran empat VA di simulator |
+| Tutup periode dan distribusi November di Sepolia | Butuh deploy Sepolia, semua sewa dan nota tercatat, lalu `/admin/periode` |
 
 Cara menguji dari simulator tanpa ngrok: bayar di simulator sandbox, lalu jalankan `webhook:simulate` dengan `order_id` yang tampil di halaman tagihan (atau di keluaran `demo:bayar-sewa`). Setelah basis data diisi ulang, nomor itu bisa bersufiks, mis. `RENT-SMR01-K03-2026-11-2`, karena nomor tanpa sufiks sudah terpakai di sandbox.
 
@@ -324,7 +410,9 @@ Untuk membayar semua tagihan satu periode sekaligus, `npm run demo:bayar-sewa --
 
 - `settlement` yang berbalik menjadi `deny`, yang jarang terjadi pada Permata, Mandiri Bill, dan Indomaret, tidak membatalkan status lunas. Status lunas tidak pernah mundur; kejadiannya hanya tercatat di log dan akan terlihat di rekonsiliasi.
 - `refund` tidak diproses di prototipe.
-- Dana percobaan `DUPLICATE_PAID` dan `UNFULFILLED` tidak dikembalikan otomatis. Anomalinya tercatat untuk ditangani manual.
+- Dana percobaan `DUPLICATE_PAID`, `UNFULFILLED`, dan `PAID_AFTER_CLOSE` (P4) tidak dikembalikan otomatis. Anomalinya tercatat untuk ditangani manual, dan anomali belum punya status selesai, jadi semuanya dihitung terbuka di ringkasan admin. Penghuni melihat `refund` berstatus `PENDING` dan admin melihat `refundsPending`; belum ada endpoint untuk menandai dana sudah dikembalikan.
+- Tanda "sudah ditangani" pada job gagal tidak bisa dibatalkan lewat API, dan job itu tidak bisa dicoba lagi.
+- Saldo bagi hasil investor belum bisa ditarik; `withdraw.enabled` selalu `false` sampai disbursement sandbox tersedia.
 - Pesanan token yang sisihannya lepas karena waktu, tanpa notifikasi `expire`, tetap berstatus `PENDING_PAYMENT` di basis data tetapi dibaca `EXPIRED` di API dan tidak dihitung di sisihan.
 - Waktu blok di kuitansi belum tersedia, karena tabel `chain_transactions` belum menyimpan waktu blok.
 - Rate limit disimpan di memori proses, jadi kosong lagi saat server restart dan tidak berlaku lintas proses.

@@ -26,7 +26,8 @@ let passwordHash: Promise<string> | undefined;
 /** Mengosongkan semua tabel aplikasi. Hanya menyentuh basis data test. */
 export async function resetDatabase(): Promise<void> {
   await prisma.$executeRaw`
-    TRUNCATE TABLE chain_transactions, outbox_jobs, payment_anomalies, payments, token_purchases,
+    TRUNCATE TABLE distribution_shares, distributions, period_closings, expenses, outbox_job_retries,
+      chain_transactions, outbox_jobs, payment_anomalies, payments, token_purchases,
       offerings, custodial_wallets, kyc_submissions, owner_applications, bills, rooms, properties, users
     RESTART IDENTITY CASCADE`;
 }
