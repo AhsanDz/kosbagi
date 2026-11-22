@@ -1,7 +1,8 @@
 import { CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
 
-import type { BillViewState } from "@/lib/billing";
-import { formatPeriod } from "@/lib/format";
+import type { BillDto } from "@/lib/api/types";
+import { billRefund, type BillViewState } from "@/lib/billing";
+import { formatDate, formatPeriod, formatRupiah } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -18,15 +19,17 @@ const activeStepByState: Record<BillViewState, number> = {
   UNPAID: -1,
   EXPIRED: -1,
   FAILED: -1,
+  PERIOD_CLOSED: -1,
+  // Bayar dan konfirmasi Midtrans selesai, tetapi tagihan tidak menjadi lunas.
+  REFUND_PENDING: 2,
   PENDING: 0,
   CHECKING: 1,
   PAID_QUEUED: LAST_STEP,
   PAID_RECORDED: LAST_STEP,
-  PAID_CHAIN_FAILED: LAST_STEP,
   PAID_NOT_RECORDED: LAST_STEP,
 };
 
-function describeState(state: BillViewState, period: string) {
+function describeState(state: BillViewState, period: string, bill?: BillDto) {
   switch (state) {
     case "PENDING":
       return "Pembayaran sedang berjalan di Midtrans.";
@@ -36,8 +39,15 @@ function describeState(state: BillViewState, period: string) {
       return "Tagihan lunas. Pencatatan ke Sepolia sedang berjalan.";
     case "PAID_RECORDED":
       return "Selesai. Siapa pun bisa memeriksa catatan ini di Etherscan.";
-    case "PAID_CHAIN_FAILED":
-      return "Tagihan tetap lunas. Operator mengulang pencatatan ke Sepolia.";
+    case "REFUND_PENDING": {
+      const refund = bill ? billRefund(bill) : null;
+      const detail = refund
+        ? ` ${formatRupiah(refund.amountIdr)}${refund.paidAt ? `, dibayar ${formatDate(refund.paidAt)}` : ""}.`
+        : "";
+      return `Pembayaran diterima setelah periode ditutup, dana akan dikembalikan.${detail}`;
+    }
+    case "PERIOD_CLOSED":
+      return `Periode ${formatPeriod(period)} sudah ditutup. Tagihan ini tidak bisa dibayar lewat KosBagi.`;
     case "PAID_NOT_RECORDED":
       return "Tagihan lunas sebelum pencatatan on-chain dimulai, jadi tidak ada di Sepolia.";
     default:
@@ -55,9 +65,10 @@ function StepDot({ index, active, state }: { index: number; active: number; stat
       </span>
     );
   }
-  if (index === LAST_STEP && state === "PAID_CHAIN_FAILED") {
+  if (state === "REFUND_PENDING" && index === active) {
+    // Tagihan tidak menjadi lunas: tahap ini ditandai silang abu, bukan merah.
     return (
-      <span className={cn(baseClass, "bg-destructive text-destructive-foreground")}>
+      <span className={cn(baseClass, "border-[1.5px] border-muted-foreground bg-card text-muted-foreground")}>
         <XIcon aria-hidden className="size-3" />
       </span>
     );
@@ -85,6 +96,8 @@ function StepDot({ index, active, state }: { index: number; active: number; stat
 interface PaymentTrailProps {
   period: string;
   state: BillViewState;
+  /** Tagihan lengkap, untuk nominal dan tanggal pembayaran yang masuk setelah periode ditutup. */
+  bill?: BillDto;
   className?: string;
 }
 
@@ -94,7 +107,7 @@ interface PaymentTrailProps {
  * sesuai aturan lime untuk bukti. Titik berada di tengah kolom dan label rata
  * tengah, jadi garis dimulai dari titik pertama dan berakhir di titik terakhir.
  */
-export function PaymentTrail({ period, state, className }: PaymentTrailProps) {
+export function PaymentTrail({ period, state, bill, className }: PaymentTrailProps) {
   const active = activeStepByState[state];
 
   return (
@@ -106,7 +119,7 @@ export function PaymentTrail({ period, state, className }: PaymentTrailProps) {
         <h2 id="judul-jejak" className="text-h5 font-semibold">
           Jejak pembayaran
         </h2>
-        <p className="text-sm leading-5 text-muted-foreground">{describeState(state, period)}</p>
+        <p className="text-sm leading-5 text-muted-foreground">{describeState(state, period, bill)}</p>
       </div>
 
       <ol className="flex items-start">

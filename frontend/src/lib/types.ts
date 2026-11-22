@@ -13,6 +13,7 @@ export type AppRole = "investor" | "penghuni" | "pengelola" | "admin";
 /**
  * Status tagihan sewa atau pembelian token (Figma: komponen "Status tagihan").
  * CHECKING hanya ada di klien: jeda setelah Snap selesai sampai webhook masuk.
+ * REFUND (P4): terbayar setelah periode ditutup, dananya dikembalikan.
  */
 export type BillStatus =
   | "UNPAID"
@@ -21,7 +22,8 @@ export type BillStatus =
   | "PAID"
   | "EXPIRED"
   | "FAILED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "REFUND";
 
 /**
  * Status transaksi blockchain (Figma: komponen "Status on-chain"). NOT_RECORDED

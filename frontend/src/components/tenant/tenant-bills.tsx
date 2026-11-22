@@ -54,7 +54,7 @@ export function TenantBills() {
       )}
       <div className={SIDE_COLUMN_CLASS}>
         {bill && billState ? (
-          <PaymentTrail period={bill.period} state={billState} className="hidden md:flex" />
+          <PaymentTrail period={bill.period} state={billState} bill={bill} className="hidden md:flex" />
         ) : null}
         <HistoryCard bills={paidBills} />
       </div>
