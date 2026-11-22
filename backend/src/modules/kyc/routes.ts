@@ -10,6 +10,7 @@ import { KycStatus } from '../../generated/prisma/enums.js';
 import { AppError } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { isUniqueViolation } from '../../lib/prisma-errors.js';
+import { toInvestorChainJobDto } from '../../lib/chain-status.js';
 import { isUuid } from '../../lib/uuid.js';
 import { noNulCharacter, z } from '../../lib/zod.js';
 import { currentUser, requireAuth, requireRole } from '../../middleware/auth.js';
@@ -90,7 +91,9 @@ router.get('/me', requireAuth, requireRole('INVESTOR'), async (req, res) => {
     prisma.kycSubmission.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }),
     loadWallet(prisma, userId),
   ]);
-  res.json({ data: { kyc: submission ? toKycDto(submission) : null, wallet } });
+  // P4: investor tidak pernah melihat status FAILED; pencatatan yang gagal terbaca menunggu.
+  const investorWallet = wallet ? { ...wallet, whitelist: toInvestorChainJobDto(wallet.whitelist) } : null;
+  res.json({ data: { kyc: submission ? toKycDto(submission) : null, wallet: investorWallet } });
 });
 
 router.get('/', requireAuth, requireRole('ADMIN'), async (req, res) => {

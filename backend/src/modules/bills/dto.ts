@@ -1,6 +1,6 @@
 // Bentuk data tagihan yang dikirim ke frontend. Tanpa akses basis data, jadi mudah diuji.
 import type { Bill, Payment, Prisma, Room, Property, User } from '../../generated/prisma/client.js';
-import { latestChainTransaction, toChainJobDto } from '../../lib/chain-status.js';
+import { latestChainTransaction, toChainJobDto, toInvestorChainJobDto } from '../../lib/chain-status.js';
 import { jobPayloadSchemas, toChainPeriod, toChainRoom } from '../../queue/jobs.js';
 import { effectiveStatus, type PaymentDto, toPaymentDto } from '../payments/dto.js';
 
@@ -22,13 +22,29 @@ export type BillWithPayments = Prisma.BillGetPayload<{ include: typeof billInclu
 export type BillWithDetail = Prisma.BillGetPayload<{ include: typeof billDetailInclude }>;
 type PaymentWithChain = BillWithPayments['payments'][number];
 
-export type PaymentState = 'NONE' | 'PENDING' | 'EXPIRED' | 'FAILED' | 'PAID';
+/**
+ * PAID_AFTER_CLOSE (P4): uang diterima setelah periode tagihan ditutup. Tagihan tetap UNPAID, dana
+ * akan dikembalikan (lihat `refund`).
+ */
+export type PaymentState = 'NONE' | 'PENDING' | 'EXPIRED' | 'FAILED' | 'PAID' | 'PAID_AFTER_CLOSE';
 
 export interface ChainDto {
-  /** NOT_RECORDED: tagihan lunas tanpa pembayaran Midtrans (data lampau seed), tidak pernah dicatat. */
-  status: 'PENDING' | 'RECORDED' | 'FAILED' | 'NOT_RECORDED';
+  /**
+   * NOT_RECORDED: tagihan lunas tanpa pembayaran Midtrans (data lampau seed), tidak pernah dicatat.
+   * Penghuni tidak pernah menerima FAILED (P4): pencatatan yang gagal terbaca PENDING, karena
+   * pengulangannya urusan admin.
+   */
+  status: 'PENDING' | 'RECORDED' | 'NOT_RECORDED';
   txHash: string | null;
   blockNumber: number | null;
+}
+
+/** Pembayaran yang diterima setelah periode ditutup dan menunggu dikembalikan (P4). */
+export interface RefundDto {
+  status: 'PENDING';
+  amountIdr: number;
+  paidAt: Date | null;
+  orderId: string;
 }
 
 export interface BillDto {
@@ -41,6 +57,10 @@ export interface BillDto {
   paymentState: PaymentState;
   payment: PaymentDto | null;
   chain: ChainDto | null;
+  /** P4: periode tagihan sudah ditutup admin, jadi tagihan ini tidak bisa dibayar lagi. */
+  periodClosed: boolean;
+  /** P4: terisi bila ada pembayaran yang lunas setelah periode ditutup. */
+  refund: RefundDto | null;
 }
 
 /** Argumen KosLedger.recordRent persis seperti yang dikirim worker, ditambah hasil transaksinya. */
@@ -107,9 +127,23 @@ function displayedPayment(bill: BillWithPayments): PaymentWithChain | null {
   return settlingPayment(bill) ?? bill.payments[0] ?? null;
 }
 
-function toPaymentState(bill: Bill, payment: Payment | null, now: Date): PaymentState {
+/** Percobaan terbaru yang terbayar setelah periode ditutup, bila ada. */
+function paidAfterClose(bill: BillWithPayments): PaymentWithChain | null {
+  return bill.payments.find((payment) => payment.status === 'PAID_AFTER_CLOSE') ?? null;
+}
+
+function toPaymentState(bill: BillWithPayments, payment: Payment | null, now: Date): PaymentState {
   if (bill.status === 'PAID') return 'PAID';
+  if (paidAfterClose(bill)) return 'PAID_AFTER_CLOSE';
   return payment ? effectiveStatus(payment, now) : 'NONE';
+}
+
+function toRefundDto(bill: BillWithPayments): RefundDto | null {
+  if (bill.status === 'PAID') return null;
+  const payment = paidAfterClose(bill);
+  return payment
+    ? { status: 'PENDING', amountIdr: Number(payment.amountIdr), paidAt: payment.paidAt, orderId: payment.orderId }
+    : null;
 }
 
 /**
@@ -119,10 +153,11 @@ function toPaymentState(bill: Bill, payment: Payment | null, now: Date): Payment
 function toChainDto(bill: BillWithPayments): ChainDto {
   const payment = settlingPayment(bill);
   if (!payment) return { status: 'NOT_RECORDED', txHash: null, blockNumber: null };
-  return toChainJobDto(payment.outboxJob);
+  return toInvestorChainJobDto(toChainJobDto(payment.outboxJob));
 }
 
-export function toBillDto(bill: BillWithPayments, now: Date): BillDto {
+/** `periodClosed`: periode tagihan sudah ditutup admin (P4). Bawaan false. */
+export function toBillDto(bill: BillWithPayments, now: Date, periodClosed = false): BillDto {
   const payment = displayedPayment(bill);
   return {
     id: bill.id,
@@ -134,6 +169,8 @@ export function toBillDto(bill: BillWithPayments, now: Date): BillDto {
     paymentState: toPaymentState(bill, payment, now),
     payment: payment ? toPaymentDto(payment, now) : null,
     chain: bill.status === 'PAID' ? toChainDto(bill) : null,
+    periodClosed,
+    refund: toRefundDto(bill),
   };
 }
 
@@ -172,8 +209,13 @@ export function toReceiptDto(bill: BillWithDetail, contractAddress: string | nul
   };
 }
 
-export function toBillDetailDto(bill: BillWithDetail, now: Date, contractAddress: string | null): BillDetailDto {
-  return { ...toBillDto(bill, now), receipt: toReceiptDto(bill, contractAddress) };
+export function toBillDetailDto(
+  bill: BillWithDetail,
+  now: Date,
+  contractAddress: string | null,
+  periodClosed = false,
+): BillDetailDto {
+  return { ...toBillDto(bill, now, periodClosed), receipt: toReceiptDto(bill, contractAddress) };
 }
 
 /** Periode terakhir masa sewa 12 bulan yang dimulai pada `leaseStart`, mis. 2026-08 menjadi 2027-07. */

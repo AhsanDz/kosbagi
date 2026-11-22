@@ -1,6 +1,6 @@
 // Bentuk data pesanan token yang dikirim ke frontend. Tanpa akses basis data, jadi mudah diuji.
 import type { Prisma, TokenPurchase } from '../../generated/prisma/client.js';
-import { type ChainJobDto, latestChainTransaction, toChainJobDto } from '../../lib/chain-status.js';
+import { type ChainJobInvestorDto, latestChainTransaction, toChainJobDto, toInvestorChainJobDto } from '../../lib/chain-status.js';
 import { type PaymentDto, toPaymentDto } from '../payments/dto.js';
 
 export const purchaseInclude = {
@@ -22,8 +22,11 @@ export interface PurchaseDto {
   reservedUntil: Date | null;
   createdAt: Date;
   payment: PaymentDto | null;
-  /** Pemindahan token dari perbendaharaan (transferFromTreasury). Null selama belum lunas. */
-  transfer: ChainJobDto | null;
+  /**
+   * Pemindahan token dari perbendaharaan (transferFromTreasury). Null selama belum lunas. Investor
+   * hanya melihat PENDING atau RECORDED (P4): pencatatan yang gagal tetap terbaca menunggu.
+   */
+  transfer: ChainJobInvestorDto | null;
 }
 
 /**
@@ -52,6 +55,6 @@ export function toPurchaseDto(purchase: PurchaseWithPayments, now: Date): Purcha
     reservedUntil: purchase.reservedUntil,
     createdAt: purchase.createdAt,
     payment: displayed ? toPaymentDto(displayed, now) : null,
-    transfer: purchase.status === 'PAID' ? toChainJobDto(paid?.outboxJob) : null,
+    transfer: purchase.status === 'PAID' ? toInvestorChainJobDto(toChainJobDto(paid?.outboxJob)) : null,
   };
 }
