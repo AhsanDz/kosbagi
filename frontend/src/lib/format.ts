@@ -161,3 +161,46 @@ export function etherscanTxUrl(txHash: HexString): string {
 export function etherscanAddressUrl(address: HexString): string {
   return `${ETHERSCAN_BASE_URL}/address/${address}`;
 }
+
+const senFormatter = new Intl.NumberFormat("id-ID", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/**
+ * Nilai per token dalam sen ke rupiah: 43875 -> "Rp438,75", 39000 -> "Rp390".
+ * Desimal hanya ditulis bila ada sen, sama dengan Struk penutupan di Figma.
+ */
+export function formatSen(sen: number): string {
+  if (sen % 100 === 0) return formatRupiah(sen / 100);
+  return `Rp${senFormatter.format(sen / 100)}`;
+}
+
+/** Pengurang di struk: 2700000 -> "−Rp2.700.000" (tanda minus matematika U+2212). */
+export function formatDeduction(value: number): string {
+  return `−${formatRupiah(Math.abs(value))}`;
+}
+
+/** Nominal bertanda untuk riwayat: 43875 -> "+Rp43.875", -5000 -> "−Rp5.000". */
+export function formatSignedRupiah(value: number): string {
+  return value < 0 ? formatDeduction(value) : `+${formatRupiah(value)}`;
+}
+
+const dayMonthFormatter = new Intl.DateTimeFormat("id-ID", {
+  day: "numeric",
+  month: "short",
+  timeZone: TIME_ZONE,
+});
+
+/** "2026-11-03" atau Date -> "3 Nov" (Daftar sewa masuk, sumbu grafik). */
+export function formatDayMonth(value: string | Date): string {
+  return dayMonthFormatter.format(typeof value === "string" ? new Date(value) : value);
+}
+
+/** Ukuran file: 1258291 -> "1,2 MB", 421888 -> "412 KB". */
+export function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) {
+    return `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(bytes / (1024 * 1024))} MB`;
+  }
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
