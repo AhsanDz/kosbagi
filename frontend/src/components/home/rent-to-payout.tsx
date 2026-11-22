@@ -127,7 +127,7 @@ function MobileWaterfall({ steps }: { steps: PlacedStep[] }) {
  * dan pajak sampai menjadi bagi hasil per token.
  */
 export function RentToPayout() {
-  const { steps, totalTokens, payoutPerTokenIdr } = monthlyWaterfall;
+  const { steps, totalTokens, payoutPerTokenLabel } = monthlyWaterfall;
   const placed = placeSteps(steps);
 
   return (
@@ -143,7 +143,7 @@ export function RentToPayout() {
           <figcaption className="sr-only">
             Sewa kotor {formatRupiah(steps[0]?.amountIdr ?? 0)} dikurangi biaya operasional, fee
             pengelolaan, dan PPh badan menjadi {formatRupiah(steps.at(-1)?.amountIdr ?? 0)} yang
-            dibagikan, atau {formatRupiah(payoutPerTokenIdr)} per token per bulan.
+            dibagikan, atau {payoutPerTokenLabel} per token per bulan.
           </figcaption>
           <div className="hidden w-full md:block">
             <DesktopWaterfall steps={placed} />
@@ -152,14 +152,14 @@ export function RentToPayout() {
             <MobileWaterfall steps={placed} />
           </div>
 
-          <div className="flex items-baseline gap-3 pt-2 md:flex-col md:items-start md:gap-1 md:pt-0 xl:mt-[150px] xl:w-[220px] xl:shrink-0">
+          <div className="flex flex-col items-start gap-1 pt-2 md:pt-0 xl:mt-[150px] xl:w-[320px] xl:shrink-0">
             <span className="hidden text-sm leading-5 text-muted-foreground md:block">
               ÷ {formatNumber(totalTokens)} token
             </span>
             <span className="font-display text-display-section font-black whitespace-nowrap text-success">
-              {formatRupiah(payoutPerTokenIdr)}
+              {payoutPerTokenLabel}
             </span>
-            <span className="w-[150px] text-sm leading-5 text-muted-foreground md:w-[220px]">
+            <span className="text-sm leading-5 text-muted-foreground md:w-[220px]">
               per token per bulan, dicatat permanen lewat closePeriod
             </span>
           </div>

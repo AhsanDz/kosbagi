@@ -1,7 +1,7 @@
-import Link from "next/link";
 import type { Icon } from "@phosphor-icons/react";
 import {
   CaretRightIcon,
+  CircleNotchIcon,
   CoinsIcon,
   DoorOpenIcon,
   ShieldCheckIcon,
@@ -18,18 +18,29 @@ const roleIcons: Record<AppRole, Icon> = {
   admin: ShieldCheckIcon,
 };
 
+interface DemoAccountCardProps {
+  account: DemoAccount;
+  /** Kartu ini sedang memproses masuk. */
+  pending: boolean;
+  /** Ada proses masuk yang sedang berjalan, dari kartu ini atau kartu lain. */
+  disabled: boolean;
+  onSelect: (account: DemoAccount) => void;
+}
+
 /**
- * Kartu peran di halaman Masuk (Figma: "Kartu peran"). Seluruh kartu bisa
- * diklik. Di progress 1 kartu langsung membuka app shell peran itu; mulai
- * progress 2 kartu ini masuk lewat API dengan akun demo.
+ * Kartu peran di halaman Masuk (Figma: "Kartu peran"). Seluruh kartu adalah
+ * tombol yang masuk lewat API dengan akun demo peran itu.
  */
-export function DemoAccountCard({ account }: { account: DemoAccount }) {
+export function DemoAccountCard({ account, pending, disabled, onSelect }: DemoAccountCardProps) {
   const RoleIcon = roleIcons[account.role];
 
   return (
-    <Link
-      href={account.homeHref}
-      className="group flex w-full items-start gap-4 rounded-xl border border-border bg-card p-5 text-card-foreground transition-colors hover:border-primary focus-visible:border-ring"
+    <button
+      type="button"
+      disabled={disabled}
+      aria-busy={pending}
+      onClick={() => onSelect(account)}
+      className="group flex w-full items-start gap-4 rounded-xl border border-border bg-card p-5 text-left text-card-foreground transition-colors hover:border-primary focus-visible:border-ring disabled:cursor-not-allowed disabled:hover:border-border"
     >
       <RoleIcon aria-hidden className="size-6 shrink-0 text-foreground" />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -42,10 +53,17 @@ export function DemoAccountCard({ account }: { account: DemoAccount }) {
         </span>
         <span className="text-sm leading-5">{account.cardDescription}</span>
       </span>
-      <CaretRightIcon
-        aria-hidden
-        className="size-[18px] shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-      />
-    </Link>
+      {pending ? (
+        <CircleNotchIcon
+          aria-hidden
+          className="size-[18px] shrink-0 animate-spin text-muted-foreground"
+        />
+      ) : (
+        <CaretRightIcon
+          aria-hidden
+          className="size-[18px] shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+        />
+      )}
+    </button>
   );
 }

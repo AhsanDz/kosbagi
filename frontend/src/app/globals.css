@@ -51,6 +51,7 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-muted: var(--warning-muted);
   --color-warning-muted-foreground: var(--warning-muted-foreground);
+  --color-warning-track: var(--warning-track);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-info-muted: var(--info-muted);
@@ -116,6 +117,14 @@
   --text-number-md: 1.25rem; /* Angka/Sedang 20/26 */
   --text-number-md--line-height: 1.625rem;
   --text-number-md--letter-spacing: -0.01em;
+  --text-number-hero: 3.5rem; /* Angka/Hero 56/60, nominal slip tagihan */
+  --text-number-hero--line-height: 3.75rem;
+  --text-number-hero--letter-spacing: -0.03em;
+  --text-mono-lg: 2rem; /* Mono/Besar 32/38, hitung mundur pembayaran */
+  --text-mono-lg--line-height: 2.375rem;
+  --text-mono-lg--letter-spacing: -0.02em;
+  --text-display-stamp: 1.625rem; /* Display/Cap 26/30, cap TERCATAT */
+  --text-display-stamp--line-height: 1.875rem;
   --text-button: 0.9375rem; /* Teks/Tombol 15/20 */
   --text-button--line-height: 1.25rem;
 
@@ -153,6 +162,7 @@
   --warning-foreground: #f3f4ef;
   --warning-muted: #f4e4c1;
   --warning-muted-foreground: #5e3a05;
+  --warning-track: #f0c77a;
   --info: #3d58a6;
   --info-foreground: #f3f4ef;
   --info-muted: #dfe5f4;
@@ -199,6 +209,7 @@
   --warning-foreground: #0e0f0c;
   --warning-muted: #33260d;
   --warning-muted-foreground: #f0c77a;
+  --warning-track: #5a4216;
   --info: #8ea4e8;
   --info-foreground: #0e0f0c;
   --info-muted: #1c2540;
@@ -251,6 +262,17 @@
   );
   background-size: 12px 100%;
   background-repeat: repeat-x;
+}
+
+/* Versi tegak garis sobek, dipakai Slip ringkas. */
+@utility dash-line-y {
+  background-image: linear-gradient(
+    to bottom,
+    currentColor 50%,
+    transparent 50%
+  );
+  background-size: 100% 12px;
+  background-repeat: repeat-y;
 }
 
 @layer base {

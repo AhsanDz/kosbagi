@@ -1,12 +1,12 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BuildingsIcon, SignOutIcon } from "@phosphor-icons/react/ssr";
 
 import { roleMenus } from "@/components/app-shell/role-menus";
 import { Logo } from "@/components/brand/logo";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -19,7 +19,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getDemoAccount } from "@/lib/data/demo-accounts";
+import { signOut } from "@/lib/api/session";
 import { kosSumbersari01 } from "@/lib/data/properties";
 import type { AppRole } from "@/lib/types";
 
@@ -29,18 +29,29 @@ function isActive(pathname: string, href: string, roleHome: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+interface RoleSidebarProps {
+  role: AppRole;
+  /** Blok akun, dirender di server karena membaca sesi. */
+  account: ReactNode;
+}
+
 /**
  * Sidebar app shell per peran (Figma: "Sidebar"): logo dan properti di atas,
- * menu peran, lalu blok akun dummy + Keluar di bawah. Di layar < 768 px
- * sidebar ini otomatis menjadi Sheet yang dibuka dari tombol menu di header.
+ * menu peran, lalu blok akun + Keluar di bawah. Di layar < 768 px sidebar ini
+ * otomatis menjadi Sheet yang dibuka dari tombol menu di header.
  */
-export function RoleSidebar({ role }: { role: AppRole }) {
+export function RoleSidebar({ role, account }: RoleSidebarProps) {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
+  const [signingOut, setSigningOut] = useState(false);
   const menu = roleMenus[role];
-  const account = getDemoAccount(role);
   const roleHome = menu.items[0]?.href ?? `/${role}`;
   const closeMobile = () => setOpenMobile(false);
+
+  function handleSignOut() {
+    setSigningOut(true);
+    void signOut();
+  }
 
   return (
     <Sidebar>
@@ -81,26 +92,12 @@ export function RoleSidebar({ role }: { role: AppRole }) {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center gap-3 pl-2">
-          <Avatar>
-            <AvatarFallback>{account.initials}</AvatarFallback>
-          </Avatar>
-          <div className="flex min-w-0 flex-col">
-            <span className="truncate text-sm leading-5 font-semibold text-sidebar-accent-foreground">
-              {account.name}
-            </span>
-            <span className="truncate text-xs leading-4 text-sidebar-muted-foreground">
-              {account.sidebarCaption}
-            </span>
-          </div>
-        </div>
+        {account}
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/masuk" onClick={closeMobile}>
-                <SignOutIcon aria-hidden />
-                <span>Keluar</span>
-              </Link>
+            <SidebarMenuButton disabled={signingOut} onClick={handleSignOut}>
+              <SignOutIcon aria-hidden />
+              <span>Keluar</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
