@@ -3,6 +3,8 @@
 // jadi data pengembangan di basis data kosbagi tidak tersentuh. Midtrans tetap ditiru.
 //
 // Alamat bisa diganti lewat TEST_DATABASE_URL dan TEST_REDIS_URL.
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 import { TEST_DATABASE_URL, TEST_REDIS_URL } from './tests/integration/test-env.js';
 
@@ -27,6 +29,8 @@ export default defineConfig({
       // pernah dipakai mengirim transaksi: test hanya menurunkan alamat dompet kustodian.
       CUSTODIAL_WALLET_MNEMONIC: 'test test test test test test test test test test test junk',
       KOS_LEDGER_ADDRESS: '0x2b9c000000000000000000000000000000007e10',
+      // File nota uji ditulis ke folder sementara, bukan ke backend/uploads.
+      UPLOAD_DIR: path.join(tmpdir(), 'kosbagi-uji-nota'),
     },
   },
 });
