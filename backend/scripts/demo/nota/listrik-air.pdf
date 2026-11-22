@@ -1,0 +1,43 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 298 420] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 608 >>
+stream
+BT
+/F1 26 Tf 1 0 0 1 24 370 Tm (NOTA DUMMY) Tj
+/F1 9 Tf 1 0 0 1 24 352 Tm (Data uji KosBagi, bukan nota asli. Tanpa uang nyata.) Tj
+/F1 11 Tf 1 0 0 1 24 318 Tm (Kos Sumbersari 01 \(KB-SMR01\)) Tj
+/F1 10 Tf 1 0 0 1 24 290 Tm (Kategori   : Listrik dan air) Tj
+/F1 10 Tf 1 0 0 1 24 274 Tm (Keterangan : Token listrik dan tagihan PDAM) Tj
+/F1 10 Tf 1 0 0 1 24 258 Tm (Tanggal    : 5 November 2026) Tj
+/F1 10 Tf 1 0 0 1 24 242 Tm (Nominal    : Rp1.150.000) Tj
+/F1 9 Tf 1 0 0 1 24 200 Tm (Periode biaya: November 2026) Tj
+/F1 9 Tf 1 0 0 1 24 40 Tm (DUMMY - hanya hash SHA-256 file ini yang dicatat on-chain.) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000000344 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1003
+%%EOF
