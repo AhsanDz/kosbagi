@@ -6,7 +6,7 @@ Smart contract KosBagi di Ethereum Sepolia, dibangun dengan Hardhat 3 dan OpenZe
 |---|---|---|
 | `KosToken` | ERC-20 + ERC20Votes, satu kontrak per properti (KB-SMR01) | Hanya alamat lolos KYC yang boleh menerima token; saldo per investor maksimal 10% |
 | `KosLedger` | `recordRent`, `recordExpense`, `closePeriod`, `shareOf` | Satu kontrak per token properti. Menolak referensi pembayaran ganda dan sewa kedua untuk kamar + periode yang sama; menyimpan sewa bersih, nilai per token, dan blok snapshot tiap periode |
-| `KosVoting` (opsional) | `propose`, `vote`, `tally` | Bobot suara dari saldo token di blok saat proposal dibuat (progress 4) |
+| `KosVoting` (opsional) | `propose`, `vote`, `tally` | Tidak dibangun di prototipe (keputusan 16 Nov 2026); rancangannya disimpan sebagai pengembangan lanjutan |
 
 Semua fungsi tulis khusus dibatasi peran `AccessControl`: operasi harian (KYC, penyaluran token dari perbendaharaan, pencatatan sewa dan biaya, penutupan periode, jeda) oleh dompet operator; pengaturan peran, registri dokumen, dan jeda darurat oleh dompet admin. Fungsi standar ERC-20 (`transfer`, `approve`, `transferFrom`, `permit`) tetap terbuka bagi pemegang token, tetapi tunduk pada aturan KYC, batas 10%, dan jeda. Data on-chain hanya kode properti, nomor kamar, periode, nominal, `keccak256(order_id)`, dan hash dokumen atau nota, tanpa data pribadi. Rancangan lengkap: [`docs/kontrak/rancangan-kontrak.md`](../docs/kontrak/rancangan-kontrak.md). Laporan uji: [`docs/pengujian/kontrak.md`](../docs/pengujian/kontrak.md).
 
@@ -37,6 +37,7 @@ Deploy dan verifikasi memakai variabel environment dari file `.env` di folder in
 | `OPERATOR_PRIVATE_KEY` | Private key dompet operator: di folder ini hanya untuk mencocokkan alamat operator |
 | `ETHERSCAN_API_KEY` | API key Etherscan untuk verifikasi kontrak |
 | `ISSUANCE_DOCS_DIR` | Opsional, hanya untuk gladi lokal: folder lain berisi tiga dokumen penerbitan |
+| `DEPLOY_LABEL` | Opsional, hanya untuk gladi demo di Sepolia: label kontrak baru, mis. `gladi1`. Hasilnya `deployments/sepolia-<label>.json` dan tidak ikut repo. Kosongkan untuk deploy demo akhir (`deployments/sepolia.json`). Lebih aman diisi di terminal |
 
 File `.env` diabaikan Git dan **tidak boleh** di-commit. Alternatifnya, simpan nilai terenkripsi dengan `npx hardhat keystore set <NAMA_VARIABEL>`; variabel environment tetap diutamakan bila keduanya ada.
 
@@ -63,11 +64,11 @@ contracts/
 │   ├── verify.ts         periksa bytecode lalu verifikasi kode sumber di Etherscan
 │   ├── export-abi.ts     salin ABI ke backend/src/blockchain/abi/
 │   └── lib/              fungsi bersama skrip (target jaringan, dokumen penerbitan, pemeriksaan, format hasil)
-├── deployments/          hasil deploy: sepolia.json (alamat, blok, dokumen, peran); lokal.json tidak ikut repo
+├── deployments/          hasil deploy: sepolia.json (alamat, blok, dokumen, peran); lokal.json dan sepolia-<label>.json tidak ikut repo
 ├── hardhat.config.ts     versi compiler, profil build, jaringan Sepolia dan lokal, verifikasi
 ├── tsconfig.json         pengaturan TypeScript untuk test dan skrip
 ├── .env.example          contoh variabel environment (tanpa nilai asli)
 └── package.json          dependensi dan perintah npm
 ```
 
-Folder hasil build (`artifacts/`, `cache/`, `types/`, `coverage/`) dibuat otomatis dan tidak ikut repo, begitu juga hasil gladi lokal (`deployments/lokal.json`, `ignition/deployments/lokal-*/`) dan jejak Ignition Sepolia (`ignition/deployments/sepolia-smr01/`, disimpan koordinator di luar repo).
+Folder hasil build (`artifacts/`, `cache/`, `types/`, `coverage/`) dibuat otomatis dan tidak ikut repo, begitu juga hasil gladi lokal (`deployments/lokal.json`, `ignition/deployments/lokal-*/`), hasil gladi Sepolia berlabel (`deployments/sepolia-<label>.json`, `ignition/deployments/sepolia-smr01-<label>/`), dan jejak Ignition Sepolia utama (`ignition/deployments/sepolia-smr01/`, disimpan koordinator di luar repo).

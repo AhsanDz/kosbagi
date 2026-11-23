@@ -1,14 +1,14 @@
 # Rancangan Smart Contract KosBagi
 
-Dokumen ini menjelaskan rancangan tiga smart contract KosBagi di Ethereum Sepolia: `KosToken` (selesai di progress 1), `KosLedger` (selesai di progress 2), dan `KosVoting` (opsional, rencana progress 4), serta cara keduanya di-deploy (progress 3, bagian 8). Kode ada di [`contracts/contracts/`](../../contracts/contracts/), test di [`contracts/test/`](../../contracts/test/), laporan uji di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md), panduan deploy di [`deploy-sepolia.md`](deploy-sepolia.md).
+Dokumen ini menjelaskan rancangan smart contract KosBagi di Ethereum Sepolia: `KosToken` (selesai di progress 1) dan `KosLedger` (selesai di progress 2), cara keduanya di-deploy (progress 3, bagian 8), dan cara worker backend memakainya (bagian 7). `KosVoting` (opsional) tidak dibangun di prototipe (bagian 5). Kode ada di [`contracts/contracts/`](../../contracts/contracts/), test di [`contracts/test/`](../../contracts/test/), laporan uji di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md), panduan deploy di [`deploy-sepolia.md`](deploy-sepolia.md).
 
 | Kontrak | Fungsi utama | Progress | Status |
 |---|---|---|---|
 | `KosToken` | Token hak manfaat ekonomi satu properti (KB-SMR01): KYC, batas 10%, jeda darurat, delegasi otomatis, registri dokumen | P1 | Selesai, 63 test lulus, cakupan baris 100% |
 | `KosLedger` | `recordRent`, `recordExpense`, `closePeriod`, `shareOf`: buku besar sewa dan biaya per periode, angka distribusi final | P2 | Selesai, 65 test lulus (ditambah 13 test fixture jalur 1 di P3), cakupan baris 100% |
-| `KosVoting` | `propose`, `vote`, `tally` | P4 (opsional) | Rencana (bagian 5) |
+| `KosVoting` | `propose`, `vote`, `tally` | Opsional | Tidak dibangun (keputusan 16 Nov 2026), dicatat sebagai pengembangan lanjutan (bagian 5) |
 
-Kode kedua kontrak tidak berubah di P3. Yang ditambahkan: modul deploy Sepolia, skrip deploy dan verifikasi, pencatatan tiga dokumen penerbitan, dan test skenario 12 yang membaca fixture jalur 1. Alamat Sepolia dicatat di `contracts/deployments/sepolia.json` setelah koordinator menjalankan deploy.
+Kode kedua kontrak tidak berubah sejak P2. P3 menambahkan modul deploy Sepolia, skrip deploy dan verifikasi, pencatatan tiga dokumen penerbitan, dan test skenario 12 yang membaca fixture jalur 1. P4 tidak mengubah kontrak, ABI, maupun modul deploy: yang bertambah adalah worker backend yang kini juga memanggil `recordExpense` dan `closePeriod`, serta test alur penuh yang menutup periode November dengan angka bisnis (bagian 7). Alamat Sepolia dicatat di `contracts/deployments/sepolia.json` setelah koordinator menjalankan deploy.
 
 ## 1. Posisi kontrak dalam arsitektur
 
@@ -395,7 +395,7 @@ Rencana awal menyisakan tiga pertanyaan untuk disepakati dengan jalur 1. Semuany
 
 **Sisa pembulatan tidak disimpan di kontrak.** Besarnya `sewaBersih - jumlah(shareOf(saldo tiap pemegang))`, dan ERC-20 tidak bisa menyebutkan daftar pemegangnya dari dalam kontrak. Backend menghitungnya saat distribusi (P4) dari daftar dompet yang dikenalnya, lalu mencatatnya sebagai cadangan periode itu. Hasilnya tetap bisa diaudit: siapa pun bisa menyusun ulang daftar pemegang dari event `Transfer`, membaca saldonya dengan `getPastVotes(alamat, snapshotBlock)`, dan menghitung `shareOf` tiap alamat. Sisa ini selalu lebih kecil dari jumlah pemegang karena satu pemegang kehilangan kurang dari Rp1.
 
-Bagian token yang masih di perbendaharaan diputuskan di P4. `shareOf` tidak membedakan pemilik saldo, jadi keputusan itu tidak mengubah kontrak.
+**Bagian token yang masih di perbendaharaan** (diputuskan 16 Nov 2026): token yang belum terjual tetap mendapat bagian lewat `shareOf` seperti pemegang lain, lalu backend mengkreditkannya ke saldo pemilik lama sebagai baris tersendiri "Bagian perbendaharaan". Di November: 8.140 token, Rp3.571.425. `shareOf` tidak membedakan pemilik saldo, jadi keputusan ini tidak mengubah kontrak. Dengan angka November, jumlah bagian ketujuh pemegang (pemilik lama, lima investor, perbendaharaan) tepat Rp7.897.500 dan sisa pembulatan Rp0.
 
 ### 4.7 Blok snapshot
 
@@ -502,7 +502,9 @@ Prosedurnya sama dengan bagian 3.13 dan diuji di kelompok test Jeda darurat. Sem
 4. `grantRole` untuk dompet operator baru, perbarui private key di environment backend.
 5. `unpause()`.
 
-## 5. KosVoting (rencana progress 4, opsional)
+## 5. KosVoting (tidak dibangun)
+
+Diputuskan 16 Nov 2026: `KosVoting` tidak dibangun di prototipe dan dicatat sebagai pengembangan lanjutan di business case. Waktu P4 dipakai untuk distribusi dan rekonsiliasi, yang wajib di cakupan demo. Rancangan di bawah disimpan sebagai acuan bila dikembangkan nanti. `KosToken` sudah menyiapkan dasarnya: delegasi otomatis membuat `getPastVotes(alamat, blok)` selalu sama dengan saldo, jadi bobot suara di blok mana pun bisa dibaca tanpa transaksi tambahan dari investor.
 
 | Fungsi | Pemanggil | Keterangan |
 |---|---|---|
@@ -510,7 +512,7 @@ Prosedurnya sama dengan bagian 3.13 dan diuji di kelompok test Jeda darurat. Sem
 | `vote(proposalId, voter, support)` | `OPERATOR_ROLE` | Operator mencatat pilihan investor atas nama dompet kustodiannya. Bobot = `KosToken.getPastVotes(voter, blokSnapshot)`; satu dompet satu kali suara |
 | `tally(proposalId)` | siapa pun (baca) | Total bobot setuju, menolak, abstain |
 
-Catatan rancangan: bobot diambil dari blok saat proposal dibuat, sehingga token yang dibeli setelah proposal dibuat tidak menambah suara. Token yang masih di perbendaharaan sebaiknya tidak ikut voting (perlu diputuskan di P4). Karena operator yang mengirim suara, pilihan investor tetap tercatat di backend dan bisa dicocokkan dengan event on-chain.
+Catatan rancangan: bobot diambil dari blok saat proposal dibuat, sehingga token yang dibeli setelah proposal dibuat tidak menambah suara. Token yang masih di perbendaharaan sebaiknya tidak ikut voting (perlu diputuskan bila kontrak ini dibangun). Karena operator yang mengirim suara, pilihan investor tetap tercatat di backend dan bisa dicocokkan dengan event on-chain.
 
 ## 6. Cara menjalankan dan menguji
 
@@ -528,7 +530,7 @@ npm run export-abi        # salin ABI KosToken dan KosLedger ke backend/src/bloc
 
 Perintah deploy (`node:local`, `deploy:local`, `verify:local`, `deploy:sepolia`, `verify:sepolia`) dijelaskan langkah demi langkah di [`deploy-sepolia.md`](deploy-sepolia.md).
 
-Hasil saat P3 selesai: kompilasi tanpa warning, **167 passing** pada profil `default` dan `production`, cakupan `KosToken.sol` dan `KosLedger.sol` 100% baris dan pernyataan. Test berjalan di jaringan lokal Hardhat (EDR), tidak memakai Sepolia, tidak butuh file `.env`, dan tidak membaca dokumen penerbitan jalur 1 (test memakai file contoh di folder sementara sistem). Rincian hasil ada di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md).
+Hasil saat P4 selesai: kompilasi tanpa warning, **169 passing** pada profil `default` dan `production` (P3: 167; dua test baru untuk opsi gladi `DEPLOY_LABEL`), cakupan `KosToken.sol` dan `KosLedger.sol` 100% baris dan pernyataan. Test berjalan di jaringan lokal Hardhat (EDR), tidak memakai Sepolia, tidak butuh file `.env`, dan tidak membaca dokumen penerbitan jalur 1 (test memakai file contoh di folder sementara sistem). Rincian hasil ada di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md).
 
 | File test | Jumlah | Isi |
 |---|---|---|
@@ -536,7 +538,7 @@ Hasil saat P3 selesai: kompilasi tanpa warning, **167 passing** pada profil `def
 | `KosLedger.test.ts` | 65 | Lihat ringkasan di bawah |
 | `Deployment.test.ts` | 4 | Modul deploy lokal dan kecocokan ABI backend |
 | `ManualDistribution.test.ts` | 13 | **Skenario 12** dengan fixture jalur 1 (bagian 4.5) |
-| `SepoliaDeployment.test.ts` | 22 | Modul deploy Sepolia, pemeriksaan pasca-deploy, pemeriksaan bytecode, parameter dompet, dokumen penerbitan (bagian 8) |
+| `SepoliaDeployment.test.ts` | 24 | Modul deploy Sepolia, pemeriksaan pasca-deploy, pemeriksaan bytecode, parameter dompet, label gladi, dokumen penerbitan (bagian 8) |
 
 Ringkasan test `contracts/test/ManualDistribution.test.ts`:
 
@@ -579,23 +581,35 @@ Ringkasan test `contracts/test/KosToken.test.ts`:
 | `approve` + `transferFrom` pihak ketiga | Pihak ketiga dengan allowance tidak bisa mengirim ke penerima tanpa KYC atau melewati 1.800 token; allowance tidak terpakai bila gagal |
 | Kontrol akses | Tabel semua fungsi tulis berperan, operator tidak bisa memberi peran, admin menambah dan mencabut operator, `renounceRole` hanya untuk peran milik sendiri |
 
-## 7. Catatan integrasi untuk layanan blockchain backend (P3)
+## 7. Catatan integrasi untuk layanan blockchain backend (P3, P4)
+
+Worker backend (`backend/src/blockchain/processors.ts` dan `chain-executor.ts`) memanggil kelima fungsi tulis di bawah; `recordExpense` dan `closePeriod` sejak P4. Ringkasan hasil ujinya di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md) bagian 11.
+
+| Jenis job outbox | Fungsi kontrak | Pemeriksaan sebelum mengirim | Progress |
+|---|---|---|---|
+| `RECORD_RENT` | `KosLedger.recordRent(kamar, periode, nominal, keccak256(order_id))` | `isPaymentRefRecorded` | P3 |
+| `WHITELIST_KYC` | `KosToken.setKycStatus(dompet, true)` | `isKycApproved` | P3 |
+| `TRANSFER_TOKENS` | `KosToken.transferFromTreasury(dompet, jumlah, keccak256(order_id))` | `isPurchaseRefUsed` | P3 |
+| `RECORD_EXPENSE` | `KosLedger.recordExpense(periode, kategori, nominal, hashNota)` | `isReceiptRecorded`, lalu isi event `ExpenseRecorded` dicocokkan | P4 |
+| `CLOSE_PERIOD` | `KosLedger.closePeriod(periode)` | `periods(periode).closed` | P4 |
 
 - Fungsi `KosToken` yang dipanggil worker: `setKycStatus`, `transferFromTreasury`. Fungsi baca untuk idempotensi dan tampilan: `isKycApproved`, `isPurchaseRefUsed`, `balanceOf`, `maxBalance`, `getPastVotes`.
 - Fungsi `KosLedger` yang dipanggil worker: `recordRent`, `recordExpense`, `closePeriod`. Fungsi baca: `isPaymentRefRecorded`, `isReceiptRecorded`, `isRentRecorded`, `periods`, `shareOf`.
-- Konversi dari data backend: kamar `K03` menjadi `3`, periode `2026-11` menjadi `202611`, `paymentRef = keccak256(toUtf8Bytes(order_id))`.
-- Perlakuan revert `KosLedger` di worker:
+- Konversi dari data backend: kamar `K03` menjadi `3`, periode `2026-11` menjadi `202611`, `paymentRef = keccak256(toUtf8Bytes(order_id))`, kode kategori biaya (1 Listrik dan air, 2 Kebersihan, 3 Internet, 4 Perbaikan, 5 Keamanan; daftarnya dipegang backend) menjadi `uint8`, hash nota = SHA-256 isi file.
+- Perlakuan revert `KosLedger` di worker. Revert yang berarti "sudah tercatat" baru dianggap selesai setelah status on-chain-nya dibaca ulang dan cocok; bila belum cocok (mis. RPC cadangan tertinggal beberapa blok), job diulang nanti.
 
   | Revert | Fungsi | Tindakan worker |
   |---|---|---|
-  | `PaymentRefAlreadyRecorded` | `recordRent` | Job selesai, bukan gagal |
-  | `ReceiptAlreadyRecorded` | `recordExpense` | Job selesai, bukan gagal |
-  | `PeriodAlreadyClosed` | `closePeriod` | Job selesai, bukan gagal |
+  | `PaymentRefAlreadyRecorded` | `recordRent` | Job selesai bila `isPaymentRefRecorded` true |
+  | `ReceiptAlreadyRecorded` | `recordExpense` | Job selesai bila `isReceiptRecorded` true dan event `ExpenseRecorded` untuk hash itu berisi periode, kategori, dan nominal yang sama. Isi berbeda berarti nota sudah dipakai untuk biaya lain: gagal permanen |
+  | `PeriodAlreadyClosed` | `closePeriod` | Job selesai bila `periods(periode).closed` true |
   | `PeriodAlreadyClosed` | `recordRent`, `recordExpense` | Gagal permanen. Jangan diulang, tandai untuk ditangani admin karena catatannya tidak akan pernah bisa masuk |
+  | `EmptyPeriod`, `NoSupplyAtSnapshot` | `closePeriod` | Gagal permanen tanpa transaksi. Periode tanpa sewa dan biaya tidak bisa ditutup |
   | `RentAlreadyRecorded` | `recordRent` | Gagal permanen dan tandai sebagai anomali. Backend seharusnya sudah mencegahnya lewat `DUPLICATE_BILL_PAYMENT` |
   | `EnforcedPause` | semua | Ulangi nanti, kontrak sedang dijeda |
 
-- `closePeriod` hanya boleh dikirim setelah semua job `recordRent` dan `recordExpense` periode itu selesai. Periode yang sudah ditutup tidak bisa menerima catatan baru. Perlakuan pembayaran yang lunas setelah penutupan perlu ditetapkan di P4.
+- `closePeriod` hanya boleh dikirim setelah semua job `recordRent` dan `recordExpense` periode itu selesai (syarat `RENT_UNRECORDED`, `EXPENSE_UNRECORDED`, `TRANSFER_UNRECORDED`, dan `JOB_FAILED` di API jalur 2). Periode yang sudah ditutup tidak bisa menerima catatan baru. Diputuskan 16 Nov 2026: tagihan periode yang sudah ditutup tidak bisa dibayar, dan pembayaran yang dimulai sebelum penutupan lalu lunas sesudahnya dicatat backend sebagai anomali untuk dikembalikan, tanpa job on-chain. Bila job seperti itu tetap sampai ke worker, kontrak menolaknya dengan `PeriodAlreadyClosed` dan worker menandainya gagal permanen tanpa transaksi.
+- Coba lagi admin untuk job `FAILED`: worker memeriksa dulu transaksi dari percobaan sebelumnya. Transaksi yang ternyata masuk blok belakangan diakui sebagai tercatat, dan transaksi yang masih di mempool ditunggu, keduanya tanpa transaksi baru. Baru setelah itu status kontrak dibaca dan, bila perlu, transaksi baru dikirim.
 - Bagi hasil tiap dompet: baca `snapshotBlock` dari `periods(period)`, saldo dari `KosToken.getPastVotes(dompet, snapshotBlock)`, lalu `shareOf(period, saldo)`. Sisa pembulatan = `netRent` dikurangi jumlah semua bagian, dicatat sebagai cadangan periode.
 - Sebelum `transferFromTreasury`, cek `isPurchaseRefUsed`; bila transaksi gagal dengan `PurchaseRefAlreadyUsed`, anggap job selesai, bukan gagal.
 - Pemeriksaan batas 10% juga dilakukan backend sebelum pembayaran dibuat (skenario 9). Kontrak adalah lapisan terakhir (skenario 10).
@@ -621,7 +635,8 @@ Panduan langkah demi langkah untuk koordinator ada di [`deploy-sepolia.md`](depl
 | `contracts/scripts/deploy.ts` | Skrip deploy: pemeriksaan awal, hash dokumen, Ignition, pemeriksaan pasca-deploy, berkas hasil |
 | `contracts/scripts/verify.ts` | Skrip verifikasi Etherscan dengan pemeriksaan bytecode lebih dulu |
 | `contracts/scripts/lib/` | Fungsi bersama yang diuji: target jaringan dan parameter, dokumen penerbitan, pemeriksaan pasca-deploy dan bytecode, format berkas hasil |
-| `contracts/deployments/sepolia.json` | Hasil deploy Sepolia, ditulis skrip (belum ada sampai koordinator men-deploy) |
+| `contracts/deployments/sepolia.json` | Hasil deploy Sepolia utama, ditulis skrip (belum ada sampai koordinator men-deploy) |
+| `contracts/deployments/sepolia-<label>.json` | Hasil deploy gladi berlabel (`DEPLOY_LABEL`), tidak ikut repo |
 
 ### 8.2 Urutan kerja skrip deploy
 
@@ -631,6 +646,8 @@ Panduan langkah demi langkah untuk koordinator ada di [`deploy-sepolia.md`](depl
 4. **Hash dokumen** dihitung dari tiga file bernama tetap (bagian 8.3).
 5. **Saldo dan konfirmasi.** Saldo admin dibandingkan dengan perkiraan 4.500.000 gas x harga gas maksimum saat itu. Di Sepolia skrip menampilkan ringkasan (alamat, hash, biaya) dan baru lanjut bila koordinator mengetik `DEPLOY`.
 6. **Ignition** menjalankan modul dengan `defaultSender` = admin dan id deployment `sepolia-smr01`. Bila terputus (RPC putus, laptop mati), menjalankan skrip lagi melanjutkan dari jejak di `ignition/deployments/sepolia-smr01/` tanpa men-deploy ulang. Bila hash dokumen atau alamat berubah di antaranya, Ignition menolak melanjutkan.
+
+   **Gladi berlabel (keputusan 20 Nov 2026).** Catatan on-chain tidak ikut terhapus saat basis data di-reset, jadi setiap gladi demo di Sepolia memakai kontrak baru. Variabel `DEPLOY_LABEL` (mis. `gladi1`; huruf kecil, angka, tanda hubung, 1 sampai 20 karakter) membuat id deployment `sepolia-smr01-<label>` dan berkas hasil `deployments/sepolia-<label>.json`, keduanya diabaikan Git. Semua pemeriksaan lain sama dengan deploy utama. Tanpa label, skrip tetap memakai `sepolia-smr01` dan `deployments/sepolia.json` untuk demo akhir yang di-commit.
 7. **Pemeriksaan pasca-deploy** membaca ulang 50 nilai: parameter penerbitan, saldo awal, KYC dompet awal, hubungan KosLedger ke KosToken, tabel peran lengkap (bagian 8.4), dan hash versi 1 ketiga dokumen. Bila ada yang tidak sesuai, skrip berhenti dan tidak menulis berkas hasil.
 8. **Berkas hasil** `deployments/sepolia.json`: jaringan, compiler, empat dompet, alamat dan blok kedua kontrak, argumen konstruktor, tiga dokumen (path, SHA-256, transaksi pencatat), pemegang peran, dan total gas.
 
@@ -676,7 +693,7 @@ Perkiraan ETH Sepolia tiap dompet ada di [`deploy-sepolia.md`](deploy-sepolia.md
 
 ### 8.6 Verifikasi Etherscan
 
-`scripts/verify.ts` membaca `deployments/sepolia.json`, lalu untuk setiap kontrak:
+`scripts/verify.ts` membaca `deployments/sepolia.json` (atau `deployments/sepolia-<label>.json` bila `DEPLOY_LABEL` diisi), lalu untuk setiap kontrak:
 
 1. Membandingkan bytecode di chain dengan artifact hasil build `production`, setelah nilai immutable (alamat perbendaharaan, tarif, domain EIP-712) dinolkan. Bila berbeda, verifikasi pasti gagal, jadi skrip berhenti sebelum mengirim apa pun.
 2. Mengirim kode sumber dan argumen konstruktor yang tercatat saat deploy ke Etherscan lewat `verifyContract` dari `@nomicfoundation/hardhat-verify`.
@@ -694,4 +711,5 @@ Verifikasi tidak membutuhkan ETH, hanya `ETHERSCAN_API_KEY`. Di jaringan lokal h
 | Salah alamat | Validasi format, alamat nol, alamat kembar, dan pencocokan dengan kunci admin dan operator |
 | Hash ditulis tangan | Ditolak di file parameter; hash selalu dihitung dari file |
 | Deploy setengah jalan | Ignition melanjutkan dari jejak; pemeriksaan pasca-deploy wajib lulus sebelum berkas hasil ditulis |
+| Gladi menimpa deploy utama | `DEPLOY_LABEL` membuat id deployment dan berkas hasil terpisah; label yang jejaknya sudah hilang tetapi berkas hasilnya masih ada ditolak |
 | Bytecode berbeda dari yang diverifikasi | Profil `production` diwajibkan; verifikasi didahului perbandingan bytecode |
