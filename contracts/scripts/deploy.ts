@@ -10,10 +10,12 @@ import hre, { artifacts, network } from "hardhat";
 
 import SepoliaDeployment from "../ignition/modules/SepoliaDeployment.js";
 import {
+  DEPLOY_LABEL_VARIABLE,
   deploymentIdFor,
   deploymentRecordPath,
   MODULE_ID,
   parameterFilePath,
+  parseDeployLabel,
   readDeployParameters,
   resolveDeployTarget,
 } from "./lib/deploy-target.js";
@@ -37,6 +39,11 @@ import { DEFAULT_ISSUANCE_DOCS_DIR, displayPath, hashIssuanceDocuments } from ".
  *
  * Perintah: `npm run deploy:sepolia` atau `npm run deploy:local` (lihat
  * docs/kontrak/deploy-sepolia.md). Skrip ini tidak pernah mencetak private key.
+ *
+ * Gladi demo di Sepolia: isi DEPLOY_LABEL (mis. gladi1) supaya setiap gladi mendapat kontrak
+ * baru dengan id deployment Ignition `sepolia-smr01-<label>` dan berkas hasil
+ * `deployments/sepolia-<label>.json`, keduanya tidak di-commit. Tanpa DEPLOY_LABEL skrip memakai
+ * deploy utama `sepolia-smr01` dan `deployments/sepolia.json` (demo akhir, di-commit).
  */
 
 /** Jatah dan tarif KB-SMR01, dikirim eksplisit ke modul supaya tercatat di hasil deploy. */
@@ -66,9 +73,10 @@ async function main(): Promise<void> {
   const connection = await network.create();
   const { ethers, ignition, networkName } = connection;
 
-  // 2. Target.
+  // 2. Target dan label gladi.
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
   const target = resolveDeployTarget(chainId);
+  const deployLabel = parseDeployLabel(process.env[DEPLOY_LABEL_VARIABLE]);
 
   // 3. Parameter dan akun penanda tangan.
   const parameterFile = parameterFilePath(target);
@@ -101,9 +109,19 @@ async function main(): Promise<void> {
   };
 
   // 5. Saldo, ringkasan, konfirmasi.
-  const deploymentId = deploymentIdFor(target, params.propertyCode);
+  const deploymentId = deploymentIdFor(target, params.propertyCode, deployLabel);
   const deploymentDir = path.join(hre.config.paths.ignition, "deployments", deploymentId);
   const resuming = !target.isLocal && existsSync(deploymentDir);
+  const recordFile = deploymentRecordPath(target, deployLabel);
+
+  // Berkas hasil gladi yang jejak Ignition-nya sudah tidak ada akan tertimpa kontrak lain; label
+  // dipakai sekali per gladi supaya alamat kontrak gladi lama tidak hilang diam-diam.
+  if (deployLabel !== null && !target.isLocal && !resuming && existsSync(recordFile)) {
+    throw new ConfigError(
+      `${displayPath(recordFile)} sudah ada dari gladi sebelumnya, tetapi jejak Ignition ${deploymentId} tidak ada. ` +
+        `Pakai ${DEPLOY_LABEL_VARIABLE} lain untuk gladi baru.`,
+    );
+  }
 
   const feeData = await ethers.provider.getFeeData();
   const pricePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
@@ -111,7 +129,11 @@ async function main(): Promise<void> {
   const adminBalance = await ethers.provider.getBalance(params.admin);
 
   console.log(`\nDeploy KosBagi ${params.propertyCode} ke ${networkName} (chain ${chainId})`);
+  console.log(
+    `  Jenis deploy           : ${deployLabel === null ? "utama (tanpa DEPLOY_LABEL)" : `gladi berlabel ${deployLabel}, kontrak terpisah dari deploy utama`}`,
+  );
   console.log(`  Id deployment Ignition : ${deploymentId}${resuming ? " (melanjutkan jejak yang sudah ada)" : ""}`);
+  console.log(`  Berkas hasil           : ${displayPath(recordFile)}`);
   console.log(`  Admin (penanda tangan) : ${params.admin}`);
   console.log(`  Operator               : ${params.operator}`);
   console.log(`  Pemilik lama           : ${params.originalOwner}`);
@@ -131,8 +153,12 @@ async function main(): Promise<void> {
   }
 
   if (!target.isLocal) {
+    const kind =
+      deployLabel === null
+        ? "Ini deploy utama untuk demo akhir."
+        : `Ini deploy gladi ${deployLabel}: kontrak baru, deploy utama tidak berubah.`;
     const confirmed = await askConfirmation(
-      "Hash dokumen dan alamat di atas akan tercatat permanen. Ketik DEPLOY untuk melanjutkan: ",
+      `${kind} Hash dokumen dan alamat di atas akan tercatat permanen. Ketik DEPLOY untuk melanjutkan: `,
     );
     if (!confirmed) throw new ConfigError("Deploy dibatalkan.");
   } else {
@@ -219,6 +245,7 @@ async function main(): Promise<void> {
     chainId,
     explorerUrl: target.explorerUrl,
     ignitionDeploymentId: deploymentId,
+    deployLabel,
     recordedAt: new Date().toISOString(),
     propertyCode: params.propertyCode,
     tokenSymbol: await token.symbol(),
@@ -278,7 +305,6 @@ async function main(): Promise<void> {
     totalGasUsed: totalGasUsed.toString(),
   };
 
-  const recordFile = deploymentRecordPath(target);
   await writeDeploymentRecord(recordFile, record);
 
   const link = (kind: "address" | "tx", value: string) =>
@@ -292,7 +318,16 @@ async function main(): Promise<void> {
   console.log(`  KOS_TOKEN_ADDRESS=${tokenAddress}`);
   console.log(`  KOS_LEDGER_ADDRESS=${ledgerAddress}`);
   console.log(`  CHAIN_ID=${chainId}`);
-  if (!target.isLocal) console.log("\nLangkah berikutnya: npm run verify:sepolia");
+  if (deployLabel !== null) {
+    console.log(
+      `\nGladi ${deployLabel}: setelah mengisi backend/.env, kosongkan basis data dan jalankan seed lagi, lalu nyalakan ulang worker.` +
+        ` Deploy demo akhir dijalankan tanpa ${DEPLOY_LABEL_VARIABLE}.`,
+    );
+  }
+  if (!target.isLocal) {
+    const sameLabel = deployLabel === null ? "" : ` dengan ${DEPLOY_LABEL_VARIABLE}=${deployLabel} yang sama (opsional untuk gladi)`;
+    console.log(`\nLangkah berikutnya: npm run verify:sepolia${sameLabel}`);
+  }
 }
 
 /** Bertanya di terminal; true hanya bila jawabannya persis DEPLOY. */

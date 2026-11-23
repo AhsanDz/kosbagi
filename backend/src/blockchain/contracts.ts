@@ -5,6 +5,9 @@
 // Kelas di sini hanya membaca (view). Transaksi tulis tidak dikirim lewat Contract ethers, tetapi
 // lewat chain-executor.ts yang menandatangani transaksi sendiri supaya tx hash tersimpan sebelum
 // transaksi disiarkan.
+//
+// P4 menambah fungsi baca untuk biaya dan tutup periode (KosLedgerPeriodReader). Antarmuka
+// KosContractsReader dari P3 sengaja tidak diubah.
 import { type AbstractProvider, Contract, type EventLog, Interface, getAddress, type Log } from 'ethers';
 import kosLedgerAbi from './abi/KosLedger.json' with { type: 'json' };
 import kosTokenAbi from './abi/KosToken.json' with { type: 'json' };
@@ -35,6 +38,43 @@ export interface KosContractsReader {
   findKycStatusUpdated(account: string, approved: boolean): Promise<RecordedEvent | null>;
 }
 
+/**
+ * Isi `KosLedger.periods(period)`. Nominal dalam Rupiah, `valuePerTokenSen` dalam sen. Selama periode
+ * terbuka hanya `grossRent` dan `totalExpenses` yang terisi; sisanya diisi `closePeriod`.
+ */
+export interface LedgerPeriod {
+  grossRent: bigint;
+  totalExpenses: bigint;
+  platformFee: bigint;
+  tax: bigint;
+  netRent: bigint;
+  totalSupply: bigint;
+  valuePerTokenSen: bigint;
+  snapshotBlock: bigint;
+  closed: boolean;
+}
+
+/** Biaya yang tercatat, dibaca dari event `ExpenseRecorded`. */
+export interface RecordedExpense extends RecordedEvent {
+  /** Periode YYYYMM, mis. 202611. */
+  period: number;
+  category: number;
+  amount: bigint;
+}
+
+/**
+ * Fungsi baca KosLedger untuk job biaya dan tutup periode (progress 4). Dipisah dari
+ * KosContractsReader supaya tiruan yang ditulis untuk antarmuka P3 tetap berlaku.
+ */
+export interface KosLedgerPeriodReader {
+  isReceiptRecorded(receiptHash: string): Promise<boolean>;
+  readPeriod(period: number): Promise<LedgerPeriod>;
+  /** Event `ExpenseRecorded` terakhir untuk hash nota ini. Null bila tidak ditemukan atau RPC menolak. */
+  findExpenseRecorded(receiptHash: string): Promise<RecordedExpense | null>;
+  /** Event `PeriodClosed` untuk periode ini. Null bila tidak ditemukan atau RPC menolak. */
+  findPeriodClosed(period: number): Promise<RecordedEvent | null>;
+}
+
 export interface DeploymentInfo {
   propertyCode: string;
   treasury: string;
@@ -42,7 +82,7 @@ export interface DeploymentInfo {
   maxBalance: bigint;
 }
 
-export class KosContracts implements KosContractsReader {
+export class KosContracts implements KosContractsReader, KosLedgerPeriodReader {
   readonly token: Contract;
   readonly ledger: Contract;
   readonly tokenAddress: string;
@@ -83,6 +123,25 @@ export class KosContracts implements KosContractsReader {
     return this.read(this.token, 'balanceOf', account);
   }
 
+  isReceiptRecorded(receiptHash: string): Promise<boolean> {
+    return this.read(this.ledger, 'isReceiptRecorded', receiptHash);
+  }
+
+  async readPeriod(period: number): Promise<LedgerPeriod> {
+    const record = await this.read<Record<string, unknown>>(this.ledger, 'periods', period);
+    return {
+      grossRent: record['grossRent'] as bigint,
+      totalExpenses: record['totalExpenses'] as bigint,
+      platformFee: record['platformFee'] as bigint,
+      tax: record['tax'] as bigint,
+      netRent: record['netRent'] as bigint,
+      totalSupply: record['totalSupply'] as bigint,
+      valuePerTokenSen: record['valuePerTokenSen'] as bigint,
+      snapshotBlock: record['snapshotBlock'] as bigint,
+      closed: record['closed'] as boolean,
+    };
+  }
+
   hasRole(contract: 'token' | 'ledger', role: string, account: string): Promise<boolean> {
     return this.read(contract === 'token' ? this.token : this.ledger, 'hasRole', role, account);
   }
@@ -118,23 +177,48 @@ export class KosContracts implements KosContractsReader {
     });
   }
 
-  /**
-   * Log terakhir yang cocok dalam LOG_LOOKBACK_BLOCKS blok terakhir. Pencarian log hanya pelengkap
-   * (untuk mengisi tx hash di layar), jadi kegagalannya, mis. RPC gratis yang membatasi rentang
-   * eth_getLogs, tidak menggagalkan job.
-   */
+  async findExpenseRecorded(receiptHash: string): Promise<RecordedExpense | null> {
+    const log = await this.findLatestLog(this.ledger, this.ledger.filters.ExpenseRecorded!(null, null, receiptHash));
+    const parsed = log ? kosLedgerInterface.parseLog(log) : null;
+    if (!log || !parsed) return null;
+    return {
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber,
+      period: Number(parsed.args[0]),
+      category: Number(parsed.args[1]),
+      amount: parsed.args[3] as bigint,
+    };
+  }
+
+  findPeriodClosed(period: number): Promise<RecordedEvent | null> {
+    return this.findLatest(this.ledger, this.ledger.filters.PeriodClosed!(period));
+  }
+
   private async findLatest(
     contract: Contract,
     filter: Parameters<Contract['queryFilter']>[0],
     accept: (log: Log) => boolean = () => true,
   ): Promise<RecordedEvent | null> {
+    const match = await this.findLatestLog(contract, filter, accept);
+    return match ? { txHash: match.transactionHash, blockNumber: match.blockNumber } : null;
+  }
+
+  /**
+   * Log terakhir yang cocok dalam LOG_LOOKBACK_BLOCKS blok terakhir. Pencarian log hanya pelengkap
+   * (untuk mengisi tx hash di layar dan mencocokkan isi nota), jadi kegagalannya, mis. RPC gratis
+   * yang membatasi rentang eth_getLogs, tidak menggagalkan job.
+   */
+  private async findLatestLog(
+    contract: Contract,
+    filter: Parameters<Contract['queryFilter']>[0],
+    accept: (log: Log) => boolean = () => true,
+  ): Promise<Log | null> {
     try {
       const latest = await this.provider.getBlockNumber();
       const logs = (await contract.queryFilter(filter, Math.max(0, latest - LOG_LOOKBACK_BLOCKS), latest)) as Array<
         EventLog | Log
       >;
-      const match = logs.filter(accept).at(-1);
-      return match ? { txHash: match.transactionHash, blockNumber: match.blockNumber } : null;
+      return logs.filter(accept).at(-1) ?? null;
     } catch {
       return null;
     }

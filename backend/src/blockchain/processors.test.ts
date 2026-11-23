@@ -4,7 +4,15 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { OutboxJobType } from '../generated/prisma/enums.js';
 import type { BlockchainJobData } from '../queue/jobs.js';
 import type { ExecutorProvider } from './chain-executor.js';
-import { type DeploymentInfo, type KosContractsReader, kosLedgerInterface, kosTokenInterface } from './contracts.js';
+import {
+  type DeploymentInfo,
+  type KosContractsReader,
+  type KosLedgerPeriodReader,
+  type LedgerPeriod,
+  kosLedgerInterface,
+  kosTokenInterface,
+  type RecordedExpense,
+} from './contracts.js';
 import { createCustodialDeriver } from './custodial-wallet.js';
 import { PermanentJobError, RetryableJobError } from './errors.js';
 import { createBlockchainProcessor, type ProcessorDeps, referenceOf, SUPPORTED_JOB_TYPES } from './processors.js';
@@ -14,6 +22,8 @@ const TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 const LEDGER = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 const RENT_REF = id('RENT-SMR01-K03-2026-11');
 const BUY_REF = id('BUY-SMR01-0001');
+// Hash nota = SHA-256 isi file (dihitung jalur 2); di test cukup 32 byte sembarang.
+const RECEIPT_HASH = id('nota perbaikan K07');
 const deriver = createCustodialDeriver(HARDHAT_MNEMONIC);
 // Indeks 0 sampai 3 adalah akun admin, operator, pemilik lama, dan perbendaharaan deploy lokal.
 const INVESTOR_INDEX = 20;
@@ -28,13 +38,44 @@ const deployment: DeploymentInfo = {
 const rentPayload = { propertyCode: 'SMR01', roomNumber: 'K03', period: '2026-11', amountIdr: 1_500_000, paymentRef: RENT_REF };
 const whitelistPayload = { walletAddress: INVESTOR, approved: true };
 const transferPayload = { propertyCode: 'SMR01', walletAddress: INVESTOR, tokenAmount: 100, paymentRef: BUY_REF };
+const expensePayload = { propertyCode: 'SMR01', period: '2026-11', category: 4, amountIdr: 300_000, receiptHash: RECEIPT_HASH };
+const closePayload = { propertyCode: 'SMR01', period: '2026-11' };
+const EARLIER_TX = `0x${'cd'.repeat(32)}`;
+
+const OPEN_PERIOD: LedgerPeriod = {
+  grossRent: 13_500_000n,
+  totalExpenses: 2_700_000n,
+  platformFee: 0n,
+  tax: 0n,
+  netRent: 0n,
+  totalSupply: 0n,
+  valuePerTokenSen: 0n,
+  snapshotBlock: 0n,
+  closed: false,
+};
 
 let chain: FakeChain;
 let store: MemoryChainStore;
-let state: { rentRecorded: boolean; kyc: Map<string, boolean>; purchaseUsed: boolean };
+let state: {
+  rentRecorded: boolean;
+  kyc: Map<string, boolean>;
+  purchaseUsed: boolean;
+  /** Hasil isReceiptRecorded berturut-turut; nilai terakhir dipakai seterusnya. */
+  receiptRecorded: boolean[];
+  /** Event ExpenseRecorded yang ditemukan untuk hash nota, null bila tidak ditemukan. */
+  expenseEvent: RecordedExpense | null;
+  /** Hasil periods(period).closed berturut-turut; nilai terakhir dipakai seterusnya. */
+  periodClosed: boolean[];
+  periodClosedEvent: { txHash: string; blockNumber: number } | null;
+};
 let logs: Array<{ level: string; message: string; object: object }>;
 
-const contracts: KosContractsReader = {
+/** Nilai berikutnya dari daftar; nilai terakhir diulang. */
+function next(values: boolean[]): boolean {
+  return values.length > 1 ? (values.shift() as boolean) : (values[0] ?? false);
+}
+
+const contracts: KosContractsReader & KosLedgerPeriodReader = {
   tokenAddress: TOKEN,
   ledgerAddress: LEDGER,
   isPaymentRefRecorded: async () => state.rentRecorded,
@@ -45,6 +86,10 @@ const contracts: KosContractsReader = {
   findRentRecorded: async () => null,
   findTreasuryTransfer: async () => null,
   findKycStatusUpdated: async () => null,
+  isReceiptRecorded: async () => next(state.receiptRecorded),
+  readPeriod: async () => ({ ...OPEN_PERIOD, closed: next(state.periodClosed) }),
+  findExpenseRecorded: async () => state.expenseEvent,
+  findPeriodClosed: async () => state.periodClosedEvent,
 };
 
 function deps(overrides: Partial<ProcessorDeps> = {}): ProcessorDeps {
@@ -88,7 +133,15 @@ beforeEach(() => {
   chain = new FakeChain();
   store = new MemoryChainStore();
   store.wallets.push({ address: INVESTOR, derivationIndex: INVESTOR_INDEX });
-  state = { rentRecorded: false, kyc: new Map(), purchaseUsed: false };
+  state = {
+    rentRecorded: false,
+    kyc: new Map(),
+    purchaseUsed: false,
+    receiptRecorded: [false],
+    expenseEvent: null,
+    periodClosed: [false],
+    periodClosedEvent: null,
+  };
   logs = [];
 });
 
@@ -232,11 +285,165 @@ describe('job yang tidak bisa dikerjakan', () => {
     expect(store.transactions).toEqual([expect.objectContaining({ status: 'FAILED' })]);
   });
 
-  it('RECORD_EXPENSE dan CLOSE_PERIOD belum dikerjakan di P3', async () => {
-    const expense = { propertyCode: 'SMR01', period: '2026-11', category: 1, amountIdr: 2_700_000, receiptHash: id('nota') };
-    const run = createBlockchainProcessor(deps())(addJob('o-exp', 'RECORD_EXPENSE', expense));
-    await expect(run).rejects.toThrow(/progress 4/);
-    expect(SUPPORTED_JOB_TYPES).toEqual(['RECORD_RENT', 'WHITELIST_KYC', 'TRANSFER_TOKENS']);
+  it('kelima jenis job outbox sudah dikerjakan worker', () => {
+    expect(SUPPORTED_JOB_TYPES).toEqual(['RECORD_RENT', 'WHITELIST_KYC', 'TRANSFER_TOKENS', 'RECORD_EXPENSE', 'CLOSE_PERIOD']);
+  });
+});
+
+describe('RECORD_EXPENSE', () => {
+  it('memanggil recordExpense(202611, 4, 300000, hash nota) di KosLedger', async () => {
+    const result = await createBlockchainProcessor(deps())(addJob('o-exp', 'RECORD_EXPENSE', expensePayload));
+
+    const tx = sent();
+    expect(tx.to).toBe(LEDGER);
+    expect([...kosLedgerInterface.decodeFunctionData('recordExpense', tx.data)]).toEqual([202611n, 4n, 300_000n, RECEIPT_HASH]);
+    expect(result).toMatchObject({ type: 'RECORD_EXPENSE', outcome: 'SENT', txHash: tx.hash });
+    expect(store.transactions).toEqual([expect.objectContaining({ reference: RECEIPT_HASH, status: 'RECORDED' })]);
+  });
+
+  it('nota yang sudah tercatat dengan isi sama: selesai tanpa transaksi, memakai tx asal', async () => {
+    state.receiptRecorded = [true];
+    state.expenseEvent = { txHash: EARLIER_TX, blockNumber: 77, period: 202611, category: 4, amount: 300_000n };
+
+    const result = await createBlockchainProcessor(deps())(addJob('o-exp', 'RECORD_EXPENSE', expensePayload));
+    expect(result).toMatchObject({ outcome: 'ALREADY_ON_CHAIN', txHash: EARLIER_TX, blockNumber: 77 });
+    expect(chain.broadcasts).toHaveLength(0);
+  });
+
+  it('nota yang sudah tercatat untuk biaya lain: gagal permanen, tidak dianggap tercatat', async () => {
+    state.receiptRecorded = [true];
+    state.expenseEvent = { txHash: EARLIER_TX, blockNumber: 77, period: 202610, category: 4, amount: 450_000n };
+
+    const run = createBlockchainProcessor(deps())(addJob('o-exp', 'RECORD_EXPENSE', expensePayload));
+    await expect(run).rejects.toBeInstanceOf(PermanentJobError);
+    expect(chain.calls).toEqual([]);
+    const [row] = store.transactions;
+    expect(row).toMatchObject({ status: 'FAILED', txHash: null, reference: RECEIPT_HASH });
+    expect(row?.lastError).toContain('periode 2026-10, kategori 4, sebesar Rp450.000');
+    expect(row?.lastError).toContain('Satu nota hanya bisa dicatat sekali');
+  });
+
+  it('nota sudah tercatat tetapi event-nya tidak bisa dicari (RPC membatasi log): tetap tercatat tanpa tx hash', async () => {
+    state.receiptRecorded = [true];
+
+    const result = await createBlockchainProcessor(deps())(addJob('o-exp', 'RECORD_EXPENSE', expensePayload));
+    expect(result).toMatchObject({ outcome: 'ALREADY_ON_CHAIN', txHash: null });
+    expect(chain.broadcasts).toHaveLength(0);
+  });
+
+  it('ReceiptAlreadyRecorded saat simulasi dan status on-chain cocok: selesai', async () => {
+    state.receiptRecorded = [false, true];
+    chain.simulationError = revertError(kosLedgerInterface, 'ReceiptAlreadyRecorded', [RECEIPT_HASH]);
+
+    const result = await createBlockchainProcessor(deps())(addJob('o-exp', 'RECORD_EXPENSE', expensePayload));
+    expect(result.outcome).toBe('ALREADY_ON_CHAIN');
+    expect(chain.broadcasts).toHaveLength(0);
+  });
+
+  it('ReceiptAlreadyRecorded padahal isReceiptRecorded masih false: diulang, bukan selesai', async () => {
+    chain.simulationError = revertError(kosLedgerInterface, 'ReceiptAlreadyRecorded', [RECEIPT_HASH]);
+
+    const run = createBlockchainProcessor(deps())(addJob('o-exp', 'RECORD_EXPENSE', expensePayload));
+    await expect(run).rejects.toBeInstanceOf(RetryableJobError);
+    expect(store.transactions.filter((row) => row.status === 'RECORDED')).toHaveLength(0);
+  });
+
+  it('periode sudah ditutup: gagal permanen tanpa transaksi', async () => {
+    chain.simulationError = revertError(kosLedgerInterface, 'PeriodAlreadyClosed', [202611]);
+
+    const run = createBlockchainProcessor(deps())(addJob('o-exp', 'RECORD_EXPENSE', expensePayload));
+    await expect(run).rejects.toBeInstanceOf(PermanentJobError);
+    expect(store.transactions).toEqual([expect.objectContaining({ status: 'FAILED', lastError: expect.stringContaining('ditutup') })]);
+    expect(chain.broadcasts).toHaveLength(0);
+  });
+
+  it('nota untuk properti lain ditolak permanen', async () => {
+    const run = createBlockchainProcessor(deps())(addJob('o-exp', 'RECORD_EXPENSE', { ...expensePayload, propertyCode: 'DNY02' }));
+    await expect(run).rejects.toThrow(/properti DNY02/);
+    expect(chain.calls).toEqual([]);
+  });
+});
+
+describe('CLOSE_PERIOD', () => {
+  it('memanggil closePeriod(202611) di KosLedger', async () => {
+    const result = await createBlockchainProcessor(deps())(addJob('o-close', 'CLOSE_PERIOD', closePayload));
+
+    const tx = sent();
+    expect(tx.to).toBe(LEDGER);
+    expect([...kosLedgerInterface.decodeFunctionData('closePeriod', tx.data)]).toEqual([202611n]);
+    expect(result).toMatchObject({ type: 'CLOSE_PERIOD', outcome: 'SENT' });
+    expect(store.transactions).toEqual([expect.objectContaining({ reference: 'SMR01:2026-11', status: 'RECORDED' })]);
+  });
+
+  it('periode yang sudah ditutup: selesai tanpa simulasi dan tanpa transaksi, memakai tx PeriodClosed', async () => {
+    state.periodClosed = [true];
+    state.periodClosedEvent = { txHash: EARLIER_TX, blockNumber: 90 };
+
+    const result = await createBlockchainProcessor(deps())(addJob('o-close', 'CLOSE_PERIOD', closePayload));
+    expect(result).toMatchObject({ outcome: 'ALREADY_ON_CHAIN', txHash: EARLIER_TX, blockNumber: 90 });
+    expect(chain.calls).toEqual([]);
+  });
+
+  it('PeriodAlreadyClosed saat simulasi dan periods(period).closed true: selesai', async () => {
+    state.periodClosed = [false, true];
+    chain.simulationError = revertError(kosLedgerInterface, 'PeriodAlreadyClosed', [202611]);
+
+    const result = await createBlockchainProcessor(deps())(addJob('o-close', 'CLOSE_PERIOD', closePayload));
+    expect(result.outcome).toBe('ALREADY_ON_CHAIN');
+    expect(chain.broadcasts).toHaveLength(0);
+  });
+
+  it('PeriodAlreadyClosed padahal periods(period).closed masih false: diulang, bukan selesai', async () => {
+    chain.simulationError = revertError(kosLedgerInterface, 'PeriodAlreadyClosed', [202611]);
+
+    const run = createBlockchainProcessor(deps())(addJob('o-close', 'CLOSE_PERIOD', closePayload));
+    await expect(run).rejects.toBeInstanceOf(RetryableJobError);
+  });
+
+  it('periode tanpa sewa dan biaya (EmptyPeriod) gagal permanen tanpa transaksi', async () => {
+    chain.simulationError = revertError(kosLedgerInterface, 'EmptyPeriod', [202611]);
+
+    const run = createBlockchainProcessor(deps())(addJob('o-close', 'CLOSE_PERIOD', closePayload));
+    await expect(run).rejects.toBeInstanceOf(PermanentJobError);
+    expect(store.transactions).toEqual([
+      expect.objectContaining({ status: 'FAILED', lastError: expect.stringContaining('belum punya sewa maupun biaya') }),
+    ]);
+    expect(chain.broadcasts).toHaveLength(0);
+  });
+
+  it('suplai nol di blok snapshot (NoSupplyAtSnapshot) gagal permanen tanpa transaksi', async () => {
+    chain.simulationError = revertError(kosLedgerInterface, 'NoSupplyAtSnapshot', [99n]);
+
+    const run = createBlockchainProcessor(deps())(addJob('o-close', 'CLOSE_PERIOD', closePayload));
+    await expect(run).rejects.toThrow(/suplai token di blok snapshot nol/);
+    expect(chain.broadcasts).toHaveLength(0);
+  });
+
+  it('periode untuk properti lain ditolak permanen', async () => {
+    const run = createBlockchainProcessor(deps())(addJob('o-close', 'CLOSE_PERIOD', { propertyCode: 'DNY02', period: '2026-11' }));
+    await expect(run).rejects.toThrow(/properti DNY02/);
+  });
+});
+
+describe('Coba lagi admin', () => {
+  it('job FAILED karena percobaan habis, transaksinya masuk blok belakangan: diakui RECORDED tanpa transaksi baru', async () => {
+    store.addOutboxJob({ id: 'o-exp', type: 'RECORD_EXPENSE', payload: expensePayload });
+    chain.broadcastMode = 'pending';
+    // Percobaan ke-5 dari 5: transaksi terkirim tetapi belum masuk blok dalam batas waktu.
+    await expect(createBlockchainProcessor(deps())(job('o-exp', 'RECORD_EXPENSE', expensePayload, 4))).rejects.toBeInstanceOf(
+      RetryableJobError,
+    );
+    const hash = chain.broadcasts[0]?.hash as string;
+    expect(store.transactions).toEqual([expect.objectContaining({ status: 'FAILED', txHash: hash, blockNumber: null })]);
+
+    chain.mine(hash);
+    chain.broadcastMode = 'mine';
+    // Admin menekan Coba lagi. Bila BullMQ tidak mengatur ulang attemptsMade, ini percobaan ke-6.
+    const result = await createBlockchainProcessor(deps())(job('o-exp', 'RECORD_EXPENSE', expensePayload, 5));
+
+    expect(result).toMatchObject({ status: 'RECORDED', outcome: 'PREVIOUS_TX', txHash: hash });
+    expect(chain.broadcasts).toHaveLength(1);
+    expect(store.transactions).toEqual([expect.objectContaining({ status: 'RECORDED', txHash: hash, lastError: null, attempts: 6 })]);
   });
 });
 
@@ -258,7 +465,7 @@ describe('percobaan ulang', () => {
   });
 
   it('RPC mati sebelum ada baris transaksi, di percobaan terakhir: baris FAILED dibuat', async () => {
-    const broken: KosContractsReader = { ...contracts, isPaymentRefRecorded: async () => Promise.reject(new Error('socket hang up')) };
+    const broken: typeof contracts = { ...contracts, isPaymentRefRecorded: async () => Promise.reject(new Error('socket hang up')) };
     store.addOutboxJob({ id: 'o-rent', type: 'RECORD_RENT', payload: rentPayload });
 
     const run = createBlockchainProcessor(deps({ contracts: broken }))(job('o-rent', 'RECORD_RENT', rentPayload, 4));
@@ -272,6 +479,7 @@ describe('referenceOf', () => {
     expect(referenceOf('RECORD_RENT', rentPayload)).toBe(RENT_REF);
     expect(referenceOf('TRANSFER_TOKENS', transferPayload)).toBe(BUY_REF);
     expect(referenceOf('WHITELIST_KYC', whitelistPayload)).toBe(INVESTOR);
+    expect(referenceOf('RECORD_EXPENSE', expensePayload)).toBe(RECEIPT_HASH);
     expect(referenceOf('CLOSE_PERIOD', { propertyCode: 'SMR01', period: '2026-11' })).toBe('SMR01:2026-11');
   });
 });

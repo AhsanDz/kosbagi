@@ -22,7 +22,32 @@ describe('ABI kontrak', () => {
     }
   });
 
+  it('memuat fungsi biaya dan tutup periode (P4)', () => {
+    for (const name of ['recordExpense', 'closePeriod', 'isReceiptRecorded', 'periods', 'shareOf']) {
+      expect(kosLedgerInterface.getFunction(name), name).not.toBeNull();
+    }
+    expect(kosLedgerInterface.getFunction('recordExpense')?.inputs.map((input) => input.type)).toEqual([
+      'uint32',
+      'uint8',
+      'uint256',
+      'bytes32',
+    ]);
+    expect(kosLedgerInterface.getFunction('periods')?.outputs.map((output) => output.name)).toEqual([
+      'grossRent',
+      'totalExpenses',
+      'platformFee',
+      'tax',
+      'netRent',
+      'totalSupply',
+      'valuePerTokenSen',
+      'snapshotBlock',
+      'closed',
+    ]);
+  });
+
   it('memuat event yang dicari saat catatan sudah ada', () => {
+    expect(kosLedgerInterface.getEvent('ExpenseRecorded')).not.toBeNull();
+    expect(kosLedgerInterface.getEvent('PeriodClosed')).not.toBeNull();
     expect(kosLedgerInterface.getEvent('RentRecorded')).not.toBeNull();
     expect(kosTokenInterface.getEvent('TreasuryTransfer')).not.toBeNull();
     expect(kosTokenInterface.getEvent('KycStatusUpdated')).not.toBeNull();
@@ -58,6 +83,8 @@ describe('KosContracts', () => {
       provider,
     );
     await expect(contracts.findRentRecorded(id('x'))).resolves.toBeNull();
+    await expect(contracts.findExpenseRecorded(id('x'))).resolves.toBeNull();
+    await expect(contracts.findPeriodClosed(202_611)).resolves.toBeNull();
     provider.destroy();
   });
 });

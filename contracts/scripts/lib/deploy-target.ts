@@ -45,9 +45,40 @@ export const DEPLOYMENTS_DIR = fileURLToPath(new URL("../../deployments/", impor
 /** Folder file parameter Ignition (contracts/ignition/parameters/). */
 export const PARAMETERS_DIR = fileURLToPath(new URL("../../ignition/parameters/", import.meta.url));
 
-/** contracts/deployments/<label>.json, mis. deployments/sepolia.json. */
-export function deploymentRecordPath(target: DeployTarget): string {
-  return path.join(DEPLOYMENTS_DIR, `${target.label}.json`);
+/** Nama variabel environment untuk deploy gladi berlabel (lihat parseDeployLabel). */
+export const DEPLOY_LABEL_VARIABLE = "DEPLOY_LABEL";
+
+// Huruf kecil, angka, dan tanda hubung di tengah; 1 sampai 20 karakter. Label menjadi bagian
+// nama folder dan nama file, jadi karakter lain ditolak.
+const DEPLOY_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,18}[a-z0-9])?$/;
+
+/**
+ * Label deploy gladi dari variabel DEPLOY_LABEL, mis. `gladi1`.
+ *
+ * Catatan on-chain tidak ikut terhapus saat basis data di-reset (periode yang sudah ditutup,
+ * saldo token investor, nota yang sudah tercatat), jadi setiap gladi demo di Sepolia memakai
+ * kontrak baru (keputusan 20 Nov 2026). Dengan label, id deployment Ignition dan berkas hasilnya
+ * terpisah dari deploy utama: `sepolia-smr01-<label>` dan `deployments/sepolia-<label>.json`,
+ * keduanya tidak di-commit. Kosong atau tidak diisi berarti deploy utama (demo akhir) yang
+ * hasilnya di-commit.
+ */
+export function parseDeployLabel(raw: string | undefined): string | null {
+  const value = raw?.trim() ?? "";
+  if (value === "") return null;
+  if (!DEPLOY_LABEL_PATTERN.test(value)) {
+    throw new ConfigError(
+      `${DEPLOY_LABEL_VARIABLE} "${value}" tidak valid. Pakai huruf kecil, angka, dan tanda hubung, 1 sampai 20 karakter, mis. gladi1.`,
+    );
+  }
+  return value;
+}
+
+/**
+ * contracts/deployments/<label>.json, mis. deployments/sepolia.json. Deploy gladi berlabel
+ * menulis deployments/sepolia-<label>.json.
+ */
+export function deploymentRecordPath(target: DeployTarget, deployLabel: string | null = null): string {
+  return path.join(DEPLOYMENTS_DIR, deployLabel === null ? `${target.label}.json` : `${target.label}-${deployLabel}.json`);
 }
 
 /** contracts/ignition/parameters/<label>.json, mis. ignition/parameters/sepolia.json. */
@@ -55,9 +86,13 @@ export function parameterFilePath(target: DeployTarget): string {
   return path.join(PARAMETERS_DIR, `${target.label}.json`);
 }
 
-/** Id deployment Ignition, mis. `sepolia-smr01`. Jejaknya di ignition/deployments/<id>/. */
-export function deploymentIdFor(target: DeployTarget, propertyCode: string): string {
-  return `${target.label}-${propertyCode.toLowerCase()}`;
+/**
+ * Id deployment Ignition, mis. `sepolia-smr01`, atau `sepolia-smr01-gladi1` untuk deploy gladi
+ * berlabel. Jejaknya di ignition/deployments/<id>/.
+ */
+export function deploymentIdFor(target: DeployTarget, propertyCode: string, deployLabel: string | null = null): string {
+  const base = `${target.label}-${propertyCode.toLowerCase()}`;
+  return deployLabel === null ? base : `${base}-${deployLabel}`;
 }
 
 export interface WalletAddresses {

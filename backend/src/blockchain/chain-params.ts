@@ -1,9 +1,11 @@
 // Konversi data backend ke argumen fungsi kontrak, sesuai docs/kontrak/rancangan-kontrak.md bagian 7:
-// kamar K03 menjadi 3 (uint16), periode 2026-11 menjadi 202611 (uint32), nominal Rupiah apa adanya.
+// kamar K03 menjadi 3 (uint16), periode 2026-11 menjadi 202611 (uint32), kode kategori biaya
+// (uint8), nominal Rupiah apa adanya.
 // Data yang tidak bisa dikonversi tidak akan pernah diterima kontrak, jadi ditolak permanen.
 import { PermanentJobError } from './errors.js';
 
 const MAX_UINT16 = 65_535;
+const MAX_UINT8 = 255;
 
 /** `K03` menjadi 3. Kontrak menolak kamar 0, jadi nomor harus 1 sampai 65.535. */
 export function roomNumberToUint16(roomNumber: string): number {
@@ -32,4 +34,21 @@ export function positiveIntegerToUint256(value: number, label: string): bigint {
     throw new PermanentJobError(`${label} harus bilangan bulat positif.`);
   }
   return BigInt(value);
+}
+
+/**
+ * Kode kategori biaya (1 Listrik dan air, 2 Kebersihan, 3 Internet, 4 Perbaikan, 5 Keamanan; daftarnya
+ * dipegang backend) menjadi uint8. Kontrak menerima 0 sampai 255.
+ */
+export function expenseCategoryToUint8(category: number): number {
+  if (!Number.isInteger(category) || category < 0 || category > MAX_UINT8) {
+    throw new PermanentJobError(`Kategori biaya ${JSON.stringify(category)} tidak bisa dikirim ke kontrak.`);
+  }
+  return category;
+}
+
+/** 202611 menjadi `2026-11`, untuk pesan yang dibaca admin. */
+export function formatChainPeriod(period: number | bigint): string {
+  const value = Number(period);
+  return `${Math.floor(value / 100)}-${String(value % 100).padStart(2, '0')}`;
 }

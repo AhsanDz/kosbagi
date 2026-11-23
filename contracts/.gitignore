@@ -24,3 +24,7 @@ node_modules/
 # Jejak Ignition Sepolia (±4 MB) disimpan koordinator di luar repo; yang di-commit
 # hanya deployments/sepolia.json dan ignition/parameters/sepolia.json
 /ignition/deployments/sepolia-smr01/
+# Gladi demo di Sepolia dengan DEPLOY_LABEL: jejak Ignition dan hasilnya tidak di-commit
+/ignition/deployments/sepolia-smr01-*/
+/deployments/sepolia-*.json
+/deployments/lokal-*.json

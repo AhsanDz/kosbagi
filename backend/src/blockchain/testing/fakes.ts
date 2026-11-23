@@ -17,6 +17,8 @@ export class MemoryChainStore implements ChainStore {
   readonly outboxJobs = new Map<string, OutboxJob>();
   readonly wallets: CustodialWalletRecord[] = [];
   private readonly rows: ChainTxRecord[] = [];
+  /** Urutan dibuat per id, penentu urutan bila createdAt kembar (seperti UUID v7 di Prisma). */
+  private readonly order = new Map<string, number>();
   private sequence = 0;
 
   /** Salinan semua baris, urut dibuat. */
@@ -44,8 +46,17 @@ export class MemoryChainStore implements ChainStore {
     return this.outboxJobs.get(id) ?? null;
   }
 
+  /** Seperti store Prisma: urut createdAt, lalu urutan dibuat. */
   async listTransactions(outboxJobId: string): Promise<ChainTxRecord[]> {
-    return this.rows.filter((row) => row.outboxJobId === outboxJobId).map((row) => ({ ...row }));
+    return this.rows
+      .filter((row) => row.outboxJobId === outboxJobId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (this.order.get(a.id) ?? 0) - (this.order.get(b.id) ?? 0))
+      .map((row) => ({ ...row }));
+  }
+
+  /** Baris yang dibaca layar: createdAt terbaru (src/lib/chain-status.ts). */
+  async latestTransaction(outboxJobId: string): Promise<ChainTxRecord | undefined> {
+    return (await this.listTransactions(outboxJobId)).at(-1);
   }
 
   async createTransaction(data: NewChainTx): Promise<ChainTxRecord> {
@@ -59,8 +70,14 @@ export class MemoryChainStore implements ChainStore {
       ...data,
       createdAt: new Date(this.sequence),
     };
+    this.order.set(row.id, this.sequence);
     this.rows.push(row);
     return { ...row };
+  }
+
+  async findTransactionByHash(txHash: string): Promise<ChainTxRecord | null> {
+    const row = this.rows.find((item) => item.txHash === txHash);
+    return row ? { ...row } : null;
   }
 
   async updateTransaction(id: string, changes: ChainTxChanges): Promise<ChainTxRecord> {
