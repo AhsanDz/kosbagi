@@ -5,16 +5,29 @@
 // memakai outboxJobId, dan isi baris itulah yang dikirim ke kontrak. Siapa pun yang bisa menulis ke
 // Redis tidak bisa membuat worker mengirim token ke alamat lain.
 //
-// Jenis job P3: RECORD_RENT (KosLedger.recordRent), WHITELIST_KYC (KosToken.setKycStatus),
-// TRANSFER_TOKENS (KosToken.transferFromTreasury). RECORD_EXPENSE dan CLOSE_PERIOD menyusul di P4.
+// Jenis job: RECORD_RENT (KosLedger.recordRent), WHITELIST_KYC (KosToken.setKycStatus),
+// TRANSFER_TOKENS (KosToken.transferFromTreasury) sejak P3; RECORD_EXPENSE (KosLedger.recordExpense)
+// dan CLOSE_PERIOD (KosLedger.closePeriod) sejak P4.
 import { isDeepStrictEqual } from 'node:util';
 import type { Job } from 'bullmq';
 import { getAddress } from 'ethers';
 import type { OutboxJobType } from '../generated/prisma/enums.js';
 import { type BlockchainJobData, type JobPayload, parseJobPayload } from '../queue/jobs.js';
 import { type ChainCall, executeChainCall, type ExecutionResult, type ExecutorProvider, type ExecutorSigner, type ExecutorTiming } from './chain-executor.js';
-import { periodToUint32, positiveIntegerToUint256, roomNumberToUint16 } from './chain-params.js';
-import { type DeploymentInfo, type KosContractsReader, kosLedgerInterface, kosTokenInterface } from './contracts.js';
+import {
+  expenseCategoryToUint8,
+  formatChainPeriod,
+  periodToUint32,
+  positiveIntegerToUint256,
+  roomNumberToUint16,
+} from './chain-params.js';
+import {
+  type DeploymentInfo,
+  type KosContractsReader,
+  type KosLedgerPeriodReader,
+  kosLedgerInterface,
+  kosTokenInterface,
+} from './contracts.js';
 import type { CustodialDeriver } from './custodial-wallet.js';
 import { PermanentJobError, RetryableJobError, safeErrorMessage } from './errors.js';
 import { etherscanTxUrl } from './etherscan.js';
@@ -28,7 +41,7 @@ export interface WorkerLogger {
 
 export interface ProcessorDeps {
   store: ChainStore;
-  contracts: KosContractsReader;
+  contracts: KosContractsReader & KosLedgerPeriodReader;
   /** Data penerbitan yang dibaca saat worker mulai. */
   deployment: DeploymentInfo;
   /** Null bila CUSTODIAL_WALLET_MNEMONIC tidak diisi di environment worker. */
@@ -128,10 +141,64 @@ const planTransferTokens: Planner<'TRANSFER_TOKENS'> = async (payload, deps) => 
   };
 };
 
+const formatRupiah = (amount: bigint) => `Rp${amount.toLocaleString('id-ID')}`;
+
+const planRecordExpense: Planner<'RECORD_EXPENSE'> = async (payload, deps) => {
+  assertProperty(payload.propertyCode, deps.deployment);
+  const period = periodToUint32(payload.period);
+  const category = expenseCategoryToUint8(payload.category);
+  const amount = positiveIntegerToUint256(payload.amountIdr, 'Nominal biaya');
+  const { receiptHash } = payload;
+  return {
+    reference: receiptHash,
+    to: deps.contracts.ledgerAddress,
+    contractInterface: kosLedgerInterface,
+    method: 'recordExpense',
+    args: [period, category, amount, receiptHash],
+    // Nota yang sama hanya bisa dicatat sekali di KosLedger. Bila hash-nya sudah tercatat, job ini
+    // selesai hanya kalau catatannya sama (periode, kategori, nominal). Catatan yang berbeda berarti
+    // nota itu sudah dipakai untuk biaya lain, mis. basis data di-reset lalu nota dummy yang sama
+    // diunggah untuk periode lain: gagal permanen, bukan dianggap tercatat.
+    isDone: async () => {
+      if (!(await deps.contracts.isReceiptRecorded(receiptHash))) return false;
+      const recorded = await deps.contracts.findExpenseRecorded(receiptHash);
+      if (recorded && (recorded.period !== period || recorded.category !== category || recorded.amount !== amount)) {
+        throw new PermanentJobError(
+          `Nota ini sudah tercatat di KosLedger untuk periode ${formatChainPeriod(recorded.period)}, kategori ${recorded.category}, ` +
+            `sebesar ${formatRupiah(recorded.amount)}; berbeda dengan biaya ini (periode ${payload.period}, kategori ${category}, ` +
+            `${formatRupiah(amount)}). Satu nota hanya bisa dicatat sekali.`,
+        );
+      }
+      return true;
+    },
+    findExistingRecord: () => deps.contracts.findExpenseRecorded(receiptHash),
+    // PeriodAlreadyClosed permanen (bawaan): biaya datang setelah periode ditutup, perlu ditangani admin.
+    revertActions: { ReceiptAlreadyRecorded: 'DONE' },
+  };
+};
+
+const planClosePeriod: Planner<'CLOSE_PERIOD'> = async (payload, deps) => {
+  assertProperty(payload.propertyCode, deps.deployment);
+  const period = periodToUint32(payload.period);
+  return {
+    reference: `${payload.propertyCode}:${payload.period}`,
+    to: deps.contracts.ledgerAddress,
+    contractInterface: kosLedgerInterface,
+    method: 'closePeriod',
+    args: [period],
+    isDone: async () => (await deps.contracts.readPeriod(period)).closed,
+    findExistingRecord: () => deps.contracts.findPeriodClosed(period),
+    // EmptyPeriod (belum ada sewa maupun biaya) dan NoSupplyAtSnapshot tidak akan berubah bila diulang.
+    revertActions: { PeriodAlreadyClosed: 'DONE', EmptyPeriod: 'PERMANENT', NoSupplyAtSnapshot: 'PERMANENT' },
+  };
+};
+
 const PLANNERS: { [T in OutboxJobType]?: Planner<T> } = {
   RECORD_RENT: planRecordRent,
   WHITELIST_KYC: planWhitelistKyc,
   TRANSFER_TOKENS: planTransferTokens,
+  RECORD_EXPENSE: planRecordExpense,
+  CLOSE_PERIOD: planClosePeriod,
 };
 
 /** Jenis job yang sudah bisa dikerjakan worker. */
@@ -204,7 +271,7 @@ export function createBlockchainProcessor(deps: ProcessorDeps): (job: Job<Blockc
       }
 
       const planner = PLANNERS[outbox.type] as Planner<OutboxJobType> | undefined;
-      if (!planner) throw new PermanentJobError(`Jenis job ${outbox.type} belum dikerjakan worker (direncanakan di progress 4).`);
+      if (!planner) throw new PermanentJobError(`Jenis job ${outbox.type} belum dikerjakan worker.`);
       const call = await planner(payload, deps);
 
       const result = await executeChainCall(call, {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { periodToUint32, positiveIntegerToUint256, roomNumberToUint16 } from './chain-params.js';
+import {
+  expenseCategoryToUint8,
+  formatChainPeriod,
+  periodToUint32,
+  positiveIntegerToUint256,
+  roomNumberToUint16,
+} from './chain-params.js';
 import { PermanentJobError } from './errors.js';
 
 describe('roomNumberToUint16', () => {
@@ -38,5 +44,24 @@ describe('positiveIntegerToUint256', () => {
     for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, Number.NaN]) {
       expect(() => positiveIntegerToUint256(value, 'Nominal')).toThrow('Nominal harus bilangan bulat positif.');
     }
+  });
+});
+
+describe('expenseCategoryToUint8', () => {
+  it('kode kategori 1 sampai 5 dikirim apa adanya', () => {
+    for (const code of [1, 2, 3, 4, 5]) expect(expenseCategoryToUint8(code)).toBe(code);
+  });
+
+  it('menolak di luar uint8 dan pecahan secara permanen', () => {
+    for (const value of [-1, 256, 1.5, Number.NaN]) {
+      expect(() => expenseCategoryToUint8(value)).toThrow(PermanentJobError);
+    }
+  });
+});
+
+describe('formatChainPeriod', () => {
+  it('202611 menjadi 2026-11', () => {
+    expect(formatChainPeriod(202_611)).toBe('2026-11');
+    expect(formatChainPeriod(202_701n)).toBe('2027-01');
   });
 });
