@@ -15,6 +15,8 @@ export interface DeploymentRecord {
   chainId: number;
   explorerUrl: string | null;
   ignitionDeploymentId: string;
+  /** Label deploy gladi (DEPLOY_LABEL), null untuk deploy utama. */
+  deployLabel: string | null;
   /** Waktu file ditulis (ISO 8601, UTC). */
   recordedAt: string;
   propertyCode: string;

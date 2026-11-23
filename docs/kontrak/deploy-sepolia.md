@@ -9,8 +9,9 @@ Semua perintah dijalankan dari folder `contracts/` di clone repo (mis. `$HOME\Do
 | Langkah | Perintah | Butuh ETH | Hasil |
 |---|---|---|---|
 | Gladi lokal | `npm run node:local` lalu `npm run deploy:local` dan `npm run verify:local` | Tidak (akun bawaan Hardhat) | `deployments/lokal.json` (tidak ikut repo) |
-| Deploy Sepolia | `npm run deploy:sepolia` | Ya, dari dompet admin | `deployments/sepolia.json` |
-| Verifikasi | `npm run verify:sepolia` | Tidak, hanya API key Etherscan | Kode sumber terverifikasi, status ditulis ke `deployments/sepolia.json` |
+| Gladi demo di Sepolia (kontrak baru setiap gladi) | `DEPLOY_LABEL=<label>` lalu `npm run deploy:sepolia` (bagian 5.2) | Ya, dari dompet admin | `deployments/sepolia-<label>.json` (tidak ikut repo) |
+| Deploy Sepolia untuk demo akhir | `npm run deploy:sepolia` tanpa `DEPLOY_LABEL` | Ya, dari dompet admin | `deployments/sepolia.json` |
+| Verifikasi | `npm run verify:sepolia` | Tidak, hanya API key Etherscan | Kode sumber terverifikasi, status ditulis ke berkas hasil yang sama |
 
 Skrip deploy mengirim tiga transaksi, semuanya ditandatangani **dompet admin**:
 
@@ -24,8 +25,8 @@ Hash ketiga dokumen dihitung skrip dari file di `docs/bisnis/dokumen-penerbitan/
 
 | Dompet | Fungsi | Kunci dipakai di | ETH Sepolia |
 |---|---|---|---|
-| Admin | Pemegang `DEFAULT_ADMIN_ROLE` dan `PAUSER_ROLE`. Menandatangani deploy, pencatatan dokumen, dan prosedur darurat | `contracts/.env` saja | Disarankan **0,05 ETH** |
-| Operator | Pemegang peran operasional. Mengirim semua transaksi harian worker backend | `backend/.env` (dan `contracts/.env` untuk pencocokan alamat) | Disarankan **0,1 ETH** |
+| Admin | Pemegang `DEFAULT_ADMIN_ROLE` dan `PAUSER_ROLE`. Menandatangani deploy, pencatatan dokumen, dan prosedur darurat | `contracts/.env` saja | Disarankan **0,15 ETH** untuk tiga gladi + demo akhir (0,05 ETH bila hanya satu deploy) |
+| Operator | Pemegang peran operasional. Mengirim semua transaksi harian worker backend | `backend/.env` (dan `contracts/.env` untuk pencocokan alamat) | Disarankan **0,15 ETH** untuk tiga gladi + demo akhir (0,1 ETH bila hanya satu demo) |
 | Pemilik lama | Menerima 5.400 token saat deploy | Tidak dipakai | 0 |
 | Perbendaharaan | Menerima 12.600 token; token keluar lewat `transferFromTreasury` oleh operator | Tidak dipakai | 0 |
 | Dompet kustodian investor | Diturunkan backend dari `CUSTODIAL_WALLET_MNEMONIC` | Tidak pernah menandatangani | 0 |
@@ -61,20 +62,35 @@ Sebelum mengirim, skrip mensyaratkan saldo admin minimal **4.500.000 gas x harga
 | 5 gwei | 0,0495 ETH | 0,0258 ETH |
 | 10 gwei | 0,0945 ETH | 0,0474 ETH |
 
-Selain deploy, admin perlu cadangan untuk prosedur darurat (rancangan bagian 3.13: dua `pause`, lima `revokeRole`, lima `grantRole`, dua `unpause`, sekitar 0,6 juta gas atau 0,006 ETH pada 10 gwei) dan pembaruan dokumen (57.000 sampai 71.000 gas per versi). **0,05 ETH** cukup bila harga dasar saat deploy paling tinggi sekitar 5 gwei, dan sisanya (sekitar 0,02 ETH) menjadi cadangan itu. Bila harga dasar lebih tinggi, tunggu harga turun atau tambah saldo admin sampai 0,1 ETH.
+Selain deploy, admin perlu cadangan untuk prosedur darurat (rancangan bagian 3.13: dua `pause`, lima `revokeRole`, lima `grantRole`, dua `unpause`, sekitar 0,6 juta gas atau 0,006 ETH pada 10 gwei) dan pembaruan dokumen (57.000 sampai 71.000 gas per versi).
 
-Perkiraan transaksi operator selama demo P3 sampai P5 (angka gas dari rancangan bagian 3.10 dan 4.11):
+### Satu gladi atau satu demo
 
-| Kegiatan | Hitungan | Gas |
-|---|---|---|
-| KYC tujuh investor | 7 x 48.000 | 336.000 |
-| Pembelian token | 7 pembelian pertama x 191.000 + 8 pembelian lanjutan x 137.000 | 2.433.000 |
-| Sewa tiga periode | 3 x (99.000 + 8 x 82.000) | 2.265.000 |
-| Biaya tiga periode | 3 x (76.000 + 2 x 59.000) | 582.000 |
-| Tutup tiga periode | 3 x 199.000 | 597.000 |
-| **Jumlah** | | **±6,2 juta** |
+Catatan on-chain tidak ikut terhapus saat basis data di-reset: periode yang sudah ditutup tidak bisa ditutup lagi, saldo token investor tetap (pembelian ulang Bagas ditolak batas 1.800 token), dan nota yang sama sudah tercatat. Karena itu **setiap gladi demo di Sepolia memakai kontrak baru** (keputusan 20 Nov 2026, bagian 5.2), dan setiap gladi membayar deploy sekali lagi. Perkiraan gas satu putaran demo (angka transaksi operator dari rancangan bagian 3.10 dan 4.11):
 
-Pada 1, 3, dan 10 gwei biayanya sekitar 0,006, 0,019, dan 0,062 ETH. **0,1 ETH** memberi ruang untuk percobaan ulang, transaksi yang gagal (tetap memakai gas), dan lonjakan harga gas.
+| Kegiatan | Dompet | Hitungan | Gas |
+|---|---|---|---|
+| Deploy KosToken, KosLedger, `anchorDocument` | Admin | Terukur saat gladi lokal | 4.307.383 |
+| KYC lima investor (Bagas, Citra, Eko, Fajar, Dimas) | Operator | 5 x 48.000 | 240.000 |
+| Pembelian token | Operator | 5 pembelian pertama x 191.000 + 1 pembelian lanjutan x 137.000 (bila VA Bagas dipecah) | 1.092.000 |
+| Sewa November, sembilan kamar | Operator | 99.000 + 8 x 82.000 | 755.000 |
+| Biaya November (persiapan dan nota K07) | Operator | 76.000 + 5 x 59.000 (perkiraan enam nota) | 371.000 |
+| Tutup periode | Operator | 199.000 | 199.000 |
+| **Jumlah operator** | | | **±2,66 juta** |
+| **Jumlah satu putaran** | | | **±6,97 juta** |
+
+| Harga gas | Admin per putaran | Operator per putaran | Tiga gladi + demo akhir (admin / operator) |
+|---|---|---|---|
+| 1 gwei | 0,0043 ETH | 0,0027 ETH | 0,017 / 0,011 ETH |
+| 3 gwei | 0,0129 ETH | 0,0080 ETH | 0,052 / 0,032 ETH |
+| 10 gwei | 0,0431 ETH | 0,0266 ETH | 0,172 / 0,106 ETH |
+
+Saran isi dompet untuk **tiga gladi + demo akhir** (empat deploy dan empat putaran demo):
+
+- **Admin 0,15 ETH.** Pada harga dasar 5 gwei, empat deploy memakan sekitar 4 x 0,0258 = 0,103 ETH. Sebelum deploy keempat, skrip tetap mensyaratkan saldo 0,0495 ETH, jadi total yang dibutuhkan sekitar 0,127 ETH, ditambah cadangan prosedur darurat 0,006 ETH. Bila harga dasar di atas 5 gwei, tunggu harga turun atau tambah saldo admin.
+- **Operator 0,15 ETH.** Empat putaran sekitar 10,6 juta gas, atau 0,106 ETH pada 10 gwei, ditambah ruang untuk percobaan ulang, transaksi yang gagal (tetap memakai gas), Coba lagi admin, dan lonjakan harga gas. Worker memberi peringatan bila saldo operator di bawah 0,01 ETH.
+
+Bila hanya satu deploy dan satu demo tanpa gladi, admin 0,05 ETH dan operator 0,1 ETH sudah cukup.
 
 ETH Sepolia didapat dari faucet (mis. Google Cloud Web3, Alchemy, atau Infura). Syarat dan jumlahnya berubah-ubah, jadi cek di situs masing-masing dan isi dompet beberapa hari sebelum deploy.
 
@@ -165,6 +181,17 @@ Hentikan node dengan Ctrl+C. Setiap kali node dinyalakan ulang, chain lokal koso
 
 ## 5. Deploy ke Sepolia
 
+Ada dua jenis deploy Sepolia, dengan perintah yang sama:
+
+| Jenis | `DEPLOY_LABEL` | Id deployment Ignition | Berkas hasil | Ikut repo |
+|---|---|---|---|---|
+| Deploy utama (demo akhir) | Kosong atau tidak diisi | `sepolia-smr01` | `deployments/sepolia.json` | Ya, berkas hasilnya |
+| Gladi demo | Diisi, mis. `gladi1` | `sepolia-smr01-gladi1` | `deployments/sepolia-gladi1.json` | Tidak (diabaikan Git) |
+
+Pemeriksaan keduanya sama: chain id, alamat dan kunci, hash dokumen dari `docs/bisnis/dokumen-penerbitan/` (`ISSUANCE_DOCS_DIR` tetap ditolak), cek saldo admin, konfirmasi `DEPLOY`, dan 50 pemeriksaan pasca-deploy.
+
+### 5.1 Deploy utama
+
 ```
 npm run deploy:sepolia
 ```
@@ -179,17 +206,46 @@ Urutan yang terjadi:
 
 **Bila terputus** (RPC error, laptop mati, Ctrl+C), jalankan `npm run deploy:sepolia` lagi. Ignition melanjutkan dari jejak di `ignition/deployments/sepolia-smr01/` dan tidak men-deploy ulang kontrak yang sudah jadi. Jangan mengubah file dokumen, `sepolia.json` parameter, atau kode kontrak di antaranya, dan jangan menghapus folder jejak itu.
 
+Karena alasan yang sama, menjalankan `npm run deploy:sepolia` tanpa label setelah deploy utama selesai **tidak** membuat kontrak baru; skrip hanya membaca ulang kontrak lama dan menulis ulang `deployments/sepolia.json`. Untuk kontrak baru, pakai gladi berlabel (bagian 5.2).
+
+### 5.2 Gladi demo berulang (`DEPLOY_LABEL`)
+
+Setiap gladi demo yang dijalankan di Sepolia diawali deploy kontrak baru berlabel, lalu basis data di-reset. Urutannya:
+
+1. Pilih label baru untuk setiap gladi: huruf kecil, angka, dan tanda hubung, 1 sampai 20 karakter, mis. `gladi1`, `gladi2`, `gladi3`. Label yang sudah dipakai melanjutkan gladi itu (bila terputus), bukan membuat kontrak baru.
+2. Isi `DEPLOY_LABEL` di terminal, lalu jalankan deploy:
+
+   | Terminal | Perintah |
+   |---|---|
+   | PowerShell | `$env:DEPLOY_LABEL="gladi1"; npm run deploy:sepolia` |
+   | Command Prompt | `set DEPLOY_LABEL=gladi1` lalu `npm run deploy:sepolia` |
+   | Git Bash | `DEPLOY_LABEL=gladi1 npm run deploy:sepolia` |
+
+   Variabel ini juga boleh ditulis di `contracts/.env`, tetapi mengisinya di terminal lebih aman supaya tidak terbawa ke deploy demo akhir. Di PowerShell dan Command Prompt nilainya bertahan sampai jendela terminal ditutup; kosongkan dengan `$env:DEPLOY_LABEL=""` atau `set DEPLOY_LABEL=`.
+3. Ringkasan mencetak `Jenis deploy : gladi berlabel gladi1`, `Id deployment Ignition : sepolia-smr01-gladi1`, dan `Berkas hasil : contracts/deployments/sepolia-gladi1.json`. Periksa, lalu ketik `DEPLOY`.
+4. Isi `backend/.env` dengan `KOS_TOKEN_ADDRESS` dan `KOS_LEDGER_ADDRESS` yang dicetak skrip.
+5. Kosongkan basis data dan jalankan seed lagi (langkah di README root), lalu nyalakan ulang worker. Worker memeriksa bahwa kedua alamat itu KosToken dan KosLedger yang saling terikat dan bahwa operator memegang perannya.
+6. Opsional: verifikasi kontrak gladi dengan `DEPLOY_LABEL` yang sama, lalu `npm run verify:sepolia`. Statusnya ditulis ke `deployments/sepolia-gladi1.json`.
+
+Untuk **demo akhir**, kosongkan `DEPLOY_LABEL` (atau buka terminal baru), jalankan `npm run deploy:sepolia`, lalu ikuti bagian 6 dan 7. Ringkasan harus menulis `Jenis deploy : utama (tanpa DEPLOY_LABEL)` dan `Berkas hasil : contracts/deployments/sepolia.json`.
+
+Hasil gladi (`deployments/sepolia-<label>.json`) dan jejak Ignition-nya (`ignition/deployments/sepolia-smr01-<label>/`) diabaikan Git. Simpan berkas hasil gladi selama gladi itu masih dipakai; bila jejak Ignition sebuah label sudah dihapus tetapi berkas hasilnya masih ada, skrip menolak label itu supaya alamat gladi lama tidak tertimpa diam-diam.
+
+Bila deploy utama (`sepolia-smr01`) terlanjur dipakai untuk gladi sebelum keputusan ini, demo akhir tetap butuh kontrak baru: pindahkan folder `ignition/deployments/sepolia-smr01/` ke luar repo sebagai arsip, lalu jalankan `npm run deploy:sepolia` tanpa label. Skrip men-deploy kontrak baru dan menulis ulang `deployments/sepolia.json`.
+
 ## 6. Verifikasi Etherscan
 
 ```
 npm run verify:sepolia
 ```
 
-Skrip membandingkan bytecode di Sepolia dengan hasil build `production`, lalu mengirim kode sumber dan argumen konstruktor ke Etherscan. Bila Etherscan belum mengindeks kontrak yang baru di-deploy, tunggu satu sampai dua menit lalu ulangi. Kontrak yang sudah terverifikasi dilewati.
+Skrip membaca `deployments/sepolia.json` (atau `deployments/sepolia-<label>.json` bila `DEPLOY_LABEL` diisi), membandingkan bytecode di Sepolia dengan hasil build `production`, lalu mengirim kode sumber dan argumen konstruktor ke Etherscan. Bila Etherscan belum mengindeks kontrak yang baru di-deploy, tunggu satu sampai dua menit lalu ulangi. Kontrak yang sudah terverifikasi dilewati.
 
 Setelah selesai, tab Contract di Etherscan menampilkan tanda centang dan kode sumber, dan tab Read Contract bisa dipakai untuk memeriksa `currentDocumentHash`, `balanceOf`, `hasRole`, dan `periods`.
 
 ## 7. Setelah deploy
+
+Bagian ini untuk deploy utama (demo akhir). Untuk gladi, cukup langkah 1 dan 2, lalu reset basis data (bagian 5.2); berkas hasil gladi tidak di-commit.
 
 1. **Periksa di Etherscan**: tiga transaksi dari dompet admin, saldo 5.400 dan 12.600 di tab Holders, dan `currentDocumentHash` ketiga jenis dokumen sama dengan hash di `deployments/sepolia.json`. Nilai jenis dokumen (`typeHash`) juga ada di berkas itu.
 2. **Isi `backend/.env`** dengan baris yang dicetak skrip:
@@ -214,7 +270,8 @@ Setelah selesai, tab Contract di Etherscan menampilkan tanda centang dan kode su
 | Field | Isi |
 |---|---|
 | `network`, `chainId`, `explorerUrl` | Jaringan tempat deploy |
-| `ignitionDeploymentId` | `sepolia-smr01` |
+| `ignitionDeploymentId` | `sepolia-smr01` (gladi: `sepolia-smr01-<label>`) |
+| `deployLabel` | `null` untuk deploy utama, label untuk gladi |
 | `recordedAt` | Waktu berkas ditulis (UTC) |
 | `propertyCode`, `tokenSymbol` | `SMR01`, `KB-SMR01` |
 | `compiler` | `solc` 0.8.34, `osaka`, profil `production`, optimizer 200 runs |
@@ -243,6 +300,10 @@ Semua isinya data publik yang juga terlihat di Etherscan. Tidak ada kunci di ber
 | `memakai akhir baris CRLF` atau `diawali BOM` | File dokumen berubah setelah diambil dari Git | Pulihkan file dari Git |
 | `Saldo admin kurang dari perkiraan biaya` | ETH admin belum cukup | Isi dompet admin dari faucet |
 | `ISSUANCE_DOCS_DIR hanya untuk gladi lokal` | Variabel itu terisi saat deploy Sepolia | Kosongkan di `contracts/.env` |
+| `DEPLOY_LABEL "..." tidak valid` | Label memakai huruf besar, spasi, atau karakter lain | Pakai huruf kecil, angka, dan tanda hubung, mis. `gladi1` |
+| `... sudah ada dari gladi sebelumnya, tetapi jejak Ignition ... tidak ada` | Label yang sama dipakai lagi setelah jejaknya dihapus | Pakai label baru |
+| Deploy tanpa label tidak membuat kontrak baru | Jejak `sepolia-smr01` sudah ada, jadi Ignition melanjutkannya | Untuk gladi pakai `DEPLOY_LABEL`; untuk demo akhir lihat paragraf terakhir bagian 5.2 |
+| Ringkasan menulis `gladi berlabel` padahal ingin deploy demo akhir | `DEPLOY_LABEL` masih terisi di terminal atau `contracts/.env` | Jawab selain `DEPLOY`, kosongkan variabelnya, lalu ulangi |
 | Ignition melaporkan reconciliation failed | Parameter, dokumen, atau kode berubah setelah deploy sebelumnya terputus | Kembalikan ke kondisi semula. Bila memang ingin deploy baru, konsultasikan dulu: jejak lama harus diarsipkan |
 | `Bytecode ... berbeda dengan hasil build saat ini` (verifikasi) | Kode kontrak atau `hardhat.config.ts` berubah sejak deploy | Kembalikan ke commit saat deploy, lalu ulangi |
 | `Hasil deploy tidak ditemukan` (verifikasi) | `deployments/sepolia.json` belum ada | Jalankan deploy lebih dulu |

@@ -1,7 +1,7 @@
 import { verifyContract } from "@nomicfoundation/hardhat-verify/verify";
 import hre, { artifacts, network } from "hardhat";
 
-import { deploymentRecordPath, resolveDeployTarget } from "./lib/deploy-target.js";
+import { DEPLOY_LABEL_VARIABLE, deploymentRecordPath, parseDeployLabel, resolveDeployTarget } from "./lib/deploy-target.js";
 import { deployedBytecodeMatches } from "./lib/deployment-checks.js";
 import { readDeploymentRecord, writeDeploymentRecord } from "./lib/deployment-record.js";
 import { ConfigError } from "./lib/errors.js";
@@ -20,6 +20,9 @@ import { ConfigError } from "./lib/errors.js";
  * Di Hardhat node lokal hanya langkah 1 dan 2 yang berjalan, karena Etherscan
  * tidak mengenal jaringan lokal. Perintah: `npm run verify:sepolia` atau
  * `npm run verify:local`. Butuh ETHERSCAN_API_KEY, tidak butuh ETH.
+ *
+ * Dengan DEPLOY_LABEL (deploy gladi), yang dibaca dan ditulis adalah
+ * contracts/deployments/<target>-<label>.json.
  */
 
 const CONTRACT_NAMES = ["KosToken", "KosLedger"] as const;
@@ -33,7 +36,8 @@ async function main(): Promise<void> {
   const { ethers, networkName } = connection;
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
   const target = resolveDeployTarget(chainId);
-  const recordFile = deploymentRecordPath(target);
+  const recordFile = deploymentRecordPath(target, parseDeployLabel(process.env[DEPLOY_LABEL_VARIABLE]));
+  console.log(`Berkas hasil deploy: ${recordFile}`);
   const record = await readDeploymentRecord(recordFile);
   if (record.chainId !== chainId) {
     throw new ConfigError(`${recordFile} untuk chain ${record.chainId}, sedangkan jaringan ${networkName} chain ${chainId}.`);

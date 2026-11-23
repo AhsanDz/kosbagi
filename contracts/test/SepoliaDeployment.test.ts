@@ -8,8 +8,11 @@ import { artifacts, network } from "hardhat";
 import SepoliaDeployment from "../ignition/modules/SepoliaDeployment.js";
 import {
   deploymentIdFor,
+  deploymentRecordPath,
+  DEPLOYMENTS_DIR,
   MODULE_ID,
   parameterFilePath,
+  parseDeployLabel,
   readDeployParameters,
   resolveDeployTarget,
   validateDeployParameters,
@@ -243,6 +246,27 @@ describe("Target dan parameter deploy", function () {
     expect(resolveDeployTarget(31_337)).to.include({ label: "lokal", isLocal: true });
     expect(() => resolveDeployTarget(1)).to.throw(ConfigError, /Chain id 1 tidak didukung/);
     expect(deploymentIdFor(resolveDeployTarget(11_155_111), "SMR01")).to.equal("sepolia-smr01");
+  });
+
+  it("deploy gladi berlabel memakai id deployment dan berkas hasil sendiri, tanpa label tetap deploy utama", function () {
+    const sepolia = resolveDeployTarget(11_155_111);
+
+    expect(deploymentIdFor(sepolia, "SMR01", "gladi1")).to.equal("sepolia-smr01-gladi1");
+    expect(deploymentRecordPath(sepolia, "gladi1")).to.equal(path.join(DEPLOYMENTS_DIR, "sepolia-gladi1.json"));
+    expect(deploymentIdFor(sepolia, "SMR01", null)).to.equal("sepolia-smr01");
+    expect(deploymentRecordPath(sepolia)).to.equal(path.join(DEPLOYMENTS_DIR, "sepolia.json"));
+    expect(deploymentRecordPath(resolveDeployTarget(31_337), "gladi1")).to.equal(path.join(DEPLOYMENTS_DIR, "lokal-gladi1.json"));
+  });
+
+  it("DEPLOY_LABEL kosong berarti deploy utama; label hanya huruf kecil, angka, dan tanda hubung", function () {
+    for (const empty of [undefined, "", "   "]) expect(parseDeployLabel(empty)).to.equal(null);
+    expect(parseDeployLabel("gladi1")).to.equal("gladi1");
+    expect(parseDeployLabel(" gladi-2 ")).to.equal("gladi-2");
+    expect(parseDeployLabel("a".repeat(20))).to.equal("a".repeat(20));
+
+    for (const invalid of ["Gladi1", "gladi 1", "-gladi", "gladi-", "a".repeat(21), "../gladi", "gladi_1", "gladi.1"]) {
+      expect(() => parseDeployLabel(invalid), invalid).to.throw(ConfigError, /DEPLOY_LABEL .* tidak valid/);
+    }
   });
 
   it("alamat valid dinormalkan ke bentuk checksum dan kode properti bawaan SMR01", function () {
