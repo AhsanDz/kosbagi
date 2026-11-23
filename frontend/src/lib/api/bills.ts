@@ -1,5 +1,6 @@
 import { requestBackend } from "@/lib/api/client";
 import type {
+  BillDetailPayload,
   BillPaymentPayload,
   BillsPayload,
   CurrentBillPayload,
@@ -16,6 +17,16 @@ export function fetchCurrentBill(): Promise<CurrentBillPayload> {
 
 export function fetchBills(): Promise<BillsPayload> {
   return requestBackend<BillsPayload>(BILLS_KEY);
+}
+
+/** Kunci SWR satu tagihan, sekaligus alamat GET-nya. */
+export function billKey(billId: string): string {
+  return `/bills/${encodeURIComponent(billId)}`;
+}
+
+/** GET /bills/:id: tagihan beserta data kuitansi bila sudah lunas. */
+export function fetchBill(key: string): Promise<BillDetailPayload> {
+  return requestBackend<BillDetailPayload>(key);
 }
 
 /**

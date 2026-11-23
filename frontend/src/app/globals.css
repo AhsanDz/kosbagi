@@ -311,3 +311,55 @@
     }
   }
 }
+
+/*
+ * Cetak kuitansi (/penghuni/tagihan/[id]). Halaman yang punya [data-print-area]
+ * hanya mencetak area itu: sidebar, banner, header, remah roti, tombol, dan
+ * panel on-chain disembunyikan. Area cetak selalu memakai token mode Terang,
+ * jadi hasil cetak tetap sama walau halaman sedang dalam mode gelap.
+ */
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  html:has([data-print-area]),
+  body:has([data-print-area]) {
+    background: #fff;
+  }
+
+  body:has([data-print-area]) [data-slot="sidebar"],
+  body:has([data-print-area]) [data-print-hide],
+  body:has([data-print-area]) [data-print-area] ~ *,
+  body:has([data-print-area]) section:not([data-print-area]):has(~ [data-print-area]),
+  body:has([data-print-area]) .dark:not(html),
+  body:has([data-print-area]) [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  body:has([data-print-area]) #isi-utama > * {
+    padding: 0;
+  }
+
+  [data-print-area] {
+    --background: #ffffff;
+    --card: #ffffff;
+    --card-foreground: #0e0f0c;
+    --foreground: #0e0f0c;
+    --muted: #ecede8;
+    --muted-foreground: #5d6058;
+    --border: #d3d5cd;
+    --success: #d4f55a;
+    --success-foreground: #0e0f0c;
+    --success-muted: #e3f59b;
+    --success-muted-foreground: #2c3604;
+
+    width: 480px;
+    max-width: 100%;
+    margin-inline: auto;
+    border: 1px solid #d3d5cd;
+    break-inside: avoid;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

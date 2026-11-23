@@ -1,6 +1,6 @@
 import { keccak256, toUtf8Bytes } from 'ethers';
 import { describe, expect, it } from 'vitest';
-import { parseJobPayload, paymentReference } from './jobs.js';
+import { parseJobPayload, paymentReference, toChainPeriod, toChainRoom } from './jobs.js';
 
 const paymentRef = paymentReference('RENT-SMR01-K03-2026-11');
 const recordRent = { propertyCode: 'SMR01', roomNumber: 'K03', period: '2026-11', amountIdr: 1_500_000, paymentRef };
@@ -34,5 +34,29 @@ describe('parseJobPayload', () => {
     expect(() => parseJobPayload('RECORD_RENT', { ...recordRent, amountIdr: 0 })).toThrow();
     expect(() => parseJobPayload('RECORD_RENT', { ...recordRent, paymentRef: '0x123' })).toThrow();
     expect(() => parseJobPayload('TRANSFER_TOKENS', { propertyCode: 'SMR01' })).toThrow();
+  });
+});
+
+describe('argumen on-chain', () => {
+  it('kamar dan periode diubah seperti argumen recordRent', () => {
+    expect(toChainRoom('K03')).toBe(3);
+    expect(toChainRoom('K10')).toBe(10);
+    expect(toChainPeriod('2026-11')).toBe(202611);
+  });
+
+  it('menolak format yang tidak dikenal', () => {
+    expect(() => toChainRoom('03')).toThrow();
+    expect(() => toChainPeriod('2026-13')).toThrow();
+  });
+
+  it('isi TRANSFER_TOKENS hanya kode properti, alamat dompet, jumlah, dan hash', () => {
+    const transfer = {
+      propertyCode: 'SMR01',
+      walletAddress: `0x${'b'.repeat(40)}`,
+      tokenAmount: 100,
+      paymentRef: paymentReference('BUY-SMR01-0001'),
+    };
+    expect(parseJobPayload('TRANSFER_TOKENS', transfer)).toEqual(transfer);
+    expect(() => parseJobPayload('TRANSFER_TOKENS', { ...transfer, investorEmail: 'a@b.test' })).toThrow();
   });
 });

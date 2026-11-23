@@ -1,7 +1,10 @@
-// Skema basis data KosBagi v2 (progress 2).
+// Skema basis data KosBagi v3 (progress 3).
 // v1 (P1): pengguna, properti, kamar, tagihan sewa.
 // v2 (P2): pembayaran Midtrans, anomali, outbox job blockchain, transaksi chain, KYC dummy,
 //          dompet kustodian, penawaran, pembelian token, pengajuan pemilik kos.
+// v3 (P3): nomor pesanan token, bank virtual account, status UNFULFILLED, dua jenis anomali
+//          pembelian, dan CHECK jumlah token. Semua tambahan opsional atau berdefault, jadi seed
+//          jalur 1 dan worker jalur 3 yang memakai model v2 tetap jalan.
 //
 // Konvensi:
 // - Semua nilai uang dalam rupiah bilangan bulat (BigInt), tanpa pecahan.
@@ -10,7 +13,7 @@
 //   lewat @@map dan @map.
 // - ID memakai UUID v7: acak sehingga tidak bisa ditebak, tetapi terurut waktu.
 // - Aturan yang tidak bisa ditulis di file ini (index unik parsial, CHECK) ada di SQL migrasi
-//   skema_v2 dan dijelaskan di komentar model terkait.
+//   skema_v2 dan skema_v3, dan dijelaskan di komentar model terkait.
 //
 // Setelah mengubah file ini: npm run prisma:generate, lalu buat migrasi baru
 // dengan npm run db:migrate (butuh PostgreSQL yang sedang jalan).
@@ -54,9 +57,10 @@ enum BillStatus {
 enum PaymentStatus {
   PENDING /// menunggu dibayar, atau sedang dibuat di Midtrans (snap_token masih kosong)
   PAID /// terbayar dan melunasi tagihannya
-  DUPLICATE_PAID /// terbayar, tetapi tagihan sudah lunas lewat order lain; ada anomali DUPLICATE_BILL_PAYMENT
+  DUPLICATE_PAID /// terbayar, tetapi tagihan atau pesanan sudah lunas lewat order lain; ada anomali DUPLICATE_*
   EXPIRED /// Midtrans mengirim expire, atau digantikan percobaan baru setelah batas waktu lewat
   FAILED /// Midtrans mengirim cancel, deny, atau failure, atau transaksi gagal dibuat di Midtrans
+  UNFULFILLED /// terbayar setelah sisihan token lepas dan tokennya sudah habis; ada anomali PURCHASE_UNFULFILLABLE (v3)
 }
 
 /// Jenis notifikasi Midtrans yang tidak diproses normal dan perlu ditinjau manusia.
@@ -64,6 +68,8 @@ enum PaymentAnomalyType {
   AMOUNT_MISMATCH /// nominal notifikasi atau API status berbeda dari tagihan
   UNKNOWN_ORDER /// signature sah, tetapi order_id tidak dikenal
   DUPLICATE_BILL_PAYMENT /// dua order untuk satu tagihan sama-sama terbayar
+  DUPLICATE_PURCHASE_PAYMENT /// dua order untuk satu pesanan token sama-sama terbayar (v3)
+  PURCHASE_UNFULFILLABLE /// pesanan terbayar setelah sisihannya lepas, tetapi token sudah habis atau melewati batas 10% (v3)
 }
 
 /// Jenis job blockchain. Isi tiap jenis didefinisikan di src/queue/jobs.ts.
@@ -253,6 +259,9 @@ model Payment {
   status                PaymentStatus @default(PENDING)
   /// payment_type dari Midtrans, mis. bank_transfer, qris, gopay. Kosong sampai metode dipilih.
   method                String?
+  /// Bank virtual account, mis. bca atau permata, untuk teks "Virtual account BCA" di kuitansi.
+  /// Nomor virtual account sendiri tidak disimpan. Kosong untuk metode selain virtual account (v3).
+  bank                  String?
   /// Token Snap. Kosong selama transaksi belum berhasil dibuat di Midtrans.
   snapToken             String?       @map("snap_token")
   snapRedirectUrl       String?       @map("snap_redirect_url")
@@ -391,6 +400,7 @@ model CustodialWallet {
 }
 
 /// Penawaran token satu properti, mis. 12.600 token KB-SMR01.
+/// CHECK offerings_tokens_sold_check di SQL migrasi skema_v3: 0 <= tokens_sold <= tokens_offered.
 model Offering {
   id            String         @id @default(uuid(7)) @db.Uuid
   propertyId    String         @map("property_id") @db.Uuid
@@ -409,10 +419,14 @@ model Offering {
 }
 
 /// Pesanan token seorang investor. Dibayar lewat Payment berawalan BUY- (P3).
+/// CHECK token_purchases_token_amount_check di SQL migrasi skema_v3: token_amount > 0.
 model TokenPurchase {
   id            String              @id @default(uuid(7)) @db.Uuid
   offeringId    String              @map("offering_id") @db.Uuid
   investorId    String              @map("investor_id") @db.Uuid
+  /// order_id percobaan pertama, mis. BUY-SMR01-0003. Percobaan ulang bersufiks -2, -3.
+  /// Berurutan per properti. Opsional supaya baris yang dibuat tanpa API tetap sah (v3).
+  orderNumber   String?             @unique @map("order_number")
   tokenAmount   Int                 @map("token_amount")
   amountIdr     BigInt              @map("amount_idr")
   status        TokenPurchaseStatus @default(PENDING_PAYMENT)

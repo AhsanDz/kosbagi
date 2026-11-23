@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BuildingsIcon, SignOutIcon } from "@phosphor-icons/react/ssr";
@@ -29,6 +29,52 @@ function isActive(pathname: string, href: string, roleHome: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+interface RoleMenuListProps {
+  role: AppRole;
+  /** null selama alamat halaman belum diketahui (prarender rute dinamis). */
+  pathname: string | null;
+  onNavigate: () => void;
+}
+
+/** Daftar menu peran. Menu aktif ditandai latar sidebar-accent dan teks SemiBold (Figma: Item sidebar). */
+function RoleMenuList({ role, pathname, onNavigate }: RoleMenuListProps) {
+  const menu = roleMenus[role];
+  const roleHome = menu.items[0]?.href ?? `/${role}`;
+
+  return (
+    <SidebarMenu>
+      {menu.items.map((item) => {
+        const active = pathname !== null && isActive(pathname, item.href, roleHome);
+        const ItemIcon = item.icon;
+        return (
+          <SidebarMenuItem key={item.href}>
+            <SidebarMenuButton asChild isActive={active}>
+              <Link
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                onClick={onNavigate}
+              >
+                <ItemIcon aria-hidden />
+                <span>{item.label}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
+  );
+}
+
+/**
+ * Menu yang membaca alamat halaman. usePathname di rute dinamis (mis.
+ * /penghuni/tagihan/[id]) baru diketahui saat ada permintaan, jadi bagian ini
+ * dibungkus Suspense dengan menu tanpa tanda aktif sebagai pengganti sementara.
+ */
+function ActiveRoleMenu({ role, onNavigate }: Omit<RoleMenuListProps, "pathname">) {
+  const pathname = usePathname();
+  return <RoleMenuList role={role} pathname={pathname} onNavigate={onNavigate} />;
+}
+
 interface RoleSidebarProps {
   role: AppRole;
   /** Blok akun, dirender di server karena membaca sesi. */
@@ -41,11 +87,9 @@ interface RoleSidebarProps {
  * otomatis menjadi Sheet yang dibuka dari tombol menu di header.
  */
 export function RoleSidebar({ role, account }: RoleSidebarProps) {
-  const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
   const [signingOut, setSigningOut] = useState(false);
   const menu = roleMenus[role];
-  const roleHome = menu.items[0]?.href ?? `/${role}`;
   const closeMobile = () => setOpenMobile(false);
 
   function handleSignOut() {
@@ -67,26 +111,11 @@ export function RoleSidebar({ role, account }: RoleSidebarProps) {
         <SidebarGroup>
           <SidebarGroupLabel>{menu.groupLabel}</SidebarGroupLabel>
           <nav aria-label={menu.groupLabel}>
-            <SidebarMenu>
-              {menu.items.map((item) => {
-                const active = isActive(pathname, item.href, roleHome);
-                const ItemIcon = item.icon;
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={active}>
-                      <Link
-                        href={item.href}
-                        aria-current={active ? "page" : undefined}
-                        onClick={closeMobile}
-                      >
-                        <ItemIcon aria-hidden />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            <Suspense
+              fallback={<RoleMenuList role={role} pathname={null} onNavigate={closeMobile} />}
+            >
+              <ActiveRoleMenu role={role} onNavigate={closeMobile} />
+            </Suspense>
           </nav>
         </SidebarGroup>
       </SidebarContent>

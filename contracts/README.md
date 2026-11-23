@@ -26,34 +26,48 @@ Cara memasang dan menjalankan test ada di [README root](../README.md#menjalankan
 
 Catatan keamanan dependensi: `npm ci` melaporkan kerentanan tingkat high dan moderate. Sumbernya `zod` 3.25.76, yang dipakai Hardhat untuk memvalidasi file konfigurasi, serta `glob` dan `minimatch` lewat mocha dan typechain. Semuanya hanya ada di alat pengembangan dan tidak ikut ke kontrak yang di-deploy; `npm audit --omit=dev` menunjukkan 0. `npm audit fix --force` tidak boleh dijalankan karena menurunkan plugin ke versi Hardhat 2 dan merusak proyek.
 
-## Konfigurasi Sepolia (mulai progress 3)
+## Deploy Sepolia
 
-Deploy dan verifikasi memakai variabel environment. Salin `.env.example` menjadi `.env` di folder ini lalu isi nilainya:
+Deploy dan verifikasi memakai variabel environment dari file `.env` di folder ini (contohnya `.env.example`). Langkah lengkap, perkiraan ETH, dan pemecahan masalah ada di [`docs/kontrak/deploy-sepolia.md`](../docs/kontrak/deploy-sepolia.md).
 
 | Variabel | Isi |
 |---|---|
 | `SEPOLIA_RPC_URL` | URL RPC Sepolia dari Alchemy atau Infura |
-| `OPERATOR_PRIVATE_KEY` | Private key dompet operator (dompet khusus testnet) |
+| `ADMIN_PRIVATE_KEY` | Private key dompet admin: menandatangani deploy dan pencatatan dokumen. Hanya dipakai di folder ini, tidak pernah di backend |
+| `OPERATOR_PRIVATE_KEY` | Private key dompet operator: di folder ini hanya untuk mencocokkan alamat operator |
 | `ETHERSCAN_API_KEY` | API key Etherscan untuk verifikasi kontrak |
+| `ISSUANCE_DOCS_DIR` | Opsional, hanya untuk gladi lokal: folder lain berisi tiga dokumen penerbitan |
 
 File `.env` diabaikan Git dan **tidak boleh** di-commit. Alternatifnya, simpan nilai terenkripsi dengan `npx hardhat keystore set <NAMA_VARIABEL>`; variabel environment tetap diutamakan bila keduanya ada.
 
-Dompet admin (pemegang `DEFAULT_ADMIN_ROLE`) sebaiknya berbeda dari dompet operator. Saat deploy cukup alamatnya; kunci admin tidak perlu ada di `.env` backend. Alasannya dan prosedur darurat ada di rancangan kontrak bagian 3.1 dan 3.13.
+Dompet admin dan operator wajib berbeda; skrip deploy menolak bila sama. Alasannya dan prosedur darurat ada di rancangan kontrak bagian 3.1 dan 3.13, rancangan deploy di bagian 8.
+
+| Jaringan di `hardhat.config.ts` | Keterangan |
+|---|---|
+| `sepolia` | Akun 1 dari `ADMIN_PRIVATE_KEY`, akun 2 dari `OPERATOR_PRIVATE_KEY` |
+| `local8546` | Hardhat node khusus gladi deploy kontrak di port 8546, akun bawaan Hardhat. Port 8545 (`localhost`) dipakai Hardhat node layanan blockchain backend |
 
 ## Struktur
 
 ```
 contracts/
-├── contracts/          kode Solidity (KosToken.sol, KosLedger.sol)
-├── test/               test Hardhat TypeScript (mocha + chai)
-│   └── fixtures/       angka perhitungan manual dari jalur 1 (skenario 12)
-├── ignition/modules/   modul deploy Hardhat Ignition (LocalDeployment.ts untuk jaringan lokal)
-├── scripts/            export-abi.ts menyalin ABI ke backend/src/blockchain/abi/; verifikasi dan data demo on-chain menyusul di P3
-├── deployments/        alamat kontrak hasil deploy Sepolia
-├── hardhat.config.ts   versi compiler, profil build, jaringan Sepolia, verifikasi
-├── tsconfig.json       pengaturan TypeScript untuk test dan skrip
-├── .env.example        contoh variabel environment (tanpa nilai asli)
-└── package.json        dependensi dan perintah npm
+├── contracts/            kode Solidity (KosToken.sol, KosLedger.sol)
+├── test/                 test Hardhat TypeScript (mocha + chai)
+│   └── fixtures/         angka perhitungan manual dari jalur 1 (skenario 12)
+├── ignition/
+│   ├── modules/          LocalDeployment.ts (jaringan lokal) dan SepoliaDeployment.ts (deploy Sepolia + dokumen penerbitan)
+│   ├── parameters/       alamat dompet per jaringan: sepolia.json (diisi sebelum deploy), lokal.json (akun Hardhat)
+│   └── deployments/      jejak Hardhat Ignition per deployment, dibuat saat deploy
+├── scripts/
+│   ├── deploy.ts         deploy KosToken + KosLedger, catat tiga dokumen, periksa hasil, tulis deployments/
+│   ├── verify.ts         periksa bytecode lalu verifikasi kode sumber di Etherscan
+│   ├── export-abi.ts     salin ABI ke backend/src/blockchain/abi/
+│   └── lib/              fungsi bersama skrip (target jaringan, dokumen penerbitan, pemeriksaan, format hasil)
+├── deployments/          hasil deploy: sepolia.json (alamat, blok, dokumen, peran); lokal.json tidak ikut repo
+├── hardhat.config.ts     versi compiler, profil build, jaringan Sepolia dan lokal, verifikasi
+├── tsconfig.json         pengaturan TypeScript untuk test dan skrip
+├── .env.example          contoh variabel environment (tanpa nilai asli)
+└── package.json          dependensi dan perintah npm
 ```
 
-Folder hasil build (`artifacts/`, `cache/`, `types/`, `coverage/`) dibuat otomatis dan tidak ikut repo.
+Folder hasil build (`artifacts/`, `cache/`, `types/`, `coverage/`) dibuat otomatis dan tidak ikut repo, begitu juga hasil gladi lokal (`deployments/lokal.json`, `ignition/deployments/lokal-*/`) dan jejak Ignition Sepolia (`ignition/deployments/sepolia-smr01/`, disimpan koordinator di luar repo).

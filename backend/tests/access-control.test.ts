@@ -37,6 +37,11 @@ const protectedRoutes: ['get' | 'post', string, Role[]][] = [
   ['get', '/api/kyc', ['ADMIN']],
   ['post', `/api/kyc/${SOME_ID}/approve`, ['ADMIN']],
   ['post', `/api/kyc/${SOME_ID}/reject`, ['ADMIN']],
+  ['get', '/api/offerings/current', ['INVESTOR']],
+  ['post', `/api/offerings/${SOME_ID}/purchases`, ['INVESTOR']],
+  ['get', '/api/purchases', ['INVESTOR']],
+  ['get', `/api/purchases/${SOME_ID}`, ['INVESTOR']],
+  ['post', `/api/purchases/${SOME_ID}/payments`, ['INVESTOR']],
 ];
 
 describe('tanpa token', () => {
@@ -106,6 +111,16 @@ describe('id bukan UUID', () => {
     expect(pay.status).toBe(404);
   });
 
+  it('penawaran dan pesanan dibalas 404 tanpa menyentuh basis data', async () => {
+    const authorization = await bearer('INVESTOR');
+
+    const buy = await request(app).post('/api/offerings/bukan-uuid/purchases').set('Authorization', authorization).send({ tokenAmount: 1 });
+    const read = await request(app).get('/api/purchases/bukan-uuid').set('Authorization', authorization);
+    const pay = await request(app).post('/api/purchases/bukan-uuid/payments').set('Authorization', authorization);
+
+    expect([buy.status, read.status, pay.status]).toEqual([404, 404, 404]);
+  });
+
   it('KYC dibalas 404 tanpa menyentuh basis data', async () => {
     const res = await request(app).post('/api/kyc/bukan-uuid/approve').set('Authorization', await bearer('ADMIN'));
 
@@ -135,6 +150,25 @@ describe('validasi body', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.details[0].path).toBe('reason');
+  });
+
+  it('alasan penolakan KYC paling banyak 300 karakter', async () => {
+    const res = await request(app)
+      .post(`/api/kyc/${SOME_ID}/reject`)
+      .set('Authorization', await bearer('ADMIN'))
+      .send({ reason: 'x'.repeat(301) });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('jumlah token pesanan harus bilangan bulat positif', async () => {
+    const res = await request(app)
+      .post(`/api/offerings/${SOME_ID}/purchases`)
+      .set('Authorization', await bearer('INVESTOR'))
+      .send({ tokenAmount: 0 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.details[0].path).toBe('tokenAmount');
   });
 
   it('daftar KYC menolak status yang tidak dikenal', async () => {

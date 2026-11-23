@@ -12,12 +12,21 @@ declare module 'midtrans-client' {
     };
   }
 
+  /** Core API. Di KosBagi hanya dipakai skrip demo:bayar-sewa untuk membuat virtual account. */
+  export class CoreApi {
+    constructor(options: { isProduction: boolean; serverKey: string });
+    charge(parameter: object): Promise<unknown>;
+    httpClient: {
+      http_client: { defaults: { timeout: number } };
+    };
+  }
+
   export class MidtransError extends Error {
     /** Bisa berupa angka, teks dari body respons, atau null bila koneksi gagal. */
     httpStatusCode: number | string | null;
     ApiResponse: { error_messages?: string[] } | null;
   }
 
-  const midtransClient: { Snap: typeof Snap; MidtransError: typeof MidtransError };
+  const midtransClient: { Snap: typeof Snap; CoreApi: typeof CoreApi; MidtransError: typeof MidtransError };
   export default midtransClient;
 }

@@ -6,7 +6,16 @@ import { createRequire } from 'node:module';
 import type { AxiosAdapter, AxiosStatic } from 'axios';
 import midtransClient from 'midtrans-client';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { midtrans, MidtransUnavailableError, PAYMENT_WINDOW_MINUTES, SNAP_ENABLED_PAYMENTS } from './midtrans.js';
+import {
+  enabledPaymentsFor,
+  midtrans,
+  MidtransUnavailableError,
+  OrderIdTakenError,
+  PAYMENT_WINDOW_MINUTES,
+  SNAP_ENABLED_PAYMENTS,
+  VIRTUAL_ACCOUNT_PAYMENTS,
+  virtualAccountBank,
+} from './midtrans.js';
 
 const requests: { url: string; data: string; auth: { username: string } }[] = [];
 const respond: { current: () => { status: number; data: unknown } } = { current: () => ({ status: 200, data: {} }) };
@@ -66,6 +75,118 @@ describe('createSnapTransaction', () => {
     respond.current = () => ({ status: 401, data: { error_messages: ['Access denied'] } });
 
     await expect(midtrans.createSnapTransaction(snapInput)).rejects.toBeInstanceOf(MidtransUnavailableError);
+  });
+
+  it('kode 406 (order_id sudah dipakai) menjadi OrderIdTakenError', async () => {
+    respond.current = () => ({ status: 406, data: { status_code: '406', status_message: 'Duplicate order ID.' } });
+
+    await expect(midtrans.createSnapTransaction(snapInput)).rejects.toBeInstanceOf(OrderIdTakenError);
+  });
+});
+
+describe('pembelian token lewat Snap', () => {
+  it('di atas Rp10.000.000 hanya virtual account, sampai batas itu semua metode', () => {
+    expect(enabledPaymentsFor(10_000_000n)).toEqual(SNAP_ENABLED_PAYMENTS);
+    expect(enabledPaymentsFor(10_100_000n)).toEqual(VIRTUAL_ACCOUNT_PAYMENTS);
+  });
+
+  it('mengirim jumlah token sebagai quantity dan metode yang dibatasi', async () => {
+    respond.current = () => ({ status: 201, data: { token: 'tok-2', redirect_url: 'https://snap.test/tok-2' } });
+
+    await midtrans.createSnapTransaction({
+      ...snapInput,
+      orderId: 'BUY-SMR01-0001',
+      amountIdr: 50_000_000n,
+      itemName: 'Token KB-SMR01',
+      quantity: 500,
+      enabledPayments: VIRTUAL_ACCOUNT_PAYMENTS,
+    });
+
+    const body = JSON.parse(requests[0]?.data ?? '{}');
+    expect(body.transaction_details).toEqual({ order_id: 'BUY-SMR01-0001', gross_amount: 50_000_000 });
+    expect(body.item_details).toEqual([{ id: 'BUY-SMR01-0001', name: 'Token KB-SMR01', price: 100_000, quantity: 500 }]);
+    expect(body.enabled_payments).toEqual(['bca_va', 'bni_va', 'bri_va', 'permata_va']);
+  });
+});
+
+describe('chargeBankTransfer (skrip demo)', () => {
+  const chargeInput = {
+    orderId: 'RENT-SMR01-K01-2026-11',
+    amountIdr: 1_500_000n,
+    itemName: 'Sewa K01 2026-11',
+    bank: 'bca' as const,
+    customer: { name: 'Bagus Nugroho', email: 'penghuni.k01.dummy@kosbagi.test' },
+    startsAt: new Date('2026-11-05T03:00:00.000Z'),
+  };
+
+  it('membuat virtual account BCA lewat Core API sandbox dengan batas 5 menit', async () => {
+    respond.current = () => ({
+      status: 200,
+      data: {
+        status_code: '201',
+        transaction_id: 'trx-va',
+        transaction_status: 'pending',
+        va_numbers: [{ bank: 'bca', va_number: '12345678901' }],
+      },
+    });
+
+    await expect(midtrans.chargeBankTransfer(chargeInput)).resolves.toEqual({
+      transactionId: 'trx-va',
+      bank: 'bca',
+      vaNumber: '12345678901',
+    });
+
+    expect(requests[0]?.url).toBe('https://api.sandbox.midtrans.com/v2/charge');
+    const body = JSON.parse(requests[0]?.data ?? '{}');
+    expect(body).toMatchObject({
+      payment_type: 'bank_transfer',
+      bank_transfer: { bank: 'bca' },
+      transaction_details: { order_id: 'RENT-SMR01-K01-2026-11', gross_amount: 1_500_000 },
+      custom_expiry: { order_time: '2026-11-05 10:00:00 +0700', expiry_duration: 5, unit: 'minute' },
+    });
+  });
+
+  it('Permata memakai payment_type sendiri dan permata_va_number', async () => {
+    respond.current = () => ({
+      status: 200,
+      data: { status_code: '201', transaction_id: 'trx-p', transaction_status: 'pending', permata_va_number: '8562000' },
+    });
+
+    await expect(midtrans.chargeBankTransfer({ ...chargeInput, bank: 'permata' })).resolves.toMatchObject({
+      vaNumber: '8562000',
+    });
+    const body = JSON.parse(requests[0]?.data ?? '{}');
+    expect(body.payment_type).toBe('permata');
+    expect(body.bank_transfer).toBeUndefined();
+  });
+
+  it('jawaban tanpa nomor VA atau error Midtrans menjadi MidtransUnavailableError', async () => {
+    respond.current = () => ({ status: 200, data: { status_code: '201', transaction_id: 'x', transaction_status: 'pending' } });
+    await expect(midtrans.chargeBankTransfer(chargeInput)).rejects.toBeInstanceOf(MidtransUnavailableError);
+
+    respond.current = () => ({ status: 200, data: { status_code: '500', status_message: 'Internal error' } });
+    await expect(midtrans.chargeBankTransfer(chargeInput)).rejects.toBeInstanceOf(MidtransUnavailableError);
+  });
+
+  it('status_code 406 di body (bentuk jawaban sandbox untuk order_id terpakai) menjadi OrderIdTakenError', async () => {
+    respond.current = () => ({
+      status: 200,
+      data: {
+        status_code: '406',
+        status_message:
+          'The request could not be completed due to a conflict with the current state of the target resource, please try again',
+      },
+    });
+
+    await expect(midtrans.chargeBankTransfer(chargeInput)).rejects.toBeInstanceOf(OrderIdTakenError);
+  });
+});
+
+describe('virtualAccountBank', () => {
+  it('membaca bank dari va_numbers atau permata_va_number', () => {
+    expect(virtualAccountBank({ va_numbers: [{ bank: 'bni', va_number: '1' }] })).toBe('bni');
+    expect(virtualAccountBank({ permata_va_number: '1' })).toBe('permata');
+    expect(virtualAccountBank({})).toBeNull();
   });
 });
 
@@ -129,6 +250,7 @@ describe('getTransactionStatus', () => {
 describe('midtrans-client', () => {
   it('mengekspor kelas yang dibungkus modul ini', () => {
     expect(midtransClient.Snap).toBeTypeOf('function');
+    expect(midtransClient.CoreApi).toBeTypeOf('function');
     expect(midtransClient.MidtransError).toBeTypeOf('function');
   });
 });

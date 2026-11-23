@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { type BillWithPayments, leaseEndPeriod, toBillDto, toTenantRoomDto } from './dto.js';
+import { paymentReference } from '../../queue/jobs.js';
+import {
+  type BillWithDetail,
+  type BillWithPayments,
+  leaseEndPeriod,
+  toBillDetailDto,
+  toBillDto,
+  toTenantRoomDto,
+} from './dto.js';
 
 const now = new Date('2026-11-05T03:02:00.000Z');
 const later = new Date('2026-11-05T03:05:00.000Z');
@@ -17,6 +25,7 @@ function payment(overrides: Partial<PaymentRow> = {}): PaymentRow {
     amountIdr: 1_500_000n,
     status: 'PENDING',
     method: null,
+    bank: null,
     snapToken: 'snap-token',
     snapRedirectUrl: 'https://snap.test',
     providerStatus: null,
@@ -113,11 +122,11 @@ describe('toBillDto', () => {
     });
   });
 
-  it('tagihan lunas dari seed tanpa percobaan: PAID tanpa payment', () => {
+  it('tagihan lunas dari seed tanpa percobaan: NOT_RECORDED, tanpa payment dan tanpa tautan', () => {
     expect(toBillDto(bill({ status: 'PAID', paidAt: earlier }), now)).toMatchObject({
       paymentState: 'PAID',
       payment: null,
-      chain: { status: 'PENDING', txHash: null, blockNumber: null },
+      chain: { status: 'NOT_RECORDED', txHash: null, blockNumber: null },
     });
   });
 
@@ -145,6 +154,98 @@ describe('toBillDto', () => {
   });
 });
 
+describe('toBillDetailDto: kuitansi', () => {
+  const LEDGER = '0x2b9c000000000000000000000000000000007e10';
+  const orderId = 'RENT-SMR01-K03-2026-11';
+  const paidAt = new Date('2026-11-09T03:42:00.000Z');
+
+  function detail(overrides: Partial<BillWithDetail> = {}): BillWithDetail {
+    return {
+      ...bill(),
+      tenant: { name: 'Sari Wulandari' },
+      room: {
+        id: 'room-1',
+        propertyId: 'prop-1',
+        number: 'K03',
+        monthlyRentIdr: 1_500_000n,
+        status: 'OCCUPIED',
+        tenantId: 'tenant-1',
+        createdAt: earlier,
+        updatedAt: earlier,
+        property: { code: 'SMR01', name: 'Kos Sumbersari 01' },
+      },
+      ...overrides,
+    } as BillWithDetail;
+  }
+
+  function paidPayment(chain?: { status: string; txHash: string | null; blockNumber: bigint | null }) {
+    const outboxJob = {
+      payload: { propertyCode: 'SMR01', roomNumber: 'K03', period: '2026-11', amountIdr: 1_500_000, paymentRef: paymentReference(orderId) },
+      chainTransactions: chain ? [chain] : [],
+    } as unknown as PaymentRow['outboxJob'];
+    return payment({
+      status: 'PAID',
+      paidAt,
+      method: 'bank_transfer',
+      bank: 'bca',
+      providerTransactionId: '7c1d0e5a-b2f4',
+      outboxJob,
+    });
+  }
+
+  it('belum lunas: receipt null', () => {
+    expect(toBillDetailDto(detail(), now, LEDGER).receipt).toBeNull();
+  });
+
+  it('lunas dan tercatat: argumen recordRent persis ditambah hasil transaksi', () => {
+    const dto = toBillDetailDto(
+      detail({
+        status: 'PAID',
+        paidAt,
+        payments: [paidPayment({ status: 'RECORDED', txHash: '0xabc', blockNumber: 7_148_220n })],
+      }),
+      now,
+      LEDGER,
+    );
+
+    expect(dto.receipt).toEqual({
+      orderId,
+      transactionId: '7c1d0e5a-b2f4',
+      method: 'bank_transfer',
+      bank: 'bca',
+      paidAt,
+      tenantName: 'Sari Wulandari',
+      propertyCode: 'SMR01',
+      propertyName: 'Kos Sumbersari 01',
+      roomNumber: 'K03',
+      onChain: {
+        room: 3,
+        period: 202611,
+        amountIdr: 1_500_000,
+        paymentRef: paymentReference(orderId),
+        contractAddress: LEDGER,
+        txHash: '0xabc',
+        blockNumber: 7_148_220,
+      },
+    });
+    expect(dto.chain).toEqual({ status: 'RECORDED', txHash: '0xabc', blockNumber: 7_148_220 });
+  });
+
+  it('lunas, menunggu pencatatan: argumen sudah ada, hash masih null', () => {
+    const dto = toBillDetailDto(detail({ status: 'PAID', paidAt, payments: [paidPayment()] }), now, null);
+
+    expect(dto.receipt?.onChain).toMatchObject({ room: 3, period: 202611, contractAddress: null, txHash: null, blockNumber: null });
+    expect(dto.chain?.status).toBe('PENDING');
+  });
+
+  it('data lampau seed: kuitansi tanpa order dan tanpa catatan on-chain', () => {
+    const dto = toBillDetailDto(detail({ status: 'PAID', paidAt: earlier }), now, LEDGER);
+
+    expect(dto.chain?.status).toBe('NOT_RECORDED');
+    expect(dto.receipt).toMatchObject({ orderId: null, method: null, paidAt: earlier, onChain: null, roomNumber: 'K03' });
+  });
+});
+
 describe('leaseEndPeriod', () => {
   it('masa sewa 12 bulan', () => {
     expect(leaseEndPeriod('2026-08')).toBe('2027-07');
@@ -157,7 +258,7 @@ describe('toTenantRoomDto', () => {
   const room = {
     number: 'K03',
     monthlyRentIdr: 1_500_000n,
-    property: { name: 'Kos Sumbersari 01', code: 'SMR01' },
+    property: { name: 'Kos Sumbersari 01', code: 'SMR01', address: 'Jl. Sumbersari, Malang (dummy)', manager: { name: 'Hadi Santoso' } },
   } as Parameters<typeof toTenantRoomDto>[0];
 
   it('menurunkan masa sewa dan tanggal jatuh tempo dari tagihan', () => {
@@ -165,6 +266,8 @@ describe('toTenantRoomDto', () => {
       number: 'K03',
       propertyName: 'Kos Sumbersari 01',
       propertyCode: 'SMR01',
+      propertyAddress: 'Jl. Sumbersari, Malang (dummy)',
+      managerName: 'Hadi Santoso',
       monthlyRentIdr: 1_500_000,
       leaseStart: '2026-08',
       leaseEnd: '2027-07',
@@ -174,5 +277,17 @@ describe('toTenantRoomDto', () => {
 
   it('kamar tanpa tagihan: masa sewa null', () => {
     expect(toTenantRoomDto(room, null, null)).toMatchObject({ leaseStart: null, leaseEnd: null, dueDay: null });
+  });
+});
+
+describe('toTenantRoomDto: pengelola', () => {
+  it('properti tanpa pengelola: managerName null', () => {
+    const room = {
+      number: 'K03',
+      monthlyRentIdr: 1_500_000n,
+      property: { name: 'Kos Sumbersari 01', code: 'SMR01', address: 'Alamat', manager: null },
+    } as Parameters<typeof toTenantRoomDto>[0];
+
+    expect(toTenantRoomDto(room, null, null).managerName).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
-import { requestJson } from "@/lib/api/client";
-import type { SessionPayload } from "@/lib/api/types";
+import { requestBackend, requestJson } from "@/lib/api/client";
+import type { SessionPayload, SessionUser } from "@/lib/api/types";
 import { LOGIN_PATH, roleHomePath, toAppRole } from "@/lib/auth/roles";
 
 const SESSION_URL = "/api/session";
@@ -26,4 +26,12 @@ export async function signIn(email: string, password: string): Promise<never> {
 export async function signOut(): Promise<void> {
   await fetch(SESSION_URL, { method: "DELETE" }).catch(() => undefined);
   window.location.assign(LOGIN_PATH);
+}
+
+/** Kunci SWR sekaligus alamat GET pengguna yang sedang masuk. */
+export const CURRENT_USER_KEY = "/auth/me";
+
+/** GET /auth/me lewat penerus API: nama akun untuk mengisi form KYC. */
+export function fetchCurrentUser(): Promise<{ user: SessionUser }> {
+  return requestBackend<{ user: SessionUser }>(CURRENT_USER_KEY);
 }

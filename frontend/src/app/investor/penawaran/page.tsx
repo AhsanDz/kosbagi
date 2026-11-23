@@ -1,21 +1,32 @@
 import type { Metadata } from "next";
 
 import { AppHeader } from "@/components/app-shell/app-header";
-import { ContentSkeleton } from "@/components/app-shell/content-skeleton";
+import { OfferingDocuments, OfferingRisks } from "@/components/investor/offering-info";
+import { OfferingPage } from "@/components/investor/offering-page";
 import { offerings } from "@/lib/data/offering";
 import { formatDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Penawaran token" };
 
 /**
- * Penawaran token: pilih jumlah token lalu bayar lewat Midtrans Snap.
- * Progress 1: kerangka memuat sesuai desain app shell; isinya dibangun di progress 3.
+ * Penawaran token KB-SMR01: sisa penawaran dan kuota dari API, Tiket beli
+ * dengan pemeriksaan skenario 8 dan 9 sebelum pembayaran, lalu bayar lewat
+ * Midtrans Snap. Kartu dokumen dan risiko statis dirender di server.
  */
 export default function InvestorOfferingPage() {
+  const closesAt = formatDate(offerings[0]?.closesAt ?? "2026-12-31");
+
   return (
     <>
-      <AppHeader title="Penawaran" description={`Penawaran KB-SMR01 dibuka sampai ${formatDate(offerings[0]?.closesAt ?? "2026-12-31")}`} />
-      <ContentSkeleton />
+      <AppHeader
+        title="Penawaran"
+        description={
+          <>
+            <span className="hidden md:inline">Penawaran </span>KB-SMR01 dibuka sampai {closesAt}
+          </>
+        }
+      />
+      <OfferingPage documents={<OfferingDocuments />} risks={<OfferingRisks />} />
     </>
   );
 }

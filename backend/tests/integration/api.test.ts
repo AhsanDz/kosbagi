@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createApp } from '../../src/app.js';
 import { prisma } from '../../src/lib/prisma.js';
 import { verifyAccessToken } from '../../src/lib/jwt.js';
+import { paymentReference } from '../../src/queue/jobs.js';
 import { bearer, DEMO_PASSWORD, FakeMidtrans, notifyStatus, RENT_IDR, resetDatabase, seedFixture, startPayment } from './helpers.js';
 
 let app: Express;
@@ -121,6 +122,8 @@ describe('tagihan penghuni', () => {
       number: 'K03',
       propertyName: 'Kos Sumbersari 01',
       propertyCode: 'SMR01',
+      propertyAddress: 'Jl. Sumbersari, Malang',
+      managerName: 'Pengelola Uji',
       monthlyRentIdr: RENT_IDR,
       leaseStart: '2026-08',
       leaseEnd: '2027-07',
@@ -181,6 +184,70 @@ describe('tagihan penghuni', () => {
     const res = await get(`/api/bills/${fixture.bill.id}`, authorization);
 
     expect(res.body.data.bill.chain).toEqual({ status: 'RECORDED', txHash: '0xabc', blockNumber: 123 });
+  });
+
+  it('GET /api/bills/:id: kuitansi berisi argumen recordRent persis dan alamat KosLedger', async () => {
+    const fake = new FakeMidtrans();
+    const authorization = await bearer(fixture.tenant);
+    await startPayment(app, fixture.bill.id, authorization);
+    await notifyStatus(app, fake, 'RENT-SMR01-K03-2026-11', { va_numbers: [{ bank: 'bca', va_number: '12345' }] });
+
+    const pending = await get(`/api/bills/${fixture.bill.id}`, authorization);
+
+    expect(pending.body.data.bill.receipt).toEqual({
+      orderId: 'RENT-SMR01-K03-2026-11',
+      transactionId: 'trx-RENT-SMR01-K03-2026-11',
+      method: 'bank_transfer',
+      bank: 'bca',
+      paidAt: pending.body.data.bill.paidAt,
+      tenantName: 'Penghuni Uji',
+      propertyCode: 'SMR01',
+      propertyName: 'Kos Sumbersari 01',
+      roomNumber: 'K03',
+      onChain: {
+        room: 3,
+        period: 202611,
+        amountIdr: RENT_IDR,
+        paymentRef: paymentReference('RENT-SMR01-K03-2026-11'),
+        contractAddress: '0x2b9c000000000000000000000000000000007e10',
+        txHash: null,
+        blockNumber: null,
+      },
+    });
+    // Nomor virtual account tidak pernah disimpan, hanya banknya.
+    expect(JSON.stringify(pending.body)).not.toContain('12345');
+
+    const job = await prisma.outboxJob.findFirstOrThrow();
+    await prisma.chainTransaction.create({
+      data: { outboxJobId: job.id, reference: '0xref', status: 'RECORDED', txHash: '0x8f3a', blockNumber: 7_148_220n },
+    });
+    const recorded = await get(`/api/bills/${fixture.bill.id}`, authorization);
+    expect(recorded.body.data.bill.receipt.onChain).toMatchObject({ txHash: '0x8f3a', blockNumber: 7_148_220 });
+  });
+
+  it('GET /api/bills/:id: tagihan lampau tanpa pembayaran Midtrans tercatat NOT_RECORDED', async () => {
+    const past = await prisma.bill.create({
+      data: {
+        roomId: fixture.room.id,
+        tenantId: fixture.tenant.id,
+        period: '2026-08',
+        amountIdr: BigInt(RENT_IDR),
+        status: 'PAID',
+        paidAt: new Date('2026-08-06T03:00:00.000Z'),
+        dueDate: new Date('2026-08-10'),
+      },
+    });
+
+    const res = await get(`/api/bills/${past.id}`, await bearer(fixture.tenant));
+
+    expect(res.body.data.bill.chain).toEqual({ status: 'NOT_RECORDED', txHash: null, blockNumber: null });
+    expect(res.body.data.bill.receipt).toMatchObject({ orderId: null, method: null, onChain: null, roomNumber: 'K03' });
+  });
+
+  it('GET /api/bills/:id: tagihan belum lunas tanpa kuitansi', async () => {
+    const res = await get(`/api/bills/${fixture.bill.id}`, await bearer(fixture.tenant));
+
+    expect(res.body.data.bill).toMatchObject({ status: 'UNPAID', receipt: null, chain: null });
   });
 });
 
@@ -266,6 +333,7 @@ describe('KYC dummy', () => {
       .set('Authorization', admin);
     expect(approved.status).toBe(200);
     expect(approved.body.data.kyc.status).toBe('APPROVED');
+    expect(approved.body.data.wallet.whitelist.status).toBe('PENDING');
     expect(approved.body.data.kyc.reviewedAt).not.toBeNull();
 
     const after = await request(app).get('/api/kyc/me').set('Authorization', investor);

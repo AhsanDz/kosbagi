@@ -2,7 +2,7 @@
 
 | Folder / file | Isi | Jalur |
 |---|---|---|
-| [`bisnis/`](bisnis/) | Model bisnis, asumsi & unit ekonomi, proyeksi keuangan, perhitungan distribusi, business case | 1 |
+| [`bisnis/`](bisnis/) | Model bisnis, asumsi & unit ekonomi, proyeksi keuangan, perhitungan distribusi, dokumen penerbitan dummy, business case | 1 |
 | [`regulasi/`](regulasi/) | Peta regulasi dan strategi kepatuhan | 1 |
 | [`log-ide/`](log-ide/) | Log pengembangan ide: catatan diskusi dan keputusan tiap pertemuan | 1 |
 | [`presentasi/`](presentasi/) | Kerangka slide dan naskah demo | 1 |
