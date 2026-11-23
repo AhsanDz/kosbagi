@@ -1,6 +1,6 @@
 # Perhitungan Manual Distribusi Bagi Hasil
 
-Status: ditetapkan 2 November 2026 (P2). Keputusan pembulatan dicatat di [log ide](../log-ide/2026-11-02-keputusan-progress-2.md).
+Status: ditetapkan 2 November 2026 (P2), ditambah bagian perbendaharaan 16 November 2026 (P4). Keputusan pembulatan dicatat di [log ide](../log-ide/2026-11-02-keputusan-progress-2.md) dan keputusan bagian perbendaharaan di [log ide 16 November 2026](../log-ide/2026-11-16-keputusan-progress-4.md).
 
 Dokumen ini menjelaskan cara menghitung bagi hasil satu periode sewa, dari sewa yang masuk sampai bagian tiap pemegang token. Angka di sini sama dengan fixture [`contracts/test/fixtures/distribusi-manual.json`](../../contracts/test/fixtures/distribusi-manual.json), yang menjadi acuan skenario uji 12. Kontrak `KosLedger`, kalkulator `backend/src/finance/`, dan dokumen ini harus menghasilkan angka yang sama.
 
@@ -134,21 +134,77 @@ Nominal buatan untuk menguji pembulatan. Di kasus lain fee selalu habis dibagi, 
 
 Sisa pembulatan = **Rp7**, tetap lebih kecil dari jumlah pemegang (8).
 
-## 6. Yang belum diputuskan
+## 6. Kasus 5: demo November 2026 dan bagian perbendaharaan
+
+Kasus 1 sampai 4 memakai saldo yang seluruhnya sudah dipegang pemilik lama dan investor. Di demo prototipe, penawaran KB-SMR01 belum habis saat November ditutup, jadi sebagian token masih ada di dompet perbendaharaan properti. Keputusan 16 November 2026 (K1): bagian token itu dihitung dengan rumus yang sama, lalu ditambahkan ke saldo pemilik lama sebagai baris tersendiri.
+
+### Saldo di blok snapshot
+
+| Pemegang | Saldo | Asal |
+|---|---|---|
+| Pemilik lama | 5.400 | Alokasi saat penerbitan |
+| Bagas | 1.800 | Dibeli lewat skrip persiapan demo |
+| Citra | 1.200 | Dibeli lewat skrip persiapan demo |
+| Eko | 800 | Dibeli lewat skrip persiapan demo |
+| Fajar | 560 | Dibeli lewat skrip persiapan demo |
+| Dimas | 100 | Dibeli saat demo, sebelum periode ditutup |
+| Perbendaharaan | 8.140 | 12.600 − 4.460 token yang sudah terjual |
+| **Jumlah** | **18.000** | Sama dengan total suplai |
+
+Pembelian Dimas harus sudah tercatat on-chain sebelum `closePeriod`. Token yang pindah sesudah blok snapshot baru ikut di periode berikutnya.
+
+### Angka periode
+
+| Langkah | Hitungan | Hasil |
+|---|---|---|
+| Sewa kotor | 9 × Rp1.500.000 | Rp13.500.000 |
+| Biaya | Rp2.400.000 (nota yang disiapkan skrip) + Rp300.000 (nota perbaikan K07 saat demo) | Rp2.700.000 |
+| Fee pengelolaan | 5% × Rp13.500.000 | Rp675.000 |
+| Laba kena pajak | Rp13.500.000 − Rp675.000 − Rp2.700.000 | Rp10.125.000 |
+| Pajak | 22% × Rp10.125.000 | Rp2.227.500 |
+| Sewa bersih | Rp10.125.000 − Rp2.227.500 | Rp7.897.500 |
+| Nilai per token | 43.875 sen | Rp438,75 |
+
+Angkanya sama dengan kasus 1 karena sewa dan biaya sama; yang berbeda hanya pembagiannya.
+
+### Bagian tiap pemegang
+
+| Baris distribusi | Saldo | Hitungan | Bagian | Masuk ke saldo |
+|---|---|---|---|---|
+| Pemilik lama | 5.400 | Rp7.897.500 × 5.400 ÷ 18.000 | Rp2.369.250 | Pemilik lama |
+| Bagas | 1.800 | Rp7.897.500 × 1.800 ÷ 18.000 | Rp789.750 | Bagas |
+| Citra | 1.200 | Rp7.897.500 × 1.200 ÷ 18.000 | Rp526.500 | Citra |
+| Eko | 800 | Rp7.897.500 × 800 ÷ 18.000 | Rp351.000 | Eko |
+| Fajar | 560 | Rp7.897.500 × 560 ÷ 18.000 | Rp245.700 | Fajar |
+| Dimas | 100 | Rp7.897.500 × 100 ÷ 18.000 | Rp43.875 | Dimas |
+| Bagian perbendaharaan (8.140 token belum terjual) | 8.140 | Rp7.897.500 × 8.140 ÷ 18.000 | Rp3.571.425 | Pemilik lama |
+| Sisa pembulatan | | Rp7.897.500 − Rp7.897.500 | Rp0 | Cadangan periode |
+
+Saldo pemilik lama bertambah Rp2.369.250 + Rp3.571.425 = **Rp5.940.675** pada periode ini. Sisa pembulatan Rp0 karena semua saldo kelipatan 4, sama seperti kasus 1.
+
+### Aturan dan alasannya
+
+- **Dihitung seperti pemegang lain.** Dompet perbendaharaan ikut dalam `distribute()` dengan saldonya di blok snapshot, jadi jumlah saldo tetap sama dengan total suplai dan sisa pembulatan tetap lebih kecil dari jumlah pemegang. `KosLedger.shareOf(periode, 8.140)` memberi angka yang sama.
+- **Tujuannya pemilik lama.** Selama token belum terjual, hak manfaat ekonominya masih milik pemilik lama, karena penjual hanya melepas token yang benar-benar dibeli investor. Investor tidak dirugikan: bagian per token mereka tetap Rp438,75.
+- **Baris tersendiri.** Bagian perbendaharaan tidak digabung ke baris pemilik lama, supaya terlihat berapa yang berasal dari 5.400 token miliknya dan berapa dari token yang belum terjual.
+- **Seiring penawaran berjalan**, saldo perbendaharaan berkurang dan bagiannya mengecil. Setelah penawaran habis, baris ini bernilai Rp0 dan tidak ditampilkan lagi.
+
+Test kalkulator `backend/src/finance/distribution.test.ts` ("demo November") mencocokkan seluruh tabel ini. Kasus ini tidak dimasukkan ke fixture `distribusi-manual.json`, karena test kontrak jalur 3 membentuk saldo setiap pemegang fixture lewat `transferFromTreasury` ke alamat biasa, sedangkan 8.140 token melebihi batas 10% untuk alamat selain dompet pemilik lama dan perbendaharaan.
+
+## 7. Yang belum diputuskan
 
 | Hal | Status |
 |---|---|
-| Bagian token yang masih di dompet perbendaharaan | Diputuskan di P4. Karena itu semua kasus di atas memakai saldo yang seluruhnya sudah dipegang pemilik lama dan investor |
 | Pemakaian saldo cadangan dari sisa pembulatan | Belum diputuskan; di prototipe cukup dicatat per periode |
-| Penalangan kas saat biaya melebihi sewa | Dibahas di bab risiko business case |
+| Penalangan kas saat biaya melebihi sewa | Dibahas di bab risiko [business case](business-case.md); kandidatnya dana cadangan setara satu bulan sewa |
 
-## 7. Cara memeriksa
+## 8. Cara memeriksa
 
 1. Hitung ulang satu kasus dengan kalkulator mengikuti tabel aturan di bagian 1.
 2. Cocokkan hasilnya dengan kasus yang sama di fixture. Nama field fixture mengikuti kolom terakhir bagian 1.
 3. Di P2, test `closePeriod` memakai angka kasus 1 yang ditulis langsung di file test. Mulai P3, test kontrak dan test kalkulator backend sama-sama membaca fixture ini.
 
-## 8. Kalkulator backend
+## 9. Kalkulator backend
 
 Mulai P3, aturan bagian 1 juga tersedia sebagai fungsi murni di [`backend/src/finance/`](../../backend/src/finance/). Semua nominal bertipe `bigint` dan setiap pembagian dibulatkan ke bawah, sama dengan `Math.mulDiv` di `KosLedger`.
 
@@ -160,7 +216,7 @@ Mulai P3, aturan bagian 1 juga tersedia sebagai fungsi murni di [`backend/src/fi
 | 3 sampai 7 sekaligus | `calculatePeriod({ grossRent, totalExpenses, totalSupply })` | `closePeriod`, termasuk penolakan periode kosong dan suplai 0 |
 | 7 | `calculateValuePerTokenSen(sewaBersih, totalSuplai)` | `valuePerTokenSen` |
 | 8 | `calculateShare(sewaBersih, saldo, totalSuplai)` | `shareOf` |
-| 8 dan 9 untuk semua pemegang | `distribute(sewaBersih, totalSuplai, pemegang)` | dihitung backend; jumlah saldo wajib sama dengan total suplai |
+| 8 dan 9 untuk semua pemegang | `distribute(sewaBersih, totalSuplai, pemegang)` | dihitung backend; jumlah saldo wajib sama dengan total suplai, termasuk dompet perbendaharaan (bagian 6) |
 | Fee penawaran 3% | `settleOffering(tokenTerjual, hargaToken)` | tidak ada di kontrak |
 
-Test `backend/src/finance/distribution.test.ts` mencocokkan keempat kasus fixture, termasuk bagian setiap pemegang, sisa pembulatan, dan defisit. Jalankan dengan `npm test` dari folder `backend`.
+Test `backend/src/finance/distribution.test.ts` mencocokkan keempat kasus fixture, termasuk bagian setiap pemegang, sisa pembulatan, dan defisit, ditambah kasus 5 di bagian 6. Jalankan dengan `npm test` dari folder `backend`.

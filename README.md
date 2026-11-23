@@ -62,7 +62,7 @@ git clone https://github.com/AhsanDz/kosbagi.git
 cd kosbagi
 ```
 
-**Sudah punya `.env` dari progress sebelumnya?** Progress 3 menambah variabel blockchain di `backend/.env` (`CHAIN_ID`, `CUSTODIAL_WALLET_MNEMONIC`, dan alamat kontrak) dan `ADMIN_PRIVATE_KEY` di `contracts/.env`. Ulangi `copy .env.example .env` di folder `backend` (dan di `contracts` bila akan deploy ke Sepolia), lalu isi lagi nilai yang pernah kamu ubah, termasuk `MIDTRANS_SERVER_KEY`. Lakukan hal yang sama untuk `frontend/.env.local` (`copy .env.example .env.local`).
+**Sudah punya `.env` dari progress sebelumnya?** Progress 3 menambah variabel blockchain di `backend/.env` (`CHAIN_ID`, `CUSTODIAL_WALLET_MNEMONIC`, dan alamat kontrak) dan `ADMIN_PRIVATE_KEY` di `contracts/.env`. Progress 4 menambah `UPLOAD_DIR` (opsional, folder file nota, bawaan `./uploads`). Ulangi `copy .env.example .env` di folder `backend` (dan di `contracts` bila akan deploy ke Sepolia), lalu isi lagi nilai yang pernah kamu ubah, termasuk `MIDTRANS_SERVER_KEY`. Lakukan hal yang sama untuk `frontend/.env.local` (`copy .env.example .env.local`).
 
 ### 2. Basis data lokal
 
@@ -94,6 +94,8 @@ npm run db:seed
 ```
 
 **Semua data di basis data lokal terhapus.** Perintah pertama juga menerapkan ulang semua migrasi, jadi `db:deploy` tidak perlu dijalankan lagi.
+
+**Basis data dari progress 3?** Progress 4 menambah migrasi `skema_v4` (biaya dan nota, periode, distribusi, saldo bagi hasil). Jalankan `npm run db:deploy` sekali; data lama tetap ada dan seed tidak berubah. Untuk mengulang demo dari awal, pakai `npx prisma migrate reset --force` lalu `npm run db:seed` seperti di atas. Bila memakai Sepolia, mengulang demo juga berarti deploy kontrak baru (langkah 12).
 
 Untuk melihat isi tabel lewat peramban, jalankan `npm run db:studio`. Untuk menghentikan layanan, jalankan `npm run db:down`; datanya tetap tersimpan di volume Docker.
 
@@ -164,9 +166,11 @@ Buka <http://localhost:4000/api/health>. Hasil yang diharapkan:
 
 Persetujuan KYC butuh `CUSTODIAL_WALLET_MNEMONIC`. Tanpa variabel itu, tombol Setujui dibalas 503 `CUSTODIAL_WALLET_NOT_CONFIGURED`.
 
+Mulai progress 4, server API juga membaca kontrak, yaitu saat menjalankan distribusi dan saat menyusun rekonsiliasi. Isi `SEPOLIA_RPC_URL`, `CHAIN_ID`, `KOS_TOKEN_ADDRESS`, dan `KOS_LEDGER_ADDRESS` di `backend/.env` yang sama dengan worker (langkah 4 untuk lokal, langkah 11 untuk Sepolia). Server API tidak membutuhkan kunci dompet. Tanpa variabel itu, halaman rekonsiliasi membalas 503 `CHAIN_NOT_CONFIGURED`.
+
 ### 6. Worker blockchain
 
-Worker mengambil job dari antrean (pencatatan sewa, whitelist KYC, dan transfer token), lalu mengirim transaksinya dari dompet operator. Di terminal tersendiri:
+Worker mengambil job dari antrean (pencatatan sewa, whitelist KYC, transfer token, pencatatan biaya, dan tutup periode), lalu mengirim transaksinya dari dompet operator. Di terminal tersendiri:
 
 ```bash
 cd backend
@@ -249,7 +253,7 @@ Salin alamat `https://...` yang muncul. Di dashboard sandbox, buka **Settings > 
 npm run demo:bayar-sewa -- --period 2026-11
 ```
 
-Skrip membuat transaksi Midtrans sandbox untuk setiap tagihan `UNPAID` periode itu. Langkah yang tidak bisa diotomatiskan di sandbox dicetak per kamar untuk dikerjakan di simulator. Semua pembayaran tetap melewati webhook, jadi setiap kamar tercatat lewat `recordRent` seperti pembayaran biasa. Nomor order yang sudah pernah dipakai di akun sandbox-mu, misalnya sebelum basis data di-reset, dilewati otomatis dan diganti sufiks berikutnya.
+Skrip membuat transaksi Midtrans sandbox untuk setiap tagihan `UNPAID` periode itu. Tambahkan `--except K03` bila kamar Sari ingin dibayar langsung saat demo (langkah 13). Langkah yang tidak bisa diotomatiskan di sandbox dicetak per kamar untuk dikerjakan di simulator. Semua pembayaran tetap melewati webhook, jadi setiap kamar tercatat lewat `recordRent` seperti pembayaran biasa. Nomor order yang sudah pernah dipakai di akun sandbox-mu, misalnya sebelum basis data di-reset, dilewati otomatis dan diganti sufiks berikutnya.
 
 Tautan Etherscan hanya berfungsi untuk transaksi Sepolia. Di Hardhat lokal, cocokkan hash transaksinya dengan log terminal `npx hardhat node`.
 
@@ -298,7 +302,69 @@ Hasil yang diharapkan: kompilasi tanpa warning dan semua test lulus, termasuk sk
 
 `ADMIN_PRIVATE_KEY` hanya ada di `contracts/.env` dan tidak pernah disalin ke `backend/.env`. Kedua dompet khusus testnet; jangan memakai dompet pribadi.
 
-### Yang bisa dicek pada progress 3
+### 12. Menyiapkan data demo
+
+Demo progress 4 dimulai dari kondisi siap: sewa November sudah lunas dan tercatat, empat investor sudah memegang token, dan sebagian biaya November sudah dicatat. Semua data itu dibuat lewat jalur sungguhan (Midtrans sandbox, webhook, worker, dan kontrak), bukan diisi langsung ke basis data, supaya halaman rekonsiliasi bisa membuktikannya. Siapkan sekitar satu jam sebelum demo karena setiap virtual account dibayar manual di simulator.
+
+**Setiap gladi dimulai dari kontrak dan basis data baru.** Catatan di blockchain tidak ikut terhapus saat basis data di-reset: `closePeriod` untuk satu periode hanya bisa sekali, saldo token investor tetap ada (pembelian ulang ditolak batas 10%), dan nota yang sama sudah tercatat. Karena itu gladi di kontrak yang sama tidak bisa diulang. Urutan setiap gladi adalah deploy kontrak baru, reset basis data, lalu isi alamat kontrak baru di `backend/.env`. Demo akhir di depan dosen memakai deploy terakhir.
+
+1. **Mulai dari basis data bersih** (semua data lokal terhapus), dari folder `backend`:
+
+   ```bash
+   npx prisma migrate reset --force
+   npm run db:seed
+   ```
+
+2. **Deploy kontrak baru.**
+   - **Hardhat lokal:** jalankan ulang `npx hardhat node`, lalu deploy ulang seperti langkah 4 dengan tambahan `--reset`. Gratis dan bisa diulang sesering perlu, jadi pakai ini untuk latihan.
+   - **Sepolia:** dari folder `contracts`, beri setiap gladi label berbeda lewat variabel `DEPLOY_LABEL` (huruf kecil, angka, dan tanda hubung, misalnya `gladi1`, `gladi2`), lalu jalankan deploy seperti langkah 11. Di PowerShell: `$env:DEPLOY_LABEL="gladi1"; npm run deploy:sepolia`, lalu `npm run verify:sepolia` di terminal yang sama. Di Command Prompt: `set DEPLOY_LABEL=gladi1`, lalu kedua perintah itu. Setiap label men-deploy `KosToken` dan `KosLedger` baru, dan alamatnya tersimpan di `contracts/deployments/sepolia-<label>.json` (tidak di-commit). Untuk demo akhir, kosongkan labelnya (`$env:DEPLOY_LABEL=""` atau `set DEPLOY_LABEL=`), supaya hasilnya masuk `contracts/deployments/sepolia.json` yang di-commit. Isi label di terminal, jangan di `contracts/.env`, supaya tidak terbawa ke deploy demo akhir. Pakai Sepolia untuk gladi akhir dan demo, supaya semua transaksi bisa dibuka di Etherscan. Rinciannya di [`docs/kontrak/deploy-sepolia.md`](docs/kontrak/deploy-sepolia.md) bagian 5.
+
+   Perkiraan biaya satu gladi di Sepolia, dihitung dari angka gas di [`docs/kontrak/deploy-sepolia.md`](docs/kontrak/deploy-sepolia.md): deploy oleh dompet admin sekitar 4,3 juta gas, dan transaksi operator selama gladi (lima whitelist KYC, lima pembelian pertama, sembilan `recordRent`, lima `recordExpense`, satu `closePeriod`) sekitar 2,5 juta gas. Jumlahnya sekitar 6,8 juta gas, atau sekitar 0,007, 0,02, dan 0,07 ETH pada harga gas 1, 3, dan 10 gwei. Pembelian Bagas yang dipecah menambah sekitar 137.000 gas per pesanan tambahan. Skrip deploy juga mensyaratkan saldo admin kira-kira dua kali biaya deploy saat itu. Untuk tiga gladi ditambah demo akhir, siapkan sekitar 0,15 ETH di dompet admin dan 0,15 ETH di dompet operator.
+
+   Setelah deploy, isi `KOS_TOKEN_ADDRESS` dan `KOS_LEDGER_ADDRESS` di `backend/.env` dengan alamat kontrak baru, lalu jalankan backend (langkah 5), worker (langkah 6), dan frontend (langkah 7) di terminal masing-masing. Basis data dari langkah 1 harus sudah bersih sebelum backend dan worker dijalankan, karena catatan lama menunjuk kontrak lama.
+
+3. **Bayar sewa November**, kecuali kamar K03 yang dibayar langsung saat demo:
+
+   ```bash
+   npm run demo:bayar-sewa -- --period 2026-11 --except K03
+   ```
+
+   Ikuti langkah simulator yang dicetak per kamar. Hasilnya delapan kamar lunas dan tercatat lewat `recordRent`.
+
+4. **Siapkan saldo token investor:**
+
+   ```bash
+   npm run demo:siapkan-investor
+   ```
+
+   Skrip menyetujui KYC Bagas, Citra, Eko, dan Fajar lewat API, lalu membuat pesanan `BUY-` dengan virtual account: Bagas 1.800, Citra 1.200, Eko 800, dan Fajar 560 token. Bayar setiap virtual account di simulator sesuai langkah yang dicetak. Token pindah dari dompet perbendaharaan lewat webhook dan worker seperti pembelian biasa. Bila sandbox menolak virtual account Rp180.000.000, pesanan Bagas dipecah menjadi beberapa pesanan berurutan. Skrip aman diulang: pesanan yang sudah lunas tidak dibuat lagi.
+
+5. **Catat biaya November yang sudah ada:**
+
+   ```bash
+   npm run demo:catat-biaya -- --period 2026-11
+   ```
+
+   Skrip mencatat biaya senilai Rp2.400.000 (listrik dan air, kebersihan, internet, keamanan) lewat API pengelola dengan nota dummy dari `backend/scripts/demo/nota/`. Hash setiap nota dicatat lewat `recordExpense`. Diulang pun tidak menggandakan biaya.
+
+   Login dibatasi 10 kali per menit per alamat. Bila `demo:siapkan-investor` dan `demo:catat-biaya` dijalankan berulang dalam waktu singkat, beri jeda satu menit di antaranya. Skrip juga menunggu sendiri bila terkena batas itu.
+
+6. **Periksa kesiapan** sebagai Laras Kusuma: <http://localhost:3000/admin> tidak menampilkan job yang gagal, dan <http://localhost:3000/admin/rekonsiliasi> menampilkan semua transaksi Cocok.
+
+### 13. Alur demo lengkap
+
+Urutan ini mengikuti enam butir demo wajib di proposal bagian 4.5. Kata sandi semua akun `demo-kosbagi`.
+
+1. **Investor lolos KYC dan membeli token.** Masuk sebagai Dimas Pratama, ajukan KYC di `/investor/kyc` dengan nomor `DUMMY-0042`. Masuk sebagai Laras Kusuma, setujui di `/admin/kyc` dan tunggu status **Tercatat**. Masuk lagi sebagai Dimas, beli 100 token (Rp10.000.000) di `/investor/penawaran`, bayar virtual account-nya di simulator, lalu kirim notifikasinya (langkah 9 Cara A atau Cara B). Pesanan lunas dan token pindah lewat `transferFromTreasury`.
+2. **Penghuni membayar sewa.** Masuk sebagai Sari Wulandari, bayar tagihan K03 di `/penghuni/tagihan`, lalu buka kuitansinya: argumen `recordRent` dan tautan Etherscan tampil setelah worker mencatatnya. Masuk sebagai Hadi Santoso; di `/pengelola` kesembilan kamar terisi kini lunas.
+3. **Pengelola mencatat biaya dan mengunggah nota.** Masih sebagai Hadi, buka `/pengelola/biaya`, tekan **Catat biaya**, lalu isi kategori Perbaikan, nominal Rp300.000, tanggal nota 12 November 2026, keterangan "Ganti keran kamar mandi K07", dan unggah berkas `backend/scripts/demo/nota/perbaikan-k07.pdf`. Hash SHA-256 nota tampil sebelum disimpan. Setelah worker mencatat `recordExpense`, total biaya November menjadi Rp2.700.000. Untuk menunjukkan penolakan nota ganda, unggah berkas yang sama sekali lagi.
+4. **Admin menutup periode dan menjalankan distribusi.** Masuk sebagai Laras Kusuma, buka `/admin/periode`. Struk penutupan menunjukkan sewa kotor Rp13.500.000, biaya Rp2.700.000, fee Rp675.000, PPh Rp2.227.500, sewa bersih Rp7.897.500, dan Rp438,75 per token. Tombol **Tutup periode** aktif setelah semua syarat terpenuhi. Setelah `closePeriod` tercatat, tekan **Jalankan distribusi** (hanya bisa sekali). Tabel bagian pemegang memuat pemilik lama Rp2.369.250, Bagas Rp789.750, Citra Rp526.500, Eko Rp351.000, Fajar Rp245.700, Dimas Rp43.875, dan bagian perbendaharaan (8.140 token belum terjual) Rp3.571.425 untuk pemilik lama, dengan sisa pembulatan Rp0. Rinciannya di [`docs/bisnis/perhitungan-distribusi.md`](docs/bisnis/perhitungan-distribusi.md) bagian 6.
+5. **Portofolio investor bertambah.** Masuk sebagai Dimas: `/investor` menampilkan saldo bagi hasil Rp43.875, dan `/investor/portofolio` menampilkan bagi hasil November serta riwayat transaksi dengan tautan Etherscan.
+6. **Rekonsiliasi.** Masuk sebagai Laras Kusuma, buka `/admin/rekonsiliasi`. Setiap order Midtrans November dicocokkan dengan basis data dan catatan Sepolia. Tekan **Hanya selisih** untuk menyaring, buka baris Selisih untuk melihat nilai ketiga sumber, dan tekan **Periksa ulang** untuk mengecek ulang ke Midtrans dan Sepolia. Percobaan yang kedaluwarsa atau dibatalkan tetap Cocok karena ketiga sumber sepakat tidak ada uang dan tidak ada catatan. Order yang punya anomali pembayaran selalu Selisih dengan alasan "Ada anomali <jenis>", misalnya setelah notifikasi bernominal palsu di skenario uji 7 (`npm run webhook:simulate -- <order_id> --gross-amount 1000.00`). Buka barisnya lalu tekan **Lihat anomali** untuk melihat jenis, catatan, dan waktunya.
+
+Setelah periode ditutup, tagihan November yang belum dibayar tidak bisa dibayar lagi (`PERIOD_CLOSED`). Pembayaran yang dimulai sebelum penutupan lalu lunas sesudahnya tidak ikut dibagikan: penghuni melihat status bahwa dana akan dikembalikan, admin melihat butir "Dana perlu dikembalikan", dan rekonsiliasi menampilkannya sebagai Selisih.
+
+### Yang bisa dicek pada progress 4
 
 Data properti di halaman publik masih statis. Alamat kontrak dan hash dokumen di sana diperbarui setelah deploy Sepolia.
 
@@ -308,13 +374,18 @@ Data properti di halaman publik masih statis. Alamat kontrak dan hash dokumen di
 | <http://localhost:3000/kos/sumbersari-01> | Detail kos: tab Ringkasan, Keuangan, Dokumen, Blockchain, Risiko, dan panel penawaran |
 | <http://localhost:3000/pemilik> | Halaman pemilik kos: simulasi dana, alur, syarat, FAQ, dan form pengajuan |
 | <http://localhost:3000/masuk> | Login lewat kartu akun demo atau email dan kata sandi |
-| <http://localhost:3000/penghuni/tagihan> | Slip tagihan, tombol bayar, jejak pembayaran, status on-chain, dan riwayat Agustus sampai Oktober 2026 |
-| Kuitansi, lewat **Lihat kuitansi** | Kuitansi dan catatan `recordRent` satu tagihan |
-| <http://localhost:3000/investor/kyc> | Pengajuan KYC dummy dan jejak whitelist dompet kustodian |
-| <http://localhost:3000/investor/penawaran> | Penawaran KB-SMR01, sisa kuota, dan pembelian token lewat Snap |
+| <http://localhost:3000/penghuni/tagihan> | Slip tagihan, tombol bayar, jejak pembayaran, status on-chain, riwayat, dan kuitansi |
+| <http://localhost:3000/investor> | Saldo bagi hasil, sewa masuk periode berjalan, dan kepemilikan token |
+| <http://localhost:3000/investor/portofolio> | Dompet kustodian, bagi hasil per periode, dan riwayat transaksi |
+| <http://localhost:3000/investor/kyc> dan `/investor/penawaran` | KYC dummy, whitelist dompet, dan pembelian token |
+| <http://localhost:3000/pengelola> | Status sepuluh kamar dan daftar tindak lanjut |
+| <http://localhost:3000/pengelola/biaya> | Daftar biaya, Catat biaya dengan unggah nota, dan hash nota |
+| <http://localhost:3000/admin> | Ringkasan periode, Perlu perhatian, dan antrean job on-chain dengan Coba lagi |
 | <http://localhost:3000/admin/kyc> | Daftar pengajuan per status, pemeriksaan otomatis, setujui, dan tolak |
+| <http://localhost:3000/admin/periode> | Struk penutupan, syarat, tutup periode, dan distribusi |
+| <http://localhost:3000/admin/rekonsiliasi> | Pencocokan Midtrans, basis data, dan Sepolia per order untuk periode tagihan terbaru; periode lain lewat `?periode=YYYY-MM` |
 
-Halaman pengelola, tutup periode, portofolio, dan rekonsiliasi menyusul di progress 4. Skenario uji 1 sampai 11 sudah bisa dicoba di aplikasi, dan skenario 12 lewat test kontrak.
+Skenario uji 1 sampai 11 bisa dicoba di aplikasi, dan skenario 12 lewat test kontrak.
 
 ### Perintah lain
 
@@ -325,6 +396,7 @@ Halaman pengelola, tutup periode, portofolio, dan rekonsiliasi menyusul di progr
 | `frontend` | `npm run lint` | Pemeriksaan ESLint |
 | `backend` | `npm test` | Test tanpa basis data, termasuk kalkulator distribusi; tidak butuh Docker |
 | `backend` | `npm run test:integration` | Test skenario pembayaran dengan PostgreSQL dan Redis; jalankan `npm run db:up` lebih dulu |
+| `backend` | `RECONCILIATION_INTEGRATION=1 npx vitest run src/modules/reconciliation/reconciliation.integration.test.ts` | Test rekonsiliasi dengan PostgreSQL (basis data `kosbagi_j1`) dan Hardhat node port 8549 (`npx hardhat build`, lalu `npx hardhat node --port 8549` di `contracts`). Di PowerShell, jalankan `$env:RECONCILIATION_INTEGRATION=1` dulu, lalu perintah `npx vitest` yang sama |
 | `backend` | `npm run test:watch` | Test berjalan terus saat file berubah |
 | `backend` | `npm run typecheck` | Pemeriksaan tipe TypeScript |
 | `backend` | `npm run build`, lalu `npm start` dan `npm run worker:start` | Kompilasi ke `dist/`, lalu menjalankan server API dan worker dari hasilnya |
@@ -332,7 +404,9 @@ Halaman pengelola, tutup periode, portofolio, dan rekonsiliasi menyusul di progr
 | `backend` | `npm run prisma:validate` | Memeriksa sintaks skema Prisma |
 | `backend` | `npm run db:status` | Melihat migrasi yang sudah dan belum diterapkan |
 | `backend` | `npm run webhook:simulate -- <order_id>` | Mengirim notifikasi Midtrans bertanda tangan ke server lokal |
-| `backend` | `npm run demo:bayar-sewa -- --period <YYYY-MM>` | Membayar semua tagihan yang belum lunas pada satu periode lewat Midtrans sandbox |
+| `backend` | `npm run demo:bayar-sewa -- --period <YYYY-MM>` | Membayar semua tagihan yang belum lunas pada satu periode lewat Midtrans sandbox; `--except K03` melewati satu kamar |
+| `backend` | `npm run demo:siapkan-investor` | Menyetujui KYC dan membeli token untuk empat investor demo lewat Midtrans sandbox (langkah 12) |
+| `backend` | `npm run demo:catat-biaya -- --period <YYYY-MM>` | Mencatat biaya demo Rp2.400.000 dengan nota dummy lewat API pengelola (langkah 12) |
 | `contracts` | `npx hardhat node` | Jaringan Hardhat lokal di port 8545 untuk backend dan worker |
 | `contracts` | `npx hardhat build` | Mengompilasi kontrak |
 | `contracts` | `npm run test:production` | Test yang sama pada bytecode teroptimasi (profil deploy) |
@@ -374,6 +448,17 @@ Halaman pengelola, tutup periode, portofolio, dan rekonsiliasi menyusul di progr
 | Persetujuan KYC dibalas `CUSTODIAL_WALLET_NOT_CONFIGURED` | `CUSTODIAL_WALLET_MNEMONIC` kosong. Buat mnemonic baru seperti di langkah 4, isi di `backend/.env`, lalu jalankan ulang backend. |
 | Deploy lokal gagal setelah Hardhat node dijalankan ulang | Catatan deploy lama masih tersimpan. Ulangi perintah deploy di langkah 4 dengan tambahan `--reset`. |
 | Transaksi lokal gagal setelah Hardhat node dijalankan ulang | Kontrak lama hilang bersama node. Deploy ulang, perbarui alamat kontrak di `backend/.env`, lalu jalankan ulang backend dan worker. |
+| Halaman rekonsiliasi membalas `CHAIN_NOT_CONFIGURED` | Server API belum punya `SEPOLIA_RPC_URL`, `KOS_TOKEN_ADDRESS`, atau `KOS_LEDGER_ADDRESS`. Isi di `backend/.env` seperti worker, lalu jalankan ulang backend. |
+| Halaman rekonsiliasi membalas `MIDTRANS_NOT_CONFIGURED` | `MIDTRANS_SERVER_KEY` kosong. Rekonsiliasi menanyakan status setiap order ke API status Midtrans. |
+| Rekonsiliasi menampilkan Selisih "Gagal dicatat" | Job pencatatan on-chain gagal setelah semua percobaan otomatis. Buka `/admin`, tekan **Coba lagi** di antrean job, lalu tekan **Periksa ulang** di rekonsiliasi. |
+| Rekonsiliasi menampilkan Selisih "masih menunggu dikirim worker" | Worker belum berjalan atau masih memproses. Jalankan `npm run worker`, tunggu, lalu tekan **Periksa ulang**. Hasil rekonsiliasi disimpan 30 detik, jadi memuat ulang halaman saja belum tentu mengecek ulang. |
+| Tombol **Tutup periode** tetap nonaktif | Masih ada sewa lunas, nota, atau transfer token yang belum tercatat, atau ada job gagal yang memengaruhi periode itu. Kartu syarat di `/admin/periode` menyebut yang kurang. Job whitelist KYC tidak memblokir penutupan. |
+| Job tetap gagal setiap kali **Coba lagi** ditekan | Kegagalan permanen, misalnya nota atau pembelian yang sama sudah tercatat di kontrak dengan isi berbeda setelah basis data di-reset tanpa deploy baru. Periksa galatnya di antrean `/admin`, lalu tekan **Tandai ditangani** pada job itu; tindakan ini tercatat atas nama admin dan job tidak lagi memblokir penutupan periode. Untuk gladi berikutnya, mulai dari deploy kontrak baru (langkah 12). |
+| Pembayaran tagihan dibalas `PERIOD_CLOSED` | Periode tagihan itu sudah ditutup. Sesuai keputusan 16 November 2026, sewa periode tertutup tidak bisa dibayar lagi. |
+| Penghuni sudah membayar, tetapi tagihan periode yang sudah ditutup tidak menjadi lunas | Pembayarannya lunas setelah periode ditutup. Tagihan sengaja tidak berubah; penghuni melihat status bahwa dana akan dikembalikan, admin melihat "Dana perlu dikembalikan", dan rekonsiliasi menampilkan Selisih dengan anomali `PAID_AFTER_PERIOD_CLOSED`. Kembalikan dananya di luar aplikasi (prototipe belum punya refund). |
+| Rekonsiliasi menampilkan Selisih "Ada anomali ..." padahal ketiga sumber sama | Order itu pernah menerima notifikasi yang tidak wajar, misalnya nominal palsu di skenario uji 7. Order beranomali sengaja selalu Selisih supaya terlihat admin (keputusan 20 November 2026). Buka barisnya dan tekan **Lihat anomali**. |
+| Skrip demo berhenti dengan `Terlalu banyak permintaan` saat login | Batas login 10 kali per menit. Tunggu satu menit, lalu jalankan ulang skripnya. |
+| `listen EACCES: permission denied` saat menjalankan server di Windows | Port itu masuk rentang yang dicadangkan Windows (Hyper-V atau WSL). Lihat daftarnya dengan `netsh interface ipv4 show excludedportrange protocol=tcp`, lalu pakai port lain, mis. `npm run dev -- --port 3300` di frontend atau `PORT` lain di `backend/.env`. |
 | Ingin mengulang demo dari tagihan belum dibayar | Seed sengaja tidak mengembalikan tagihan lunas. Jalankan `npx prisma migrate reset --force` di folder `backend`, lalu `npm run db:seed`. **Semua data di basis data lokal terhapus.** |
 
 ## Tim

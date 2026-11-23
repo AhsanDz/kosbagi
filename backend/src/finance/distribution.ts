@@ -173,7 +173,11 @@ export interface Distribution<T extends Holding> {
  * Jumlah saldo wajib sama dengan total suplai: sertakan semua pemegang, termasuk dompet
  * pemilik lama dan dompet perbendaharaan. Dengan begitu `reserve` hanya berisi sisa
  * pembulatan, yang selalu lebih kecil dari jumlah pemegang karena tiap pemegang kehilangan
- * kurang dari Rp1. Perlakuan bagian dompet perbendaharaan diputuskan di progress 4.
+ * kurang dari Rp1.
+ *
+ * Bagian dompet perbendaharaan (token yang belum terjual) dihitung seperti pemegang lain, lalu
+ * ditambahkan ke saldo pemilik lama sebagai baris tersendiri (keputusan 16 November 2026).
+ * Penambahan itu dilakukan pemanggil; fungsi ini hanya menghitung bagiannya.
  */
 export function distribute<T extends Holding>(
   netRent: bigint,

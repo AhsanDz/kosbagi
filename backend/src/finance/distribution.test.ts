@@ -200,6 +200,38 @@ describe('unit ekonomi proposal', () => {
     expect(calculateShare(summary.netRent, 5_400n, 18_000n)).toBe(2_369_250n);
   });
 
+  it('demo November: enam pemegang, bagian perbendaharaan 8.140 token untuk pemilik lama, sisa Rp0', () => {
+    // docs/bisnis/perhitungan-distribusi.md bagian 6 dan keputusan 16 November 2026. Biaya Rp2.400.000
+    // disiapkan skrip demo, ditambah nota perbaikan K07 Rp300.000 yang dicatat saat demo.
+    const summary = calculatePeriod({ grossRent: 13_500_000n, totalExpenses: 2_400_000n + 300_000n, totalSupply: 18_000n });
+    const holders = [
+      { label: 'Pemilik lama', balance: 5_400n },
+      { label: 'Bagas', balance: 1_800n },
+      { label: 'Citra', balance: 1_200n },
+      { label: 'Eko', balance: 800n },
+      { label: 'Fajar', balance: 560n },
+      { label: 'Dimas', balance: 100n },
+      { label: 'Perbendaharaan', balance: 8_140n },
+    ];
+    const result = distribute(summary.netRent, summary.totalSupply, holders);
+
+    expect(summary).toMatchObject({ platformFee: 675_000n, taxableProfit: 10_125_000n, tax: 2_227_500n, netRent: 7_897_500n });
+    expect(result.holders.map((holder) => [holder.label, holder.share])).toEqual([
+      ['Pemilik lama', 2_369_250n],
+      ['Bagas', 789_750n],
+      ['Citra', 526_500n],
+      ['Eko', 351_000n],
+      ['Fajar', 245_700n],
+      ['Dimas', 43_875n],
+      ['Perbendaharaan', 3_571_425n],
+    ]);
+    expect(result.reserve).toBe(0n);
+
+    // Saldo pemilik lama periode ini: bagian 5.400 token ditambah bagian perbendaharaan.
+    const [owner, , , , , , treasury] = result.holders;
+    expect(owner!.share + treasury!.share).toBe(5_940_675n);
+  });
+
   it('skenario fasilitas Pasal 31E (tarif efektif 11%) menghasilkan Rp500,62 per token per bulan', () => {
     // docs/bisnis/proyeksi-keuangan.md bagian 7. Bukan tarif yang dipakai KosLedger saat ini.
     const summary = calculatePeriod({
