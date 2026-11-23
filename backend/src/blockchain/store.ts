@@ -4,7 +4,10 @@
 // Model riwayat transaksi (tabel chain_transactions, skema v2):
 // - Satu baris per transaksi yang ditandatangani. Job yang transaksinya dibuang jaringan lalu
 //   dikirim ulang punya dua baris: yang lama FAILED, yang baru PENDING lalu RECORDED.
-// - Baris terbaru yang ditampilkan ke pengguna (src/modules/bills/dto.ts membaca createdAt terbaru).
+// - Baris terbaru yang ditampilkan ke pengguna (src/lib/chain-status.ts membaca createdAt terbaru).
+//   Karena itu, bila job ternyata tercatat lewat transaksi dari baris yang lebih lama (mis. transaksi
+//   yang dikira hilang masuk blok belakangan), createdAt baris itu dipindah ke waktu pengakuan
+//   supaya baris RECORDED menjadi yang terbaru (chain-executor.ts).
 // - txHash ditulis SEBELUM transaksi disiarkan, jadi proses yang mati di tengah tidak kehilangan hash.
 // - Baris tanpa txHash berarti gagal sebelum ada transaksi (mis. kontrak menolak saat simulasi),
 //   atau sudah tercatat sebelumnya tanpa transaksi dari job ini.
@@ -34,7 +37,9 @@ export interface NewChainTx {
   lastError?: string | null;
 }
 
-export type ChainTxChanges = Partial<Pick<ChainTxRecord, 'txHash' | 'blockNumber' | 'status' | 'attempts' | 'lastError'>>;
+export type ChainTxChanges = Partial<
+  Pick<ChainTxRecord, 'txHash' | 'blockNumber' | 'status' | 'attempts' | 'lastError' | 'createdAt'>
+>;
 
 export interface CustodialWalletRecord {
   address: string;
@@ -46,6 +51,8 @@ export interface ChainStore {
   /** Semua transaksi satu job, terlama lebih dulu. */
   listTransactions(outboxJobId: string): Promise<ChainTxRecord[]>;
   createTransaction(data: NewChainTx): Promise<ChainTxRecord>;
+  /** Baris dengan tx hash ini, dari job mana pun (kolom tx_hash unik). */
+  findTransactionByHash(txHash: string): Promise<ChainTxRecord | null>;
   updateTransaction(id: string, changes: ChainTxChanges): Promise<ChainTxRecord>;
   /** Dompet kustodian dengan alamat ini, tanpa membedakan huruf besar kecil. */
   findCustodialWallet(address: string): Promise<CustodialWalletRecord | null>;
@@ -64,6 +71,9 @@ export function createPrismaChainStore(db: ChainDb = prisma): ChainStore {
     },
     createTransaction(data) {
       return db.chainTransaction.create({ data });
+    },
+    findTransactionByHash(txHash) {
+      return db.chainTransaction.findUnique({ where: { txHash } });
     },
     updateTransaction(id, changes) {
       return db.chainTransaction.update({ where: { id }, data: changes });

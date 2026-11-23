@@ -1,6 +1,12 @@
 import { id, Transaction, Wallet } from 'ethers';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { type ChainCall, executeChainCall, type ExecutionContext, type ExecutorProvider } from './chain-executor.js';
+import {
+  type ChainCall,
+  DONE_NOT_CONFIRMED_MESSAGE,
+  executeChainCall,
+  type ExecutionContext,
+  type ExecutorProvider,
+} from './chain-executor.js';
 import type { RecordedEvent } from './contracts.js';
 import { kosLedgerInterface } from './contracts.js';
 import { PermanentJobError, RetryableJobError } from './errors.js';
@@ -121,6 +127,18 @@ describe('executeChainCall: idempotensi', () => {
     expect(store.transactions).toEqual([expect.objectContaining({ status: 'RECORDED', txHash: existing.txHash, blockNumber: 42n })]);
   });
 
+  it('efek sudah ada dan tx asalnya sudah tercatat di baris job lain: tercatat tanpa tx hash (tx_hash unik)', async () => {
+    done = true;
+    existing = { txHash: `0x${'ab'.repeat(32)}`, blockNumber: 42 };
+    await store.createTransaction({ outboxJobId: 'job-lain', reference: PAYMENT_REF, status: 'RECORDED', attempts: 1, txHash: existing.txHash });
+
+    const result = await executeChainCall(rentCall(), context());
+    expect(result).toEqual({ status: 'RECORDED', outcome: 'ALREADY_ON_CHAIN', txHash: existing.txHash, blockNumber: 42 });
+    await expect(store.listTransactions(JOB_ID)).resolves.toEqual([
+      expect.objectContaining({ status: 'RECORDED', txHash: null, blockNumber: 42n }),
+    ]);
+  });
+
   it('efek sudah ada tetapi tx asalnya tidak ditemukan: tetap tercatat, tanpa tx hash', async () => {
     done = true;
 
@@ -191,17 +209,115 @@ describe('executeChainCall: idempotensi', () => {
     const result = await executeChainCall(rentCall(), context(3));
     expect(result).toMatchObject({ outcome: 'PREVIOUS_TX', txHash: firstHash });
     expect(chain.broadcasts).toHaveLength(1);
+    // Baris yang diakui dipindah menjadi baris terbaru, karena layar membaca baris terbaru. Baris
+    // percobaan kedua (tanpa transaksi) tetap ada sebagai riwayat.
+    await expect(store.latestTransaction(JOB_ID)).resolves.toMatchObject({ status: 'RECORDED', txHash: firstHash, attempts: 3 });
+    expect(store.transactions).toHaveLength(2);
+  });
+});
+
+describe('executeChainCall: Coba lagi admin untuk baris FAILED', () => {
+  /** Percobaan terakhir habis saat transaksinya masih menunggu: processor menandai barisnya FAILED. */
+  async function failedWhilePending(): Promise<string> {
+    chain.broadcastMode = 'pending';
+    await expect(executeChainCall(rentCall(), context(5))).rejects.toBeInstanceOf(RetryableJobError);
+    const [row] = store.transactions;
+    await store.updateTransaction(row?.id as string, { status: 'FAILED', lastError: 'Percobaan habis.' });
+    chain.broadcastMode = 'mine';
+    return chain.broadcasts[0]?.hash as string;
+  }
+
+  it('transaksinya sudah masuk blok: diakui RECORDED tanpa transaksi baru', async () => {
+    const hash = await failedWhilePending();
+    chain.mine(hash);
+
+    const result = await executeChainCall(rentCall(), context(6));
+    expect(result).toMatchObject({ outcome: 'PREVIOUS_TX', txHash: hash });
+    expect(chain.broadcasts).toHaveLength(1);
+    expect(store.transactions).toEqual([expect.objectContaining({ status: 'RECORDED', txHash: hash, lastError: null })]);
+  });
+
+  it('transaksinya masih di mempool: ditunggu sampai masuk blok, tidak dikirim ulang', async () => {
+    const hash = await failedWhilePending();
+    chain.mineAfterPolls.set(hash, 2);
+
+    const result = await executeChainCall(rentCall(), context(6));
+    expect(result).toMatchObject({ outcome: 'PREVIOUS_TX', txHash: hash });
+    expect(chain.broadcasts).toHaveLength(1);
+    expect(store.transactions).toEqual([expect.objectContaining({ status: 'RECORDED', txHash: hash })]);
+  });
+
+  it('masih di mempool dan belum masuk blok dalam batas waktu: kembali menunggu, tetap tanpa transaksi baru', async () => {
+    const hash = await failedWhilePending();
+
+    await expect(executeChainCall(rentCall(), context(6))).rejects.toBeInstanceOf(RetryableJobError);
+    expect(chain.broadcasts).toHaveLength(1);
+    expect(store.transactions).toEqual([
+      expect.objectContaining({ status: 'PENDING', txHash: hash, lastError: expect.stringContaining('belum masuk blok') }),
+    ]);
+  });
+
+  it('transaksinya revert di blok: nomor blok dicatat, lalu dikirim transaksi baru', async () => {
+    const hash = await failedWhilePending();
+    chain.mine(hash, 0);
+
+    const result = await executeChainCall(rentCall(), context(6));
+    expect(result.outcome).toBe('SENT');
+    expect(chain.broadcasts).toHaveLength(2);
+    expect(store.transactions).toEqual([
+      expect.objectContaining({ status: 'FAILED', txHash: hash, blockNumber: 101n, lastError: expect.stringContaining('revert di blok') }),
+      expect.objectContaining({ status: 'RECORDED', txHash: chain.broadcasts[1]?.hash }),
+    ]);
+  });
+
+  it('transaksinya tidak dikenal jaringan: baris tetap FAILED, efek sudah ada di kontrak diakui tanpa transaksi', async () => {
+    chain.broadcastMode = 'drop';
+    await expect(executeChainCall(rentCall(), context(5))).rejects.toBeInstanceOf(RetryableJobError);
+    const [row] = store.transactions;
+    await store.updateTransaction(row?.id as string, { status: 'FAILED' });
+    done = true;
+
+    const result = await executeChainCall(rentCall(), context(6));
+    expect(result.outcome).toBe('ALREADY_ON_CHAIN');
+    expect(chain.broadcasts).toHaveLength(1);
+    await expect(store.latestTransaction(JOB_ID)).resolves.toMatchObject({ status: 'RECORDED' });
   });
 });
 
 describe('executeChainCall: revert dari kontrak', () => {
-  it('PaymentRefAlreadyRecorded saat simulasi berarti selesai, tanpa transaksi', async () => {
+  it('PaymentRefAlreadyRecorded saat simulasi berarti selesai bila status on-chain cocok, tanpa transaksi', async () => {
     chain.simulationError = revertError(kosLedgerInterface, 'PaymentRefAlreadyRecorded', [PAYMENT_REF]);
+    // Tercatat oleh transaksi lain tepat di antara pemeriksaan status dan simulasi.
+    let checks = 0;
+    const call = rentCall({ isDone: async () => checks++ > 0 });
 
-    const result = await executeChainCall(rentCall(), context());
+    const result = await executeChainCall(call, context());
     expect(result.outcome).toBe('ALREADY_ON_CHAIN');
+    expect(checks).toBe(2);
     expect(chain.broadcasts).toHaveLength(0);
     expect(store.transactions).toEqual([expect.objectContaining({ status: 'RECORDED' })]);
+  });
+
+  it('revert "sudah tercatat" padahal status on-chain belum cocok: diulang nanti, tidak dianggap selesai', async () => {
+    chain.simulationError = revertError(kosLedgerInterface, 'PaymentRefAlreadyRecorded', [PAYMENT_REF]);
+
+    const error = await executeChainCall(rentCall(), context()).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(RetryableJobError);
+    expect((error as Error).message).toBe(DONE_NOT_CONFIRMED_MESSAGE);
+    expect(chain.broadcasts).toHaveLength(0);
+    expect(store.transactions.filter((row) => row.status === 'RECORDED')).toHaveLength(0);
+  });
+
+  it('isDone yang menemukan catatan bertentangan menggagalkan job permanen', async () => {
+    const call = rentCall({
+      isDone: async () => {
+        throw new PermanentJobError('Catatan di kontrak berbeda.');
+      },
+    });
+
+    await expect(executeChainCall(call, context())).rejects.toThrow('Catatan di kontrak berbeda.');
+    expect(chain.calls).not.toContain('call');
+    expect(chain.broadcasts).toHaveLength(0);
   });
 
   it('RentAlreadyRecorded gagal permanen tanpa membayar gas', async () => {

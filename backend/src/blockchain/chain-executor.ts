@@ -3,11 +3,16 @@
 // Urutan setiap percobaan:
 // 0. Job sudah punya transaksi RECORDED: selesai tanpa membaca chain.
 // 1. Transaksi dari percobaan sebelumnya diperiksa dulu: sudah masuk blok, masih menunggu di
-//    mempool, atau hilang. Yang masih menunggu ditunggu, bukan dikirim ulang.
+//    mempool, atau hilang. Yang masih menunggu ditunggu, bukan dikirim ulang. Ini berlaku juga
+//    untuk baris yang sudah FAILED tanpa nomor blok (mis. percobaan habis saat transaksinya masih
+//    di mempool): saat admin menekan Coba lagi, transaksi itu diakui bila ternyata masuk blok.
 // 2. Status di kontrak dibaca (mis. isPaymentRefRecorded). Bila efeknya sudah ada, job selesai
 //    tanpa transaksi baru.
 // 3. Baru setelah itu transaksi baru dibuat: simulasi (eth_call) untuk menangkap revert tanpa
 //    membayar gas, estimasi gas, nonce, tanda tangan, SIMPAN tx hash, siarkan, tunggu receipt.
+//
+// Revert yang berarti "sudah tercatat" (mis. ReceiptAlreadyRecorded) baru dianggap selesai bila
+// status on-chain job ini (isDone) memang cocok. Bila tidak cocok, job diulang nanti.
 //
 // Tx hash dihitung dari transaksi bertanda tangan dan disimpan sebelum disiarkan. Bila proses mati
 // sesaat setelah menyiarkan, percobaan berikutnya tetap tahu transaksi mana yang harus ditunggu.
@@ -38,11 +43,17 @@ export interface ChainCall {
   contractInterface: Interface;
   method: string;
   args: readonly unknown[];
-  /** true bila efek job ini sudah ada di kontrak. */
+  /**
+   * true bila efek job ini sudah ada di kontrak. Boleh melempar PermanentJobError bila kontrak sudah
+   * mencatat hal yang bertentangan dengan job ini (mis. nota yang sama dengan nominal lain).
+   */
   isDone(): Promise<boolean>;
   /** Transaksi yang membuat efek itu, bila bukan dari job ini. Pelengkap untuk tautan Etherscan. */
   findExistingRecord(): Promise<RecordedEvent | null>;
-  /** Revert yang tidak tercantum dianggap permanen, kecuali EnforcedPause (selalu diulang). */
+  /**
+   * Revert yang tidak tercantum dianggap permanen, kecuali EnforcedPause (selalu diulang). DONE baru
+   * dianggap selesai setelah isDone() memastikannya.
+   */
   revertActions: Readonly<Record<string, RevertAction>>;
 }
 
@@ -122,7 +133,17 @@ export const REVERT_MESSAGES: Readonly<Record<string, string>> = {
   BalanceCapExceeded: 'Saldo dompet kustodian akan melebihi batas kepemilikan 10% (skenario 10).',
   ERC20InsufficientBalance: 'Stok token di dompet perbendaharaan tidak cukup.',
   PurchaseRefAlreadyUsed: 'Referensi pembelian sudah dipakai di KosToken.',
+  ReceiptAlreadyRecorded: 'Nota dengan hash ini sudah tercatat di KosLedger.',
+  EmptyPeriod: 'Periode ini belum punya sewa maupun biaya yang tercatat di KosLedger, jadi tidak bisa ditutup.',
+  NoSupplyAtSnapshot: 'Total suplai token di blok snapshot nol, jadi periode tidak bisa ditutup. Periksa alamat KosToken.',
+  InvalidPeriod: 'Periode tidak berformat YYYYMM yang diterima KosLedger.',
+  ZeroAmount: 'Nominal nol ditolak kontrak.',
+  EmptyReceiptHash: 'Hash nota kosong ditolak KosLedger.',
 };
+
+/** Pesan saat kontrak menolak dengan revert "sudah tercatat", tetapi status on-chain job ini belum cocok. */
+export const DONE_NOT_CONFIRMED_MESSAGE =
+  'Kontrak menyatakan catatan ini sudah ada, tetapi status on-chain-nya belum cocok dengan job ini; dicoba lagi.';
 
 export function describeRevert(revert: DecodedRevert): string {
   return REVERT_MESSAGES[revert.name] ?? `Kontrak menolak panggilan dengan error ${revert.name}.`;
@@ -156,14 +177,15 @@ class Execution {
     const recorded = rows.findLast((row) => row.status === 'RECORDED');
     if (recorded) return this.result('ALREADY_RECORDED', recorded.txHash, recorded.blockNumber);
 
-    // 1. Transaksi dari percobaan sebelumnya, terbaru lebih dulu.
+    // 1. Transaksi dari percobaan sebelumnya, terbaru lebih dulu. Baris FAILED yang sudah punya
+    //    nomor blok berarti transaksinya revert di blok itu, jadi tidak perlu diperiksa lagi.
     for (const row of [...rows].reverse()) {
       if (!row.txHash) continue;
       const settled =
         row.status === 'PENDING'
           ? await this.settlePending(row)
-          : row.blockNumber === null
-            ? await this.checkLateReceipt(row)
+          : row.status === 'FAILED' && row.blockNumber === null
+            ? await this.settleFailed(row)
             : null;
       if (settled) return settled;
     }
@@ -200,11 +222,34 @@ class Execution {
     return this.applyReceipt(row, receipt, 'PREVIOUS_TX');
   }
 
-  /** Transaksi yang pernah ditandai gagal tanpa blok: bisa saja tetap masuk blok belakangan. */
-  private async checkLateReceipt(row: ChainTxRecord): Promise<ExecutionResult | null> {
-    const receipt = await this.rpc(() => this.ctx.provider.getTransactionReceipt(row.txHash as string));
-    if (receipt?.status !== 1) return null;
-    return this.applyReceipt(row, receipt, 'PREVIOUS_TX');
+  /**
+   * Transaksi yang pernah ditandai FAILED tanpa nomor blok: dikira hilang, siarannya gagal, atau
+   * percobaan job habis saat transaksinya masih menunggu. Transaksi seperti itu bisa saja masuk blok
+   * belakangan atau masih di mempool. Yang sudah masuk blok diakui sebagai RECORDED; yang masih di
+   * mempool dihidupkan lagi sebagai PENDING dan ditunggu. Keduanya tanpa transaksi baru, supaya
+   * tombol Coba lagi admin tidak menghasilkan transaksi ganda.
+   */
+  private async settleFailed(row: ChainTxRecord): Promise<ExecutionResult | null> {
+    const hash = row.txHash as string;
+    const receipt = await this.rpc(() => this.ctx.provider.getTransactionReceipt(hash));
+    if (receipt) {
+      if (receipt.status === 1) {
+        this.ctx.logger.info({ txHash: hash }, 'Transaksi yang ditandai gagal ternyata masuk blok; diakui sebagai tercatat');
+        return this.applyReceipt(row, receipt, 'PREVIOUS_TX');
+      }
+      // Revert di blok: cukup dicatat nomor bloknya supaya tidak diperiksa lagi.
+      await this.update(row, { blockNumber: BigInt(receipt.blockNumber), lastError: `Transaksi revert di blok ${receipt.blockNumber}.` });
+      return null;
+    }
+
+    const known = await this.rpc(() => this.ctx.provider.getTransaction(hash));
+    if (!known) return null;
+
+    this.ctx.logger.info({ txHash: hash }, 'Transaksi yang ditandai gagal masih menunggu di jaringan; ditunggu, tidak dikirim ulang');
+    const revived = await this.update(row, { status: 'PENDING', lastError: null });
+    const mined = await this.waitForReceipt(hash);
+    if (!mined) return this.notMinedYet(revived);
+    return this.applyReceipt(revived, mined, 'PREVIOUS_TX');
   }
 
   // --- Langkah 2 ---
@@ -212,9 +257,14 @@ class Execution {
   private async recordWithoutNewTransaction(rows: readonly ChainTxRecord[]): Promise<ExecutionResult> {
     const existing = await this.call.findExistingRecord();
     const blockNumber = existing ? BigInt(existing.blockNumber) : null;
+    const ownRow = existing ? rows.find((row) => row.txHash === existing.txHash) : undefined;
+    // tx_hash unik di tabel. Bila transaksi asal itu sudah tercatat di baris job lain (mis. dua baris
+    // outbox untuk efek yang sama, seperti tutup periode yang diminta dua kali), baris job ini
+    // disimpan tanpa tx hash: "sudah tercatat tanpa transaksi dari job ini".
+    const usedByOtherJob = existing && !ownRow ? await this.ctx.store.findTransactionByHash(existing.txHash) : null;
     const changes: ChainTxChanges = {
       status: 'RECORDED',
-      txHash: existing?.txHash ?? null,
+      txHash: existing && !usedByOtherJob ? existing.txHash : null,
       blockNumber,
       attempts: this.ctx.attempt,
       lastError: null,
@@ -222,10 +272,8 @@ class Execution {
 
     // Pakai ulang baris yang hash-nya sama atau baris yang belum punya transaksi, supaya tidak ada
     // baris PENDING yang tertinggal dan tx hash tetap unik.
-    const target =
-      (existing && rows.find((row) => row.txHash === existing.txHash)) ??
-      rows.findLast((row) => row.status === 'PENDING' && !row.txHash);
-    if (target) await this.ctx.store.updateTransaction(target.id, changes);
+    const target = ownRow ?? rows.findLast((row) => row.status === 'PENDING' && !row.txHash);
+    if (target) await this.updateAsLatest(target, changes);
     else {
       await this.ctx.store.createTransaction({
         outboxJobId: this.ctx.outboxJobId,
@@ -332,7 +380,7 @@ class Execution {
   /** Simulasi atau estimasi gas gagal, sebelum ada transaksi yang ditandatangani. */
   private async handleCallFailure(error: unknown, rows: readonly ChainTxRecord[]): Promise<ExecutionResult> {
     const revert = decodeRevert(error, this.call.contractInterface);
-    if (revert && revertAction(this.call, revert) === 'DONE') return this.recordWithoutNewTransaction(rows);
+    if (revert && revertAction(this.call, revert) === 'DONE') return this.acceptDoneRevert(rows);
 
     const row = await this.workingRow(rows);
     if (revert) {
@@ -365,7 +413,7 @@ class Execution {
   ): Promise<ExecutionResult | null> {
     const blockNumber = BigInt(receipt.blockNumber);
     if (receipt.status === 1) {
-      await this.update(row, { status: 'RECORDED', blockNumber, lastError: null });
+      await this.updateAsLatest(row, { status: 'RECORDED', blockNumber, attempts: this.ctx.attempt, lastError: null });
       return this.result(outcome, row.txHash, blockNumber);
     }
 
@@ -383,9 +431,7 @@ class Execution {
       const revert = decodeRevert(error, this.call.contractInterface);
       if (!revert) throw new RetryableJobError(`Transaksi revert di blok ${receipt.blockNumber}; dicoba lagi.`);
       const action = revertAction(this.call, revert);
-      if (action === 'DONE') {
-        return this.recordWithoutNewTransaction(await this.ctx.store.listTransactions(this.ctx.outboxJobId));
-      }
+      if (action === 'DONE') return this.acceptDoneRevert(await this.ctx.store.listTransactions(this.ctx.outboxJobId));
       const message = describeRevert(revert);
       await this.update(row, { lastError: message });
       throw action === 'RETRY' ? new RetryableJobError(message) : new PermanentJobError(message);
@@ -431,6 +477,30 @@ class Execution {
 
   private update(row: ChainTxRecord, changes: ChainTxChanges): Promise<ChainTxRecord> {
     return this.ctx.store.updateTransaction(row.id, { attempts: this.ctx.attempt, ...changes });
+  }
+
+  /**
+   * Menulis hasil akhir job ke satu baris dan memastikan baris itu menjadi baris terbaru job ini.
+   * Layar membaca baris dengan createdAt terbaru, jadi bila hasilnya jatuh ke baris lama (transaksi
+   * yang dikira hilang ternyata masuk blok, sementara percobaan sesudahnya sudah membuat baris lain),
+   * createdAt baris itu dipindah ke sesudah baris terbaru. Baris lain tetap ada sebagai riwayat.
+   */
+  private async updateAsLatest(row: ChainTxRecord, changes: ChainTxChanges): Promise<ChainTxRecord> {
+    const rows = await this.ctx.store.listTransactions(this.ctx.outboxJobId);
+    const newest = rows.at(-1);
+    if (!newest || newest.id === row.id) return this.ctx.store.updateTransaction(row.id, changes);
+    const createdAt = new Date(Math.max(Date.now(), newest.createdAt.getTime() + 1));
+    return this.ctx.store.updateTransaction(row.id, { ...changes, createdAt });
+  }
+
+  /**
+   * Kontrak menolak dengan revert "sudah tercatat" (aksi DONE). Job baru dianggap selesai bila status
+   * on-chain-nya cocok (isDone). Bila tidak cocok, mis. RPC cadangan tertinggal beberapa blok, job
+   * diulang nanti; bila isDone menemukan catatan yang bertentangan, ia melempar PermanentJobError.
+   */
+  private async acceptDoneRevert(rows: readonly ChainTxRecord[]): Promise<ExecutionResult> {
+    if (await this.rpc(() => this.call.isDone())) return this.recordWithoutNewTransaction(rows);
+    throw new RetryableJobError(DONE_NOT_CONFIRMED_MESSAGE);
   }
 
   private result(outcome: ExecutionOutcome, txHash: string | null, blockNumber: bigint | null): ExecutionResult {
