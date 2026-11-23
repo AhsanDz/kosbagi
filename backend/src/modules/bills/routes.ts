@@ -9,6 +9,7 @@ import { currentUser, requireAuth, requireRole } from '../../middleware/auth.js'
 import { createUserRateLimiter } from '../../middleware/rate-limit.js';
 import { toPaymentDto } from '../payments/dto.js';
 import { createRentPayment } from '../payments/service.js';
+import { billKey, closedBillKeys } from '../periods/state.js';
 import { billDetailInclude, billInclude, toBillDetailDto, toBillDto, toTenantRoomDto } from './dto.js';
 
 // Longgar untuk klik berulang, tetapi membatasi satu akun yang memanggil tanpa henti.
@@ -33,9 +34,10 @@ router.get('/current', async (req, res) => {
     prisma.bill.findFirst({ where: { tenantId }, orderBy: { period: 'asc' }, select: { period: true } }),
   ]);
 
+  const closed = await closedBillKeys(bill ? [bill] : []);
   res.json({
     data: {
-      bill: bill ? toBillDto(bill, new Date()) : null,
+      bill: bill ? toBillDto(bill, new Date(), closed.has(billKey(bill))) : null,
       room: room ? toTenantRoomDto(room, firstBill?.period ?? null, bill?.dueDate ?? null) : null,
     },
   });
@@ -49,7 +51,8 @@ router.get('/', async (req, res) => {
   });
 
   const now = new Date();
-  res.json({ data: { bills: bills.map((bill) => toBillDto(bill, now)) } });
+  const closed = await closedBillKeys(bills);
+  res.json({ data: { bills: bills.map((bill) => toBillDto(bill, now, closed.has(billKey(bill)))) } });
 });
 
 router.get('/:id', async (req, res) => {
@@ -60,7 +63,8 @@ router.get('/:id', async (req, res) => {
   if (!bill) throw billNotFound();
 
   // Kuitansi ikut dikirim: argumen recordRent persis, alamat KosLedger, dan hasil transaksinya.
-  res.json({ data: { bill: toBillDetailDto(bill, new Date(), env.KOS_LEDGER_ADDRESS ?? null) } });
+  const closed = await closedBillKeys([bill]);
+  res.json({ data: { bill: toBillDetailDto(bill, new Date(), env.KOS_LEDGER_ADDRESS ?? null, closed.has(billKey(bill))) } });
 });
 
 router.post('/:id/payments', paymentLimiter, async (req, res) => {

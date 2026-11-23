@@ -33,6 +33,7 @@ import {
   PAYMENT_WINDOW_MINUTES,
   type SnapTransactionInput,
 } from './midtrans.js';
+import { isPeriodClosed, periodClosedError } from '../periods/state.js';
 import { buildRentOrderId } from './order-id.js';
 
 /**
@@ -313,8 +314,17 @@ function rentTarget(bill: BillForPayment): PaymentTarget {
       // Dibaca ulang setelah kunci didapat, karena webhook bisa melunasi tagihan sementara itu.
       const { status } = await tx.bill.findUniqueOrThrow({ where: { id: bill.id }, select: { status: true } });
       if (status === 'PAID') throw new AppError(409, 'BILL_ALREADY_PAID', 'Tagihan ini sudah lunas.');
+      // P4: tagihan periode yang sudah ditutup tidak bisa dibayar lagi.
+      if (await isPeriodClosed(tx, bill.room.propertyId, bill.period)) throw periodClosedError(bill.period);
     },
   };
+}
+
+/** Sasaran pembayaran tagihan tanpa memeriksa pemiliknya. Hanya untuk skrip demo:bayar-sewa. */
+export async function loadRentTarget(billId: string): Promise<PaymentTarget> {
+  const bill = await prisma.bill.findUnique({ where: { id: billId }, include: billForPayment });
+  if (!bill) throw new AppError(404, 'NOT_FOUND', 'Tagihan tidak ditemukan.');
+  return rentTarget(bill);
 }
 
 /** Mengembalikan percobaan aktif, atau membuat percobaan baru untuk tagihan milik `tenantId`. */

@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -24,6 +26,8 @@ export default defineConfig({
       // pernah dipakai mengirim transaksi: test hanya menurunkan alamat dompet kustodian.
       CUSTODIAL_WALLET_MNEMONIC: 'test test test test test test test test test test test junk',
       KOS_LEDGER_ADDRESS: '0x2b9c000000000000000000000000000000007e10',
+      // Test tidak boleh menulis file nota ke backend/uploads.
+      UPLOAD_DIR: path.join(tmpdir(), 'kosbagi-uji-nota-unit'),
     },
   },
 });

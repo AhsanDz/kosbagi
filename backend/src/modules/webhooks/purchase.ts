@@ -26,7 +26,7 @@ export interface PurchasePayment {
   tokenPurchase: PurchaseForSettlement;
 }
 
-const SETTLED_PAYMENT_STATUSES = new Set<PaymentStatus>(['PAID', 'DUPLICATE_PAID', 'UNFULFILLED']);
+const SETTLED_PAYMENT_STATUSES = new Set<PaymentStatus>(['PAID', 'DUPLICATE_PAID', 'UNFULFILLED', 'PAID_AFTER_CLOSE']);
 
 /**
  * Melunasi pesanan dalam satu transaksi DB: pesanan PAID, percobaan PAID, tokensSold bertambah,

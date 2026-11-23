@@ -11,7 +11,7 @@ import { env } from './config/env.js';
 import { bigIntReplacer } from './lib/json.js';
 import { logger } from './lib/logger.js';
 import { loadModuleRouters } from './lib/module-loader.js';
-import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+import { errorHandler, KNOWN_FAILURE_LOCAL, notFoundHandler } from './middleware/error-handler.js';
 
 const DEFAULT_MODULES_DIR = fileURLToPath(new URL('./modules/', import.meta.url));
 
@@ -48,7 +48,12 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
         return id;
       },
       customLogLevel: (_req, res, error) => {
-        if (error || res.statusCode >= 500) return 'error';
+        if (error) return 'error';
+        if (res.statusCode >= 500) {
+          // Galat 5xx yang dikenal (layanan luar sedang bermasalah) cukup WARN.
+          const locals = (res as { locals?: Record<string, unknown> }).locals;
+          return locals?.[KNOWN_FAILURE_LOCAL] ? 'warn' : 'error';
+        }
         return res.statusCode >= 400 ? 'warn' : 'info';
       },
       // Hanya metode, URL, dan status yang dicatat; header (bisa berisi token) tidak.

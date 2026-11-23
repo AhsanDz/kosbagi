@@ -12,6 +12,7 @@ import { writeRecordRentJob } from '../../queue/outbox.js';
 import { midtrans, MidtransUnavailableError, type TransactionStatus } from '../payments/midtrans.js';
 import { isOrderIdTakenAttempt } from '../payments/service.js';
 import { classifyTransaction, parseGrossAmount } from '../payments/status.js';
+import { isPeriodClosed, lockPeriod } from '../periods/state.js';
 import { closePurchaseAttempt, type PurchasePayment, purchaseForSettlement, settleTokenPurchase } from './purchase.js';
 import { providerFields, recordAnomaly, updateOpenAttempt, type WebhookOutcome } from './records.js';
 
@@ -34,6 +35,12 @@ type RentPayment = PaymentForSettlement & { bill: NonNullable<PaymentForSettleme
  * Melunasi tagihan dalam satu transaksi DB: tagihan, percobaan, dan baris outbox tersimpan
  * bersama atau tidak sama sekali.
  *
+ * Pembayaran telat (P4, keputusan 16 Nov 2026): bila periode tagihan sudah ditutup admin, uang yang
+ * masuk tidak melunasi tagihan dan tidak dicatat on-chain (closePeriod sudah atau akan menolak
+ * recordRent). Percobaan ditandai PAID_AFTER_CLOSE dan dicatat anomali untuk dikembalikan. Kunci
+ * periode yang sama dengan Tutup periode menjamin keduanya tidak saling menyalip: pelunasan yang
+ * menang lebih dulu membuat Tutup periode ditolak (sewa belum tercatat), dan sebaliknya.
+ *
  * Perubahan tagihan bersyarat status UNPAID dan menjadi titik serialisasi. Dua notifikasi yang
  * datang bersamaan antre di baris tagihan, dan hanya yang pertama mendapat count = 1. Yang kedua
  * jatuh ke cabang bawah, yang memisahkan notifikasi ganda dari percobaan lain yang ikut terbayar.
@@ -43,6 +50,13 @@ async function settleRentPayment(payment: RentPayment, status: TransactionStatus
   const { bill } = payment;
 
   return prisma.$transaction(async (tx) => {
+    const propertyId = bill.room.propertyId;
+    await lockPeriod(tx, propertyId, bill.period);
+    if (await isPeriodClosed(tx, propertyId, bill.period)) {
+      const late = await settleAfterClose(tx, payment, status);
+      if (late) return late;
+    }
+
     const claimed = await tx.bill.updateMany({
       where: { id: payment.billId, status: 'UNPAID' },
       data: { status: 'PAID', paidAt },
@@ -82,6 +96,36 @@ async function settleRentPayment(payment: RentPayment, status: TransactionStatus
     });
     return 'DUPLICATE_BILL_PAYMENT';
   });
+}
+
+/**
+ * Pelunasan untuk tagihan yang periodenya sudah ditutup. Null bila tagihan ternyata sudah lunas
+ * lewat order lain; kasus itu diproses sebagai pembayaran ganda biasa.
+ */
+async function settleAfterClose(
+  tx: Prisma.TransactionClient,
+  payment: RentPayment,
+  status: TransactionStatus,
+): Promise<WebhookOutcome | null> {
+  const { status: billStatus } = await tx.bill.findUniqueOrThrow({ where: { id: payment.billId }, select: { status: true } });
+  if (billStatus === 'PAID') return null;
+
+  const marked = await tx.payment.updateMany({
+    where: { id: payment.id, status: { notIn: ['PAID', 'DUPLICATE_PAID', 'PAID_AFTER_CLOSE'] } },
+    data: { status: 'PAID_AFTER_CLOSE', paidAt: new Date(), ...providerFields(status) },
+  });
+  if (marked.count === 0) return 'ALREADY_PAID';
+
+  await recordAnomaly(tx, {
+    type: 'PAID_AFTER_PERIOD_CLOSED',
+    orderId: payment.orderId,
+    paymentId: payment.id,
+    expectedAmountIdr: payment.bill.amountIdr,
+    receivedAmountIdr: payment.bill.amountIdr,
+    providerStatus: status.transaction_status,
+    note: `Terbayar setelah periode ${payment.bill.period} ditutup. Tidak dicatat on-chain; dana perlu dikembalikan.`,
+  });
+  return 'PAID_AFTER_PERIOD_CLOSED';
 }
 
 /** Menolak bila nominal notifikasi atau nominal API status berbeda dari tagihan atau pesanan. */

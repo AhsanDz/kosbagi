@@ -19,6 +19,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "webhook:simulate": "tsx scripts/webhook-simulate.ts",
     "demo:bayar-sewa": "tsx scripts/demo-bayar-sewa.ts",
+    "demo:siapkan-investor": "tsx scripts/demo-siapkan-investor.ts",
+    "demo:catat-biaya": "tsx scripts/demo-catat-biaya.ts",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
@@ -44,6 +46,7 @@
     "ioredis": "6.0.0",
     "jose": "6.2.15",
     "midtrans-client": "1.4.3",
+    "multer": "2.5.0",
     "pino": "10.4.0",
     "pino-http": "11.0.0",
     "zod": "4.6.7"
@@ -51,6 +54,7 @@
   "devDependencies": {
     "@types/cors": "2.8.19",
     "@types/express": "5.0.6",
+    "@types/multer": "2.3.0",
     "@types/node": "24.19.2",
     "@types/supertest": "7.2.1",
     "pino-pretty": "13.2.0",

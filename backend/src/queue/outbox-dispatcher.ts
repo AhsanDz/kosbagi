@@ -4,6 +4,10 @@
 // Pengiriman bersifat "minimal sekali": bila proses mati setelah job masuk antrean tetapi
 // sebelum baris ditandai, job dikirim lagi. Id job BullMQ memakai id baris outbox sehingga
 // kiriman kedua diabaikan selama job masih ada, dan kontrak menolak referensi yang sudah tercatat.
+//
+// Coba lagi admin (P4) mengembalikan baris ke PENDING dan menambah satu baris outbox_job_retries.
+// Job BullMQ yang gagal masih tersimpan dengan id lama, jadi kiriman ulang memakai id bersufiks
+// -retry-<n>; worker tetap membaca baris outbox lewat outboxJobId di isi job.
 import type { OutboxJob, PrismaClient } from '../generated/prisma/client.js';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
@@ -27,6 +31,14 @@ export interface DispatchResult {
   failed: number;
 }
 
+/** Id job BullMQ: id baris outbox, ditambah -retry-<n> setelah Coba lagi ke-n. */
+export function bullJobId(jobId: string, retries: number): string {
+  return retries > 0 ? `${jobId}-retry-${retries}` : jobId;
+}
+
+/** Baris outbox beserta jumlah Coba lagi-nya. */
+type PendingRow = OutboxJob & { _count?: { retries: number } };
+
 function toJobData(job: OutboxJob): BlockchainJobData {
   return { outboxJobId: job.id, type: job.type, payload: parseJobPayload(job.type, job.payload) };
 }
@@ -35,14 +47,14 @@ function toJobData(job: OutboxJob): BlockchainJobData {
  * Memasukkan satu job dengan batas waktu. Bila add() baru selesai setelah batas waktu, baris
  * tetap PENDING dan dikirim lagi; BullMQ mengabaikan kiriman kedua karena id job-nya sama.
  */
-async function enqueue(queue: JobSink, job: OutboxJob): Promise<void> {
+async function enqueue(queue: JobSink, job: PendingRow): Promise<void> {
   const data = toJobData(job);
   let timer: NodeJS.Timeout | undefined;
   const timedOut = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(new Error('Antrean tidak menjawab dalam batas waktu.')), ENQUEUE_TIMEOUT_MS);
   });
   try {
-    await Promise.race([queue.add(job.type, data, { jobId: job.id }), timedOut]);
+    await Promise.race([queue.add(job.type, data, { jobId: bullJobId(job.id, job._count?.retries ?? 0) }), timedOut]);
   } finally {
     clearTimeout(timer);
   }
@@ -60,10 +72,11 @@ export async function dispatchOutboxBatch(
   db: OutboxDb = prisma,
   batchSize: number = DEFAULT_BATCH_SIZE,
 ): Promise<DispatchResult> {
-  const pending = await db.outboxJob.findMany({
+  const pending: PendingRow[] = await db.outboxJob.findMany({
     where: { status: 'PENDING' },
     orderBy: { createdAt: 'asc' },
     take: batchSize,
+    include: { _count: { select: { retries: true } } },
   });
 
   const result: DispatchResult = { dispatched: 0, failed: 0 };

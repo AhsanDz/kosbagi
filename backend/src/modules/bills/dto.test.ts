@@ -68,6 +68,8 @@ describe('toBillDto', () => {
       paymentState: 'NONE',
       payment: null,
       chain: null,
+      periodClosed: false,
+      refund: null,
     });
   });
 
@@ -151,6 +153,29 @@ describe('toBillDto', () => {
     );
 
     expect(dto.chain).toEqual({ status: 'RECORDED', txHash: '0xabc', blockNumber: 123 });
+  });
+
+  it('penghuni tidak pernah menerima FAILED: pencatatan yang gagal terbaca PENDING (P4)', () => {
+    const outboxJob = {
+      chainTransactions: [{ status: 'FAILED', txHash: null, blockNumber: null }],
+    } as unknown as PaymentRow['outboxJob'];
+    const dto = toBillDto(bill({ status: 'PAID', paidAt: earlier, payments: [payment({ status: 'PAID', outboxJob })] }), now);
+
+    expect(dto.chain).toEqual({ status: 'PENDING', txHash: null, blockNumber: null });
+  });
+
+  it('terbayar setelah periode ditutup: tagihan tetap UNPAID, paymentState PAID_AFTER_CLOSE, refund terisi (P4)', () => {
+    const late = payment({ status: 'PAID_AFTER_CLOSE', paidAt: later, snapToken: null });
+    const dto = toBillDto(bill({ payments: [late] }), now, true);
+
+    expect(dto).toMatchObject({
+      status: 'UNPAID',
+      paymentState: 'PAID_AFTER_CLOSE',
+      periodClosed: true,
+      refund: { status: 'PENDING', amountIdr: 1_500_000, paidAt: later, orderId: 'RENT-SMR01-K03-2026-11' },
+      chain: null,
+    });
+    expect(toBillDto(bill(), now, true)).toMatchObject({ paymentState: 'NONE', periodClosed: true, refund: null });
   });
 });
 

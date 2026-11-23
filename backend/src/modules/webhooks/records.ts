@@ -11,6 +11,7 @@ export type WebhookOutcome =
   | 'DUPLICATE_PURCHASE_PAYMENT' // pesanan token sudah lunas lewat order lain
   | 'PURCHASE_UNFULFILLABLE' // pesanan terbayar setelah sisihannya lepas dan tokennya sudah habis
   | 'ORDER_ID_TAKEN' // order_id percobaan ini sudah dipakai di Midtrans sebelum percobaan dibuat
+  | 'PAID_AFTER_PERIOD_CLOSED' // sewa terbayar setelah periodenya ditutup; tagihan tidak berubah (P4)
   | 'UNKNOWN_ORDER' // order_id tidak dikenal
   | 'ATTEMPT_UPDATED' // status percobaan berubah, tagihan atau pesanan tidak
   | 'NO_CHANGE'; // tidak ada yang perlu diubah

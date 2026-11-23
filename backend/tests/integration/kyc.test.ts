@@ -233,7 +233,7 @@ describe('GET /api/kyc (admin)', () => {
     ]);
   });
 
-  it('pesan galat worker hanya tampil di daftar admin, tidak di /kyc/me', async () => {
+  it('pesan galat worker hanya tampil di daftar admin; investor melihat FAILED sebagai PENDING (P4)', async () => {
     await approve((await submit(fixture.investor)).id);
     const job = await prisma.outboxJob.findFirstOrThrow();
     await prisma.chainTransaction.create({
@@ -249,7 +249,7 @@ describe('GET /api/kyc (admin)', () => {
       blockNumber: null,
       lastError: 'RPC tidak menjawab.',
     });
-    expect(mine.body.data.wallet.whitelist).toEqual({ status: 'FAILED', txHash: null, blockNumber: null });
+    expect(mine.body.data.wallet.whitelist).toEqual({ status: 'PENDING', txHash: null, blockNumber: null });
   });
 
   it('daftar kosong tetap membawa counts', async () => {

@@ -42,6 +42,19 @@ const protectedRoutes: ['get' | 'post', string, Role[]][] = [
   ['get', '/api/purchases', ['INVESTOR']],
   ['get', `/api/purchases/${SOME_ID}`, ['INVESTOR']],
   ['post', `/api/purchases/${SOME_ID}/payments`, ['INVESTOR']],
+  // P4
+  ['get', '/api/expenses', ['MANAGER', 'ADMIN']],
+  ['post', '/api/expenses', ['MANAGER']],
+  ['get', `/api/expenses/${SOME_ID}/receipt`, ['MANAGER', 'ADMIN']],
+  ['get', '/api/periods/2026-11', ['ADMIN']],
+  ['post', '/api/periods/2026-11/close', ['ADMIN']],
+  ['post', '/api/periods/2026-11/distribute', ['ADMIN']],
+  ['get', '/api/portfolio/summary', ['INVESTOR']],
+  ['get', '/api/portfolio', ['INVESTOR']],
+  ['get', '/api/manager/rooms', ['MANAGER', 'ADMIN']],
+  ['get', '/api/admin/summary', ['ADMIN']],
+  ['get', '/api/admin/jobs', ['ADMIN']],
+  ['post', `/api/admin/jobs/${SOME_ID}/retry`, ['ADMIN']],
 ];
 
 describe('tanpa token', () => {
@@ -119,6 +132,20 @@ describe('id bukan UUID', () => {
     const pay = await request(app).post('/api/purchases/bukan-uuid/payments').set('Authorization', authorization);
 
     expect([buy.status, read.status, pay.status]).toEqual([404, 404, 404]);
+  });
+
+  it('biaya dan job antrean dibalas 404 tanpa menyentuh basis data (P4)', async () => {
+    const nota = await request(app).get('/api/expenses/bukan-uuid/receipt').set('Authorization', await bearer('MANAGER'));
+    const retry = await request(app).post('/api/admin/jobs/bukan-uuid/retry').set('Authorization', await bearer('ADMIN'));
+
+    expect([nota.status, retry.status]).toEqual([404, 404]);
+  });
+
+  it('periode bukan YYYY-MM dibalas 400 tanpa menyentuh basis data (P4)', async () => {
+    const res = await request(app).get('/api/periods/2026-13').set('Authorization', await bearer('ADMIN'));
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('KYC dibalas 404 tanpa menyentuh basis data', async () => {

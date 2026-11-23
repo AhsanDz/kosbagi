@@ -157,8 +157,20 @@ export interface PurchaseResult {
   payment: PaymentAttemptResult['payment'];
 }
 
-/** POST /offerings/:id/purchases. Membuat pesanan, menyisihkan token, lalu membuat transaksi Snap. */
-export async function createPurchase(offeringId: string, investorId: string, tokenAmount: number): Promise<PurchaseResult> {
+export interface ReservedPurchase {
+  purchase: TokenPurchase;
+  /** Percobaan pertama, sudah tersimpan tetapi belum dibuat di Midtrans. */
+  payment: PaymentAttemptResult['payment'];
+  startsAt: Date;
+  target: PaymentTarget;
+}
+
+/**
+ * Tahap 1 pembuatan pesanan: semua pemeriksaan (KYC, dompet, penawaran, skenario 8 dan 9, pesanan
+ * aktif) lalu pesanan, sisihan token, dan percobaan pertama disimpan di bawah kunci properti.
+ * Midtrans belum dipanggil. Dipakai endpoint (Snap) dan skrip demo:siapkan-investor (VA Core API).
+ */
+export async function reservePurchase(offeringId: string, investorId: string, tokenAmount: number): Promise<ReservedPurchase> {
   const offering = await prisma.offering.findUnique({ where: { id: offeringId }, include: { property: true } });
   if (!offering) throw new AppError(404, 'NOT_FOUND', 'Penawaran tidak ditemukan.');
   const investor = await prisma.user.findUniqueOrThrow({ where: { id: investorId }, select: { name: true, email: true } });
@@ -193,23 +205,32 @@ export async function createPurchase(offeringId: string, investorId: string, tok
     return { purchase, payment, startsAt: now };
   });
 
-  const target = purchaseTarget({ purchase: created.purchase, offering, investor });
-  const opened = await openSnapTransaction(target, created.payment, created.startsAt);
-  if (opened) return { purchase: created.purchase, payment: opened };
+  return { ...created, target: purchaseTarget({ purchase: created.purchase, offering, investor }) };
+}
+
+/** POST /offerings/:id/purchases. Membuat pesanan, menyisihkan token, lalu membuat transaksi Snap. */
+export async function createPurchase(offeringId: string, investorId: string, tokenAmount: number): Promise<PurchaseResult> {
+  const reserved = await reservePurchase(offeringId, investorId, tokenAmount);
+  const opened = await openSnapTransaction(reserved.target, reserved.payment, reserved.startsAt);
+  if (opened) return { purchase: reserved.purchase, payment: opened };
 
   // order_id pertama sudah terpakai di Midtrans: lanjut ke sufiks -2 dan seterusnya. Sisihan
   // diperbarui sampai batas bayar percobaan baru.
-  const { payment } = await startPayment(target, 1);
-  return { purchase: created.purchase, payment };
+  const { payment } = await startPayment(reserved.target, 1);
+  return { purchase: reserved.purchase, payment };
 }
 
-/** POST /purchases/:id/payments. Melanjutkan percobaan aktif, atau bayar ulang dengan sufiks baru. */
-export async function continuePurchasePayment(purchaseId: string, investorId: string): Promise<PaymentAttemptResult> {
+/** Sasaran pembayaran untuk pesanan milik `investorId`. */
+export async function loadPurchaseTarget(purchaseId: string, investorId: string): Promise<PaymentTarget> {
   const purchase = await prisma.tokenPurchase.findFirst({
     where: { id: purchaseId, investorId },
     include: { offering: { include: { property: true } }, investor: { select: { name: true, email: true } } },
   });
   if (!purchase) throw purchaseNotFound();
+  return purchaseTarget({ purchase, offering: purchase.offering, investor: purchase.investor });
+}
 
-  return startPayment(purchaseTarget({ purchase, offering: purchase.offering, investor: purchase.investor }));
+/** POST /purchases/:id/payments. Melanjutkan percobaan aktif, atau bayar ulang dengan sufiks baru. */
+export async function continuePurchasePayment(purchaseId: string, investorId: string): Promise<PaymentAttemptResult> {
+  return startPayment(await loadPurchaseTarget(purchaseId, investorId));
 }

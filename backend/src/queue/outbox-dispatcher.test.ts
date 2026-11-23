@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OutboxJob } from '../generated/prisma/client.js';
 import { paymentReference } from './jobs.js';
-import { dispatchOutboxBatch, type JobSink, startOutboxDispatcher } from './outbox-dispatcher.js';
+import { bullJobId, dispatchOutboxBatch, type JobSink, startOutboxDispatcher } from './outbox-dispatcher.js';
 
 const payload = {
   propertyCode: 'SMR01',
@@ -13,7 +13,7 @@ const payload = {
   paymentRef: paymentReference('RENT-SMR01-K03-2026-11'),
 };
 
-function outboxRow(id: string, overrides: Partial<OutboxJob> = {}): OutboxJob {
+function outboxRow(id: string, overrides: Partial<OutboxJob> & { _count?: { retries: number } } = {}): OutboxJob {
   return {
     id,
     type: 'RECORD_RENT',
@@ -65,6 +65,19 @@ describe('dispatchOutboxBatch', () => {
     );
     expect(rows.map((row) => row.status)).toEqual(['DISPATCHED', 'DISPATCHED']);
     expect(rows[0]?.dispatchedAt).toBeInstanceOf(Date);
+  });
+
+  it('setelah Coba lagi admin, id job BullMQ bersufiks -retry-<n> supaya tidak diabaikan', async () => {
+    const rows = [outboxRow('job-1', { _count: { retries: 2 } })];
+    const queue = fakeQueue();
+
+    await expect(dispatchOutboxBatch(queue, fakeDb(rows))).resolves.toEqual({ dispatched: 1, failed: 0 });
+    expect(queue.add).toHaveBeenCalledWith(
+      'RECORD_RENT',
+      { outboxJobId: 'job-1', type: 'RECORD_RENT', payload },
+      { jobId: 'job-1-retry-2' },
+    );
+    expect(bullJobId('job-9', 0)).toBe('job-9');
   });
 
   it('tidak mengirim ulang baris yang sudah DISPATCHED', async () => {

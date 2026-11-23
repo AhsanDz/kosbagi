@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'dotenv';
 import { describe, expect, it } from 'vitest';
-import { parseEnv } from './env.js';
+import path from 'node:path';
+import { BACKEND_ROOT, parseEnv } from './env.js';
 
 const minimal = {
   DATABASE_URL: 'postgresql://kosbagi:kosbagi@localhost:5432/kosbagi?schema=public',
@@ -18,6 +19,7 @@ describe('parseEnv', () => {
       LOG_LEVEL: 'info',
       CORS_ORIGIN: ['http://localhost:3000'],
       CHAIN_ID: 11155111,
+      UPLOAD_DIR: path.resolve(BACKEND_ROOT, 'uploads'),
       ...minimal,
     });
   });
@@ -136,5 +138,22 @@ describe('parseEnv: CUSTODIAL_WALLET_MNEMONIC', () => {
     } catch (error) {
       expect((error as Error).message).not.toContain('rahasia');
     }
+  });
+});
+
+describe('parseEnv: UPLOAD_DIR', () => {
+  it('bawaan folder uploads di dalam backend/, termasuk bila barisnya kosong', () => {
+    expect(parseEnv(minimal).UPLOAD_DIR).toBe(path.join(BACKEND_ROOT, 'uploads'));
+    expect(parseEnv({ ...minimal, UPLOAD_DIR: '' }).UPLOAD_DIR).toBe(path.join(BACKEND_ROOT, 'uploads'));
+  });
+
+  it('path relatif dibaca dari folder backend/, path absolut dipakai apa adanya', () => {
+    expect(parseEnv({ ...minimal, UPLOAD_DIR: 'data/nota' }).UPLOAD_DIR).toBe(path.join(BACKEND_ROOT, 'data', 'nota'));
+    const absolute = path.resolve('/srv/kosbagi-nota');
+    expect(parseEnv({ ...minimal, UPLOAD_DIR: absolute }).UPLOAD_DIR).toBe(absolute);
+  });
+
+  it('BACKEND_ROOT menunjuk folder yang berisi package.json backend', () => {
+    expect(readFileSync(path.join(BACKEND_ROOT, 'package.json'), 'utf8')).toContain('"name": "kosbagi-backend"');
   });
 });

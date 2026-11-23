@@ -1,6 +1,6 @@
 // Menulis baris outbox. Dipanggil di dalam transaksi DB yang sama dengan perubahan statusnya,
 // sehingga keduanya tersimpan bersama atau tidak sama sekali. Isi job divalidasi sebelum ditulis.
-import type { Prisma } from '../generated/prisma/client.js';
+import type { OutboxJob, Prisma } from '../generated/prisma/client.js';
 import { parseJobPayload, paymentReference } from './jobs.js';
 
 interface RecordRentJob {
@@ -72,5 +72,55 @@ export async function writeTransferTokensJob(tx: Prisma.TransactionClient, job: 
       paymentId: job.paymentId,
       payload,
     },
+  });
+}
+
+/** dedupeKey job biaya. Satu nota hanya dicatat sekali, sama dengan aturan KosLedger. */
+export function recordExpenseDedupeKey(receiptHash: string): string {
+  return `record-expense:${receiptHash}`;
+}
+
+/** dedupeKey job tutup periode. Satu periode satu properti hanya ditutup sekali. */
+export function closePeriodDedupeKey(propertyCode: string, period: string): string {
+  return `close-period:${propertyCode}:${period}`;
+}
+
+interface RecordExpenseJob {
+  propertyCode: string;
+  period: string;
+  /** Kode kategori uint8, mis. 4 untuk Perbaikan. */
+  categoryCode: number;
+  amountIdr: bigint;
+  /** SHA-256 isi file nota, 0x + 64 hex. */
+  receiptHash: string;
+}
+
+/**
+ * Job KosLedger.recordExpense(period, category, amount, receiptHash) (P4), ditulis bersama baris
+ * biaya. Isinya hanya kode properti, periode, kode kategori, nominal, dan hash nota.
+ */
+export async function writeRecordExpenseJob(tx: Prisma.TransactionClient, job: RecordExpenseJob): Promise<OutboxJob> {
+  const payload = parseJobPayload('RECORD_EXPENSE', {
+    propertyCode: job.propertyCode,
+    period: job.period,
+    category: job.categoryCode,
+    amountIdr: Number(job.amountIdr),
+    receiptHash: job.receiptHash,
+  });
+
+  return tx.outboxJob.create({
+    data: { type: 'RECORD_EXPENSE', dedupeKey: recordExpenseDedupeKey(job.receiptHash), payload },
+  });
+}
+
+/** Job KosLedger.closePeriod(period) (P4), ditulis bersama baris PeriodClosing. */
+export async function writeClosePeriodJob(
+  tx: Prisma.TransactionClient,
+  job: { propertyCode: string; period: string },
+): Promise<OutboxJob> {
+  const payload = parseJobPayload('CLOSE_PERIOD', { propertyCode: job.propertyCode, period: job.period });
+
+  return tx.outboxJob.create({
+    data: { type: 'CLOSE_PERIOD', dedupeKey: closePeriodDedupeKey(job.propertyCode, job.period), payload },
   });
 }
