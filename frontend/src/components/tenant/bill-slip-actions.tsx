@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import Link from "next/link";
 import {
+  ArrowCounterClockwiseIcon,
   CircleNotchIcon,
   InfoIcon,
   WarningCircleIcon,
@@ -15,7 +16,14 @@ import { useTenantBilling } from "@/components/tenant/tenant-billing-provider";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { BillDto } from "@/lib/api/types";
-import { PAID_VIEW_STATES, receiptHref, type BillViewState } from "@/lib/billing";
+import {
+  billRefund,
+  PAID_VIEW_STATES,
+  receiptHref,
+  tenantChain,
+  type BillViewState,
+} from "@/lib/billing";
+import { formatDateTimeWib, formatPeriod, formatRupiah } from "@/lib/format";
 
 function PayButton({ label, onClick }: { label: string; onClick: () => void }) {
   const { paying } = useTenantBilling();
@@ -33,7 +41,10 @@ function PayButton({ label, onClick }: { label: string; onClick: () => void }) {
 /**
  * Bagian bawah Slip tagihan dan Slip ringkas: isi dan tombolnya mengikuti
  * keadaan tagihan. Tagihan lunas mendapat tombol Lihat kuitansi ke
- * /penghuni/tagihan/[id].
+ * /penghuni/tagihan/[id]. Status pencatatan memakai versi penghuni (tenantChain),
+ * jadi tidak pernah menulis gagal. Periode yang sudah ditutup (P4) menonaktifkan
+ * tombol Bayar, dan pembayaran yang masuk setelah ditutup ditulis sebagai dana
+ * yang akan dikembalikan.
  */
 export function BillSlipActions({ bill, state }: { bill: BillDto; state: BillViewState }) {
   const { startPayment, resumePayment, markPaymentExpired } = useTenantBilling();
@@ -46,10 +57,41 @@ export function BillSlipActions({ bill, state }: { bill: BillDto; state: BillVie
   if (PAID_VIEW_STATES.includes(state)) {
     return (
       <>
-        <ChainStatusStack chain={bill.chain} />
+        <ChainStatusStack chain={tenantChain(bill.chain)} />
         <Button asChild variant="outline" className="w-full">
           <Link href={receiptHref(bill.id)}>Lihat kuitansi</Link>
         </Button>
+      </>
+    );
+  }
+
+  if (state === "REFUND_PENDING") {
+    const refund = billRefund(bill);
+    return (
+      <Alert variant="warning">
+        <ArrowCounterClockwiseIcon aria-hidden />
+        <AlertTitle>Pembayaran diterima setelah periode ditutup, dana akan dikembalikan</AlertTitle>
+        <AlertDescription>
+          {refund
+            ? `${formatRupiah(refund.amountIdr)} dibayar${refund.paidAt ? ` ${formatDateTimeWib(refund.paidAt)}` : ""} lewat ${refund.orderId}. `
+            : ""}
+          Tagihan ini tidak dicatat di Sepolia. Pengelola KosBagi akan mengembalikan danamu, jadi
+          kamu tidak perlu membayar lagi.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (state === "PERIOD_CLOSED") {
+    return (
+      <>
+        <Button type="button" className="w-full" disabled aria-describedby={`tutup-${bill.id}`}>
+          Bayar sewa
+        </Button>
+        <p id={`tutup-${bill.id}`} className="text-xs leading-4 text-muted-foreground">
+          Periode {formatPeriod(bill.period)} sudah ditutup, jadi tagihan ini tidak bisa dibayar
+          lewat KosBagi. Hubungi pengelola kos.
+        </p>
       </>
     );
   }

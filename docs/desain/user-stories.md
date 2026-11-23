@@ -2,7 +2,7 @@
 
 Dokumen ini memuat kebutuhan KosBagi dari sudut pandang setiap aktor. Setiap cerita punya kriteria penerimaan yang bisa diuji, prioritas, progress tempat fiturnya dibangun, serta kaitannya dengan enam butir cakupan demo wajib dan dua belas skenario uji di proposal.
 
-Status: versi P1 (29 Okt 2026). Cerita dan kriterianya difinalkan di P4 bersama ERD.
+Status: versi final P4 (19 Nov 2026). Cerita investor, pengelola, dan admin mengikuti desain P4 yang disetujui 16 Nov 2026 dan keputusan pengguna di hari yang sama (bagian perbendaharaan untuk pemilik lama, sewa setelah periode ditutup ditolak, KosVoting tidak dibangun).
 
 ## Cara membaca
 
@@ -49,9 +49,9 @@ Status: versi P1 (29 Okt 2026). Cerita dan kriterianya difinalkan di P4 bersama 
 | [US-INV-05](#us-inv-05-pesanan-melebihi-batas-kepemilikan-10-ditolak) | Pesanan melebihi batas kepemilikan 10% ditolak | Wajib | P1, P3 | | S9, S10 |
 | [US-INV-06](#us-inv-06-melihat-portofolio-dan-bagi-hasil) | Melihat portofolio dan bagi hasil | Wajib | P4 | D5 | |
 | [US-INV-07](#us-inv-07-melihat-riwayat-dan-status-on-chain) | Melihat riwayat dan status on-chain | Wajib | P4 | D5 | |
-| [US-INV-08](#us-inv-08-melihat-ringkasan-investor) | Melihat ringkasan investor | Sebaiknya | P3, P4 | | |
-| [US-INV-09](#us-inv-09-menarik-saldo-bagi-hasil) | Menarik saldo bagi hasil | Opsional | P5 | | |
-| [US-INV-10](#us-inv-10-memberi-suara-on-chain) | Memberi suara on-chain | Opsional | P4, P5 | | |
+| [US-INV-08](#us-inv-08-melihat-ringkasan-investor) | Melihat ringkasan investor | Sebaiknya | P4 | D5 | |
+| [US-INV-09](#us-inv-09-menarik-saldo-bagi-hasil) | Menarik saldo bagi hasil | Opsional | P5 (tombol nonaktif sejak P4) | | |
+| [US-INV-10](#us-inv-10-memberi-suara-on-chain) | Memberi suara on-chain | Opsional | Tidak dibangun | | |
 | [US-PHN-01](#us-phn-01-melihat-tagihan-bulan-berjalan) | Melihat tagihan bulan berjalan | Wajib | P2 | D2 | |
 | [US-PHN-02](#us-phn-02-membayar-sewa-lewat-virtual-account) | Membayar sewa lewat Virtual Account | Wajib | P2, P3 | D2 | S1 |
 | [US-PHN-03](#us-phn-03-membayar-sewa-lewat-qris) | Membayar sewa lewat QRIS | Wajib | P2, P3 | D2 | S2 |
@@ -59,9 +59,11 @@ Status: versi P1 (29 Okt 2026). Cerita dan kriterianya difinalkan di P4 bersama 
 | [US-PHN-05](#us-phn-05-pembayaran-kedaluwarsa-lalu-bayar-ulang) | Pembayaran kedaluwarsa lalu bayar ulang | Wajib | P2 | | S4 |
 | [US-PHN-06](#us-phn-06-pembayaran-tidak-tercatat-dua-kali) | Pembayaran tidak tercatat dua kali | Wajib | P2, P3 | | S5 |
 | [US-PHN-07](#us-phn-07-melihat-kuitansi-dan-bukti-on-chain) | Melihat kuitansi dan bukti on-chain | Wajib | P3 | D2, D5 | |
-| [US-PHN-08](#us-phn-08-mengetahui-status-bila-pencatatan-on-chain-gagal) | Mengetahui status bila pencatatan on-chain gagal | Sebaiknya | P3 | | |
+| [US-PHN-08](#us-phn-08-tetap-tenang-bila-pencatatan-on-chain-tertunda) | Tetap tenang bila pencatatan on-chain tertunda | Sebaiknya | P3, P4 | | |
+| [US-PHN-09](#us-phn-09-tagihan-periode-yang-sudah-ditutup-tidak-bisa-dibayar) | Tagihan periode yang sudah ditutup tidak bisa dibayar, dan pembayaran telat dikembalikan | Sebaiknya | P4 | | |
 | [US-PGL-01](#us-pgl-01-melihat-status-kamar-per-periode) | Melihat status kamar per periode | Wajib | P4 | D2 | |
 | [US-PGL-02](#us-pgl-02-mencatat-biaya-dan-mengunggah-nota) | Mencatat biaya dan mengunggah nota | Wajib | P4 | D3 | |
+| [US-PGL-03](#us-pgl-03-menindaklanjuti-tagihan-telat-dan-pencatatan-yang-belum-selesai) | Menindaklanjuti tagihan telat dan pencatatan yang belum selesai | Sebaiknya | P4 | D2 | |
 | [US-ADM-01](#us-adm-01-menyetujui-atau-menolak-kyc) | Menyetujui atau menolak KYC | Wajib | P3 | D1 | |
 | [US-ADM-02](#us-adm-02-menutup-periode) | Menutup periode | Wajib | P3, P4 | D4 | S12 |
 | [US-ADM-03](#us-adm-03-menjalankan-distribusi-bagi-hasil) | Menjalankan distribusi bagi hasil | Wajib | P4 | D4, D5 | |
@@ -69,9 +71,10 @@ Status: versi P1 (29 Okt 2026). Cerita dan kriterianya difinalkan di P4 bersama 
 | [US-ADM-05](#us-adm-05-notifikasi-palsu-ditolak) | Notifikasi palsu ditolak | Wajib | P2 | | S6 |
 | [US-ADM-06](#us-adm-06-nominal-tidak-cocok-dicatat-sebagai-anomali) | Nominal tidak cocok dicatat sebagai anomali | Wajib | P2, P4 | D6 | S7 |
 | [US-ADM-07](#us-adm-07-hanya-pemegang-peran-yang-menulis-ke-kontrak) | Hanya pemegang peran yang menulis ke kontrak | Wajib | P1, P2 | | S11 |
-| [US-ADM-08](#us-adm-08-melihat-ringkasan-admin) | Melihat ringkasan admin | Sebaiknya | P4 | | |
+| [US-ADM-08](#us-adm-08-melihat-ringkasan-admin) | Melihat ringkasan admin | Sebaiknya | P4 | D4, D6 | |
+| [US-ADM-09](#us-adm-09-mengulang-atau-menandai-job-on-chain-yang-gagal) | Mengulang atau menandai job on-chain yang gagal | Sebaiknya | P4 | | S5 |
 
-Jumlah: 41 cerita (30 wajib, 9 sebaiknya, 2 opsional).
+Jumlah: 44 cerita (30 wajib, 12 sebaiknya, 2 opsional). US-INV-10 tetap dicatat walau tidak dibangun, supaya keputusannya bisa ditelusuri.
 
 ## Pengunjung publik
 
@@ -385,11 +388,18 @@ Prioritas wajib, lapis kontrak di P1 dan lapis backend serta halaman di P3, menu
 
 Prioritas wajib, dibangun di P4, menu Portofolio (`/investor/portofolio`). Terkait demo D5.
 
+- *Kepemilikan dan dompet*
+  - **Given** Dimas memegang 100 token KB-SMR01
+  - **When** membuka Portofolio
+  - **Then** kartu token menampilkan "100 token" dan "Nilai beli Rp10.000.000, atau 0,56% dari 18.000 token" beserta tanggal beli
+  - **And** kartu Dompet kustodian menampilkan alamat lengkap, tombol "Lihat di Etherscan", dan "Salin alamat"
 - *Setelah distribusi*
   - **Given** admin sudah menutup periode November 2026 dan menjalankan distribusi
-  - **When** investor membuka Portofolio
-  - **Then** saldo bagi hasil bertambah sebesar bagian pro-rata periode itu, yaitu sewa bersih × jumlah token ÷ total token, dibulatkan ke bawah (contoh: Rp7.897.500 × 100 ÷ 18.000 = Rp43.875)
-  - **And** setiap periode punya tautan Etherscan transaksi `closePeriod` sebagai bukti nilai per token
+  - **Then** tabel "Bagi hasil per periode" berisi baris November 2026: saldo di blok snapshot 100 token, nilai per token Rp438,75, bagianmu Rp43.875 (Rp7.897.500 × 100 ÷ 18.000, dibulatkan ke bawah), dan status "Tercatat" yang menaut ke transaksi `closePeriod`
+  - **And** periode berjalan tampil sebagai baris "Belum ada snapshot" dan "Belum dihitung" dengan batas tutupnya
+- *Belum punya token*
+  - **Given** investor belum pernah membeli token
+  - **Then** halaman menampilkan "Belum ada token di portofoliomu" dan tombol "Lihat penawaran"
 - *Saldo cocok dengan blockchain*
   - **Then** jumlah token di portofolio sama dengan saldo dompet kustodian investor di KosToken
 
@@ -401,31 +411,47 @@ Prioritas wajib, dibangun di P4 di menu Portofolio. Status on-chain pembelian su
 
 - *Status tiap baris*
   - **Given** investor punya pembelian dan bagi hasil
-  - **When** membuka riwayat
-  - **Then** setiap baris menunjukkan tanggal, jenis, nominal, dan status on-chain: "Menunggu pencatatan", "Tercatat" (hash 6+4 dan tautan Etherscan), atau "Gagal dicatat"
+  - **When** membuka "Riwayat transaksi"
+  - **Then** setiap baris menunjukkan tanggal, jenis ("Beli token" atau "Bagi hasil"), rincian (mis. "BUY-SMR01-0003, 100 token ke dompet kustodian"), nominal, dan status on-chain "Menunggu pencatatan" atau "Tercatat" (hash 6+4 dan tautan Etherscan)
+- *Tidak pernah melihat kata gagal*
+  - **Given** pemindahan token atau pencatatan lain gagal setelah semua percobaan otomatis
+  - **Then** investor tetap melihat "Menunggu pencatatan", karena pengulangannya tugas admin
 - *Pembaruan status*
-  - **Then** status "Menunggu pencatatan" berubah menjadi "Tercatat" setelah worker menyimpan tx hash, tanpa investor perlu keluar dan masuk lagi
+  - **Then** status "Menunggu pencatatan" berubah menjadi "Tercatat" setelah worker menyimpan tx hash, tanpa investor perlu memuat ulang halaman
 
 ### US-INV-08 Melihat ringkasan investor
 
-> Sebagai investor, saya ingin satu halaman ringkasan, supaya kondisi investasi saya terlihat sekilas.
+> Sebagai investor, saya ingin satu halaman ringkasan, supaya saldo bagi hasil dan sewa yang masuk terlihat sekilas.
 
-Prioritas sebaiknya, dibangun di P3 dan P4, menu Ringkasan (`/investor`).
+Prioritas sebaiknya, dibangun di P4, menu Ringkasan (`/investor`). Terkait demo D5.
 
-- *Isi ringkasan*
-  - **Given** investor masuk
-  - **Then** Ringkasan menampilkan jumlah token, nilai token (jumlah × Rp100.000), bagi hasil periode terakhir, dan status KYC
+- *Kartu saldo bagi hasil*
+  - **Given** distribusi November 2026 sudah dijalankan
+  - **When** Dimas membuka Ringkasan
+  - **Then** kartu gelap "Saldo bagi hasil" menampilkan Rp43.875 dengan keterangan "Dari distribusi November 2026: 100 token × Rp438,75."
+  - **And** grafik "Sewa tercatat di Sepolia" menjumlahkan sewa tercatat per tanggal bayar sampai Rp13.500.000
+- *Periode berjalan*
+  - **Given** periode November 2026 masih berjalan dan belum ada distribusi
+  - **Then** saldo Rp0 dengan keterangan bahwa bagi hasil pertama masuk setelah periode ditutup, garis putus-putus "Hari ini" tampil di grafik, dan kaki kartu menulis perkiraan bagian bila 9 kamar membayar (±Rp43.875)
+- *Daftar sewa masuk*
+  - **Then** kartu "Sewa masuk November" menampilkan K01 sampai K10 dengan tanggal bayar dan hash transaksi `recordRent`, tanpa nama penghuni; kamar yang belum dibayar menulis "Belum dibayar" dan kamar kosong "Tidak ditagih"
+  - **And** sewa yang pencatatannya belum selesai atau sedang diulang admin selalu ditulis "Menunggu pencatatan"
+- *Belum punya token*
+  - **Given** investor belum memegang token
+  - **Then** kartu saldo diganti kartu "Kamu belum punya token" dengan tombol "Lihat penawaran", sedangkan Daftar sewa masuk tetap tampil
 - *Memuat dan gagal*
-  - **Then** skeleton tampil saat data dimuat, dan bila gagal, pesan error menjelaskan penyebab dan cara memperbaikinya
+  - **Then** kerangka tampil saat data dimuat, dan bila server tidak merespons, pesan galat beserta tombol "Muat ulang" tampil
 
 ### US-INV-09 Menarik saldo bagi hasil
 
 > Sebagai investor, saya ingin menarik saldo bagi hasil, supaya hasilnya bisa saya pakai.
 
-Prioritas opsional, dibangun di P5 bila waktu cukup (disbursement sandbox).
+Prioritas opsional. Di P4 tombol "Tarik saldo" sudah tampil tetapi nonaktif dengan keterangan "Penarikan dibuka setelah disbursement sandbox tersedia." Penarikan dibangun di P5 bila waktu cukup.
 
-- *Penarikan dummy*
+- *Penarikan belum tersedia (P4)*
   - **Given** saldo bagi hasil lebih dari nol
+  - **Then** tombol "Tarik saldo" nonaktif dan keterangannya terbaca pembaca layar
+- *Penarikan dummy (P5, bila dibangun)*
   - **When** investor meminta penarikan ke rekening dummy
   - **Then** permintaan tercatat dan saldo berkurang, tanpa uang nyata dan tanpa nomor rekening asli
 
@@ -433,9 +459,9 @@ Prioritas opsional, dibangun di P5 bila waktu cukup (disbursement sandbox).
 
 > Sebagai investor, saya ingin memberi suara atas usulan pengelolaan kos, supaya pemegang token ikut menentukan keputusan penting.
 
-Prioritas opsional, kontrak `KosVoting` di P4 dan halaman di P5 bila waktu cukup.
+Tidak dibangun di prototipe (keputusan 16 Nov 2026). KosToken sudah memakai ERC20Votes, jadi bobot suara per blok bisa dipakai kontrak `KosVoting` di pengembangan lanjutan yang dicatat di business case.
 
-- *Bobot suara*
+- *Bobot suara (rancangan)*
   - **Given** ada usulan yang masih dibuka
   - **When** investor memberi suara
   - **Then** bobot suaranya sama dengan saldo token investor di blok saat usulan dibuat
@@ -552,20 +578,39 @@ Prioritas wajib, dibangun di P3, halaman `/penghuni/tagihan/[id]` yang dibuka da
   - **Given** tagihan tidak ada, milik penghuni lain, atau belum lunas
   - **Then** tampil "Kuitansi tidak ditemukan" dengan tombol "Kembali ke Tagihan"
 
-### US-PHN-08 Mengetahui status bila pencatatan on-chain gagal
+### US-PHN-08 Tetap tenang bila pencatatan on-chain tertunda
 
-> Sebagai penghuni, saya ingin tahu bahwa pembayaran saya tetap sah walau pencatatan blockchain gagal, supaya saya tidak membayar dua kali.
+> Sebagai penghuni, saya ingin tahu bahwa pembayaran saya tetap sah walau pencatatan blockchain belum selesai, supaya saya tidak membayar dua kali.
 
-Prioritas sebaiknya, dibangun di P3, menu Tagihan dan kuitansi.
+Prioritas sebaiknya, dibangun di P3 dan diubah di P4 (temuan QA S1), menu Tagihan dan kuitansi.
 
-- *Gagal dicatat*
+- *Pencatatan gagal setelah semua percobaan otomatis*
   - **Given** worker gagal mencatat setelah semua percobaan otomatis
-  - **Then** tagihan tetap "Lunas" dan status on-chain menunjukkan "Pencatatan on-chain gagal" dengan keterangan "Jaringan Sepolia tidak merespons. Pembayaranmu tetap lunas di sistem."
-  - **And** panel kuitansi menulis "Gagal dicatat, diulang operator" dan menegaskan penghuni tidak perlu membayar lagi
-  - **And** penghuni tidak mendapat tombol apa pun, karena pengulangan pencatatan adalah tugas operator
-- *Diulang operator*
-  - **When** admin menekan "Coba lagi" di antrean admin (P4)
+  - **Then** tagihan tetap "Lunas" dan status on-chain di slip, riwayat, jejak, dan kuitansi tetap "Menunggu pencatatan"; penghuni tidak pernah melihat kata gagal
+  - **And** penghuni tidak mendapat tombol apa pun, karena pengulangan pencatatan adalah tugas admin
+- *Pertahanan berlapis*
+  - **Given** backend P4 sudah memetakan FAILED menjadi PENDING untuk penghuni
+  - **Then** frontend tetap memetakannya sekali lagi, sedangkan pengelola dan admin tetap melihat "Gagal dicatat"
+- *Diulang admin*
+  - **When** admin menekan "Coba lagi" di antrean admin ([US-ADM-09](#us-adm-09-mengulang-atau-menandai-job-on-chain-yang-gagal))
   - **Then** job yang sama masuk antrean lagi dan tidak menghasilkan catatan ganda
+
+### US-PHN-09 Tagihan periode yang sudah ditutup tidak bisa dibayar
+
+> Sebagai penghuni, saya ingin tahu bila tagihan sebuah periode sudah tidak bisa dibayar lewat KosBagi, supaya saya menghubungi pengelola alih-alih membayar ke sistem.
+
+Prioritas sebaiknya, backend di P4 (keputusan 16 Nov 2026).
+
+- *Periode sudah ditutup*
+  - **Given** admin sudah menutup periode dan tagihan penghuni masih belum dibayar (`periodClosed: true`)
+  - **When** penghuni membuka Tagihan
+  - **Then** tombol "Bayar sewa" nonaktif dengan keterangan bahwa periode sudah ditutup dan tagihan tidak bisa dibayar lewat KosBagi, dan jejak pembayaran menulis hal yang sama
+  - **And** bila permintaan bayar tetap dikirim, backend menolak dengan 409 `PERIOD_CLOSED` sebelum transaksi Midtrans dibuat
+- *Terlanjur dibayar setelah ditutup*
+  - **Given** pembayaran sudah dimulai sebelum penutupan tetapi baru lunas sesudahnya (`paymentState: PAID_AFTER_CLOSE` atau `refund` terisi)
+  - **Then** tagihan tidak berubah dan tidak ada job on-chain; slip berlabel "Dana dikembalikan" dan menulis "Pembayaran diterima setelah periode ditutup, dana akan dikembalikan" beserta nominal, waktu bayar, dan nomor order, tanpa tombol bayar
+  - **And** jejak pembayaran menandai Bayar dan Konfirmasi Midtrans selesai, Tagihan lunas tidak tercapai, dan menulis nominal serta tanggalnya
+  - **And** admin melihat butir "Dana perlu dikembalikan" di kartu Perlu perhatian `/admin` yang menaut ke rekonsiliasi, tempat pembayaran itu muncul sebagai Selisih
 
 ## Pengelola
 
@@ -575,13 +620,15 @@ Prioritas sebaiknya, dibangun di P3, menu Tagihan dan kuitansi.
 
 Prioritas wajib, dibangun di P4 dengan data tagihan dari P2, menu Status kamar (`/pengelola`). Terkait demo D2.
 
-- *Papan kamar*
+- *Ringkasan sewa masuk*
   - **Given** pengguna masuk sebagai Hadi Santoso dan periode berjalan November 2026
   - **When** membuka Status kamar
-  - **Then** papan kamar K01 sampai K10 menunjukkan status setiap kamar: lunas dan tercatat (lime), belum dibayar, atau kosong
+  - **Then** kartu "Sewa masuk November" menampilkan jumlah lunas (mis. Rp10.500.000) dari Rp13.500.000 untuk 9 kamar terisi, bilah dua segmen (tercatat di Sepolia dan menunggu pencatatan), dan keterangan warna berjumlah
+- *Papan kamar*
+  - **Then** papan K01 sampai K10 menunjukkan status setiap kamar: lunas dan tercatat (ubin lime dengan hash yang menaut ke Etherscan), lunas tetapi belum tercatat ("Belum tercatat"), belum dibayar (nominal, atau "Lewat 8 hari" bila lewat jatuh tempo), atau kosong
 - *Setelah penghuni membayar*
   - **When** Sari melunasi tagihan K03 ([US-PHN-02](#us-phn-02-membayar-sewa-lewat-virtual-account))
-  - **Then** ubin K03 berubah menjadi lunas setelah data dimuat ulang, dengan tautan Etherscan bila sudah tercatat
+  - **Then** ubin K03 berubah menjadi lunas tanpa memuat ulang halaman, lalu menjadi lime setelah tercatat
 
 ### US-PGL-02 Mencatat biaya dan mengunggah nota
 
@@ -591,16 +638,39 @@ Prioritas wajib, dibangun di P4, menu Biaya dan nota (`/pengelola/biaya`). Terka
 
 - *Catat biaya*
   - **Given** periode November 2026 masih terbuka
-  - **When** pengelola mengisi kategori, tanggal, nominal, dan keterangan biaya, lalu mengunggah nota berupa PDF atau gambar
-  - **Then** biaya tersimpan, hash berkas nota dihitung, dan job `recordExpense` masuk antrean
-  - **And** status on-chain biaya bergerak dari "Menunggu pencatatan" ke "Tercatat" dengan tautan Etherscan, sedangkan berkas notanya tetap di server KosBagi
+  - **When** pengelola menekan "Catat biaya", memilih kategori (Listrik dan air, Kebersihan, Internet, Perbaikan, Keamanan), mengisi nominal, tanggal nota, dan keterangan, lalu memilih file nota PDF, JPG, atau PNG paling besar 5 MB
+  - **Then** Sheet menampilkan "Hash SHA-256 nota (dicatat on-chain)" yang dihitung dari isi file, dan tombol "Simpan dan catat" baru aktif setelah semua isian dan file lengkap
+  - **And** setelah disimpan, toast "Biaya perbaikan dicatat" muncul, baris biaya tampil "Menunggu pencatatan", lalu berubah menjadi "Tercatat" dengan tautan Etherscan, sedangkan file notanya tetap di server KosBagi
+- *Nota ganda*
+  - **Given** nota yang sama sudah pernah dicatat (contoh: nota listrik 5 Nov 2026)
+  - **When** pengelola menyimpannya lagi
+  - **Then** Alert error "Nota ini sudah tercatat" di atas form menyebut hash, biaya, dan tanggal nota pertama, tombol "Simpan dan catat" nonaktif sampai file diganti, dan tidak ada job on-chain baru
 - *Berkas tidak sesuai*
-  - **Given** berkas bukan PDF atau gambar, atau ukurannya melebihi batas
-  - **When** diunggah
-  - **Then** unggahan ditolak dengan pesan yang menyebut jenis dan ukuran berkas yang diterima
+  - **Given** berkas bukan PDF, JPG, atau PNG, atau lebih dari 5 MB
+  - **When** dipilih
+  - **Then** pesan di bawah isian menyebut format dan ukuran yang diterima
 - *Periode sudah ditutup*
   - **Given** periode November 2026 sudah ditutup
-  - **Then** biaya baru untuk periode itu tidak bisa dicatat
+  - **Then** Alert info menyatakan biaya November tidak bisa diubah lagi, tabel hanya bisa dibaca, dan tombol berganti menjadi "Catat biaya Desember"
+- *Kosong*
+  - **Given** belum ada biaya di periode itu
+  - **Then** tampil "Belum ada biaya November" beserta penjelasan singkat
+
+### US-PGL-03 Menindaklanjuti tagihan telat dan pencatatan yang belum selesai
+
+> Sebagai pengelola, saya ingin daftar hal yang perlu ditindaklanjuti, supaya saya bisa menagih penghuni yang telat dan tahu pencatatan mana yang sedang diulang.
+
+Prioritas sebaiknya, dibangun di P4, kartu "Perlu ditindaklanjuti" di Status kamar. Terkait demo D2.
+
+- *Tagihan lewat jatuh tempo*
+  - **Given** tagihan K04 dan K09 jatuh tempo 10 Nov dan belum dibayar pada 18 Nov
+  - **Then** kartu menampilkan "K04 Belum dibayar" dengan "Jatuh tempo 10 Nov sudah lewat 8 hari."
+- *Pencatatan gagal*
+  - **Given** K08 lunas 14 Nov tetapi `recordRent` gagal
+  - **Then** kartu menampilkan "Lunas 14 Nov, belum tercatat" dan menjelaskan bahwa admin sedang mengulangnya dan penghuni tidak perlu membayar lagi; pengelola tidak punya tombol mengulang
+- *Semua tercatat*
+  - **Given** semua sewa kamar terisi sudah tercatat
+  - **Then** kartu menulis bahwa tidak ada yang perlu ditindaklanjuti dan periode siap ditutup admin
 
 ## Admin
 
@@ -631,46 +701,60 @@ Prioritas wajib, dibangun di P3, menu Verifikasi KYC (`/admin/kyc`). Terkait dem
 
 Prioritas wajib, test kontrak di P3 dan halaman di P4, menu Tutup periode (`/admin/periode`). Terkait demo D4. Skenario uji S12.
 
+- *Struk sementara dan syarat*
+  - **Given** masih ada sewa atau nota November 2026 yang belum tercatat, atau ada job yang gagal
+  - **When** admin membuka Tutup periode
+  - **Then** struk berlabel "Struk sementara" menghitung dari data yang sudah tercatat saja (contoh: Rp12.000.000 dan Rp2.400.000 menghasilkan Rp390 per token)
+  - **And** kartu "Syarat penutupan" menandai syarat yang belum terpenuhi beserta penyebabnya (mis. "Kamar K08 gagal dicatat. Ulangi dari antrean job."), dan tombol "Tutup periode November 2026" nonaktif
 - *Konfirmasi*
-  - **Given** sewa dan biaya November 2026 sudah tercatat
+  - **Given** semua sewa dan nota tercatat dan tidak ada job gagal
   - **When** admin menekan Tutup periode
-  - **Then** dialog konfirmasi menampilkan sewa kotor, biaya operasional, fee pengelolaan 5%, PPh, sewa bersih, dan nilai per token, serta peringatan bahwa penutupan tidak bisa dibatalkan
+  - **Then** Dialog konfirmasi menulis "Sewa bersih Rp7.897.500 dan nilai Rp438,75 per token akan dicatat permanen di Sepolia. Langkah ini tidak bisa dibatalkan."
 - *Tercatat*
   - **When** admin mengonfirmasi
-  - **Then** job `closePeriod` masuk antrean, dan setelah tercatat, sewa bersih dan nilai per token tersimpan di KosLedger dengan tautan Etherscan
+  - **Then** kartu berubah menjadi "Menutup periode" selama job `closePeriod` dikirim, lalu "Periode ditutup" dengan tautan Etherscan, blok snapshot, dan cap TERCATAT di struk
+- *Penutupan gagal*
+  - **Given** `closePeriod` gagal setelah semua percobaan otomatis
+  - **Then** kartu "Penutupan gagal dicatat" menampilkan penyebab terakhir dan tombol "Coba lagi"; data periode belum berubah
 - *Sesuai hitungan manual (S12)*
-  - **Then** nilai per token sama dengan perhitungan manual di fixture (contoh November 2026: Rp7.897.500 ÷ 18.000 token = Rp438,75 per token)
-- *Masih ada yang menunggu*
-  - **Given** masih ada pembayaran atau biaya periode itu yang berstatus "Menunggu pencatatan"
-  - **Then** tombol Tutup periode belum aktif dan alasannya dijelaskan
+  - **Then** struk penutupan November 2026 menulis sewa kotor Rp13.500.000, biaya Rp2.700.000, fee 5% Rp675.000, PPh 22% Rp2.227.500 dari laba Rp10.125.000, sewa bersih Rp7.897.500, dan Rp438,75 per token (disimpan on-chain sebagai 43875 sen)
 
 ### US-ADM-03 Menjalankan distribusi bagi hasil
 
-> Sebagai admin, saya ingin menjalankan distribusi setelah periode ditutup, supaya setiap investor menerima bagian sesuai token yang dipegangnya.
+> Sebagai admin, saya ingin menjalankan distribusi setelah periode ditutup, supaya setiap pemegang menerima bagian sesuai token yang dipegangnya.
 
 Prioritas wajib, dibangun di P4, menu Tutup periode. Terkait demo D4 dan D5.
 
 - *Distribusi*
-  - **Given** periode sudah ditutup dan tercatat on-chain
-  - **When** admin menjalankan distribusi
-  - **Then** saldo bagi hasil setiap investor bertambah sebesar saldo tokennya pada blok penutupan × nilai per token
-  - **And** hasil distribusi per investor tampil dan bisa dicocokkan dengan nilai per token di KosLedger
+  - **Given** periode November 2026 sudah ditutup dan tercatat on-chain
+  - **When** admin menekan "Jalankan distribusi"
+  - **Then** toast "Distribusi November selesai" muncul dan tabel "Bagian pemegang" menampilkan saldo di blok snapshot dan bagian tiap pemegang: pemilik lama 5.400 token Rp2.369.250, Bagas 1.800 token Rp789.750, Citra 1.200 token Rp526.500, Eko 800 token Rp351.000, Fajar 560 token Rp245.700, Dimas 100 token Rp43.875
+  - **And** baris terpisah "Bagian perbendaharaan (8.140 token belum terjual)" Rp3.571.425 masuk ke saldo pemilik lama, "Sisa pembulatan" Rp0, dan total sewa bersih Rp7.897.500
+  - **And** saldo bagi hasil Dimas di `/investor` menjadi Rp43.875
 - *Tidak dua kali*
-  - **When** admin mencoba menjalankan distribusi untuk periode yang sama lagi
-  - **Then** permintaan ditolak dan saldo tidak bertambah dua kali
+  - **Then** tombol berganti menjadi "Distribusi sudah dijalankan" dan nonaktif
+  - **When** permintaan distribusi untuk periode yang sama dikirim lagi
+  - **Then** backend menolak dengan 409 `ALREADY_DISTRIBUTED` dan saldo tidak bertambah dua kali
+- *Sepolia tidak bisa dibaca*
+  - **Given** RPC Sepolia tidak merespons saat saldo snapshot dibaca
+  - **Then** distribusi tidak dijalankan, saldo tidak berubah, dan pesan meminta admin mencoba lagi
 
 ### US-ADM-04 Membuka rekonsiliasi
 
 > Sebagai admin, saya ingin mencocokkan data Midtrans, basis data, dan blockchain, supaya selisih bisa ditemukan sebelum menutup periode.
 
-Prioritas wajib, dibangun di P4 (halaman jalur 1, tautan menu jalur 4), menu Rekonsiliasi (`/admin/rekonsiliasi`). Terkait demo D6.
+Prioritas wajib, dibangun di P4 (modul dan halaman jalur 1, tautan menu dan kartu ringkasan jalur 4), menu Rekonsiliasi (`/admin/rekonsiliasi`). Terkait demo D6.
 
 - *Membuka halaman*
   - **Given** admin berada di app shell
-  - **When** memilih menu Rekonsiliasi
+  - **When** memilih menu Rekonsiliasi atau butir Rekonsiliasi di kartu "Perlu perhatian"
   - **Then** halaman `/admin/rekonsiliasi` terbuka
 - *Hasil pencocokan*
-  - **Then** setiap transaksi dicocokkan antara data Midtrans, basis data, dan blockchain, dan transaksi yang tidak cocok ditandai jelas (misalnya lunas di basis data tetapi belum tercatat on-chain)
+  - **Then** setiap `order_id` dicocokkan antara status Midtrans (ditulis apa adanya, mis. `settlement`, `expire`), basis data, dan Sepolia, dengan hasil "Cocok" atau "Selisih"
+  - **And** percobaan yang kedaluwarsa atau dibatalkan dihitung Cocok bila ketiga sumber sepakat tidak ada uang dan tidak ada catatan, sedangkan anomali nominal dan pembayaran setelah periode ditutup muncul sebagai Selisih
+- *Hanya selisih*
+  - **When** admin menekan "Hanya selisih"
+  - **Then** tabel hanya menampilkan baris Selisih, dan baris Selisih bisa dibuka untuk melihat nilai dari ketiga sumber
 
 ### US-ADM-05 Notifikasi palsu ditolak
 
@@ -721,11 +805,45 @@ Prioritas wajib, KosToken di P1 dan KosLedger di P2. Skenario uji S11.
 
 > Sebagai admin, saya ingin satu halaman ringkasan, supaya pekerjaan yang menunggu terlihat sekilas.
 
-Prioritas sebaiknya, dibangun di P4, menu Ringkasan (`/admin`).
+Prioritas sebaiknya, dibangun di P4, menu Ringkasan (`/admin`). Terkait demo D4 dan D6.
 
-- *Isi ringkasan*
-  - **Given** admin masuk
-  - **Then** Ringkasan menampilkan jumlah pengajuan KYC yang menunggu, jumlah tagihan lunas periode berjalan dari kamar terisi, dan transaksi yang belum tercatat on-chain
+- *Periode berjalan*
+  - **Given** admin masuk dan periode November 2026 belum siap ditutup
+  - **Then** kartu "Periode berjalan" menampilkan sewa tercatat (Rp12.000.000, 8 dari 9 kamar terisi), biaya tercatat (Rp2.400.000, 4 dari 5 nota), dan perkiraan per token (Rp390 bila ditutup sekarang), lalu kalimat "Belum siap ditutup: 1 sewa gagal dicatat dan 1 nota masih menunggu pencatatan."
+  - **And** tombol "Buka tutup periode" membuka `/admin/periode`
+- *Perlu perhatian*
+  - **Then** kartu "Perlu perhatian" menautkan ke Verifikasi KYC ("1 pengajuan menunggu"), Rekonsiliasi ("2 selisih perlu dicek"), dan Antrean job ("1 job gagal"); angka yang perlu tindakan ditulis merah
+  - **And** bila ada pembayaran sewa yang masuk setelah periode ditutup, butir "Dana perlu dikembalikan" ikut tampil dan menaut ke rekonsiliasi
+  - **And** setelah job yang dikirim ulang selesai, kartu ini dibaca ulang otomatis sehingga angkanya sama dengan tabel antrean
+- *Periode tanpa parameter*
+  - **Given** admin membuka `/admin/periode` tanpa `?periode=`
+  - **Then** halaman membuka periode berjalan dari backend, bukan periode yang ditulis tetap di frontend
+- *Antrean bersih*
+  - **Given** semua job sudah tercatat
+  - **Then** tab "Menunggu atau gagal (0)" menampilkan "Tidak ada job yang menunggu atau gagal" dan kartu periode menulis "Semua syarat penutupan terpenuhi. Periode siap ditutup."
+
+### US-ADM-09 Mengulang atau menandai job on-chain yang gagal
+
+> Sebagai admin, saya ingin mengulang job blockchain yang gagal, atau menandainya ditangani bila gagalnya permanen, supaya sewa, biaya, dan penutupan periode tetap tercatat dan periode tidak tertahan selamanya.
+
+Prioritas sebaiknya, dibangun di P4, tabel "Antrean job on-chain" di Ringkasan admin dan kartu penutupan gagal di Tutup periode. Terkait skenario S5 (tidak ada catatan ganda).
+
+- *Antrean*
+  - **Given** admin membuka Ringkasan
+  - **Then** tabel antrean punya tab "Menunggu atau gagal" dan "Semua" berjumlah, dengan kolom Jenis, Referensi, Dibuat, Percobaan ("5 dari 5"), Status, dan Aksi
+- *Coba lagi*
+  - **Given** job "Catat sewa" `RENT-SMR01-K08-2026-11` berstatus "Gagal dicatat"
+  - **When** admin menekan tombol Outline "Coba lagi" di kolom Aksi
+  - **Then** job masuk antrean lagi dan statusnya berubah menjadi "Menunggu pencatatan", lalu "Tercatat"
+  - **And** bila transaksinya ternyata sudah masuk blok, job diakui tercatat tanpa mengirim transaksi kedua
+- *Hanya job gagal*
+  - **Then** job yang masih menunggu menulis "Otomatis" di kolom Aksi, dan permintaan Coba lagi untuk job yang tidak gagal ditolak 409 `JOB_NOT_FAILED`
+- *Tandai ditangani (temuan QA S4)*
+  - **Given** job gagal permanen, mis. nota yang sudah tercatat lewat transaksi lain
+  - **When** admin menekan tombol Outline "Tandai ditangani" di samping Coba lagi
+  - **Then** Dialog konfirmasi meminta catatan wajib 5 sampai 300 karakter; tanpa catatan muncul pesan di bawah isian
+  - **And** setelah dikonfirmasi, job hilang dari tab "Menunggu atau gagal", tidak lagi menghalangi penutupan periode, dan tampil di tab "Semua" dengan nama admin, tanggal, dan catatannya, tanpa Coba lagi
+  - **And** Coba lagi untuk job yang sudah ditangani ditolak 409 `JOB_RESOLVED`, dan menandai dua kali ditolak 409 `JOB_ALREADY_RESOLVED`
 
 ## Di luar cakupan prototipe
 
@@ -736,17 +854,19 @@ Prioritas sebaiknya, dibangun di P4, menu Ringkasan (`/admin`).
 | Banyak properti sekaligus | Opsional. Daftar kos hanya berisi Kos Sumbersari 01 |
 | Dompet mandiri (investor memegang kunci sendiri) | Prototipe memakai dompet kustodian (lihat [arsitektur bagian 3](arsitektur.md#3-dompet-dan-token)) |
 | KYC dengan dokumen asli | Hanya KYC dummy, sesuai aturan tugas |
+| Voting on-chain (`KosVoting`) | Tidak dibangun (keputusan 16 Nov 2026); dicatat sebagai pengembangan lanjutan di business case. Lihat US-INV-10 |
+| Penarikan saldo bagi hasil | Tombol Tarik saldo tampil nonaktif sejak P4; disbursement sandbox opsional di P5 (US-INV-09) |
 
 ## Keterlacakan ke cakupan demo wajib
 
 | Kode | Butir demo wajib | Cerita |
 |---|---|---|
 | D1 | Investor lolos KYC dummy dan membeli token via Midtrans sandbox | US-PUB-05, US-PUB-08, US-INV-01, US-ADM-01, US-INV-02, US-INV-03 |
-| D2 | Penghuni membayar sewa, status kamar menjadi lunas | US-PHN-01, US-PHN-02, US-PHN-03, US-PHN-07, US-PGL-01 |
+| D2 | Penghuni membayar sewa, status kamar menjadi lunas | US-PHN-01, US-PHN-02, US-PHN-03, US-PHN-07, US-PGL-01, US-PGL-03 |
 | D3 | Pengelola mencatat biaya dan mengunggah nota (di-hash) | US-PGL-02 |
-| D4 | Admin menutup periode dan menjalankan distribusi | US-ADM-02, US-ADM-03 |
-| D5 | Portofolio investor bertambah; semua transaksi bisa dicek di Etherscan | US-INV-03, US-INV-06, US-INV-07, US-PHN-07, US-PUB-04, US-ADM-03 |
-| D6 | Halaman rekonsiliasi mencocokkan data Midtrans, basis data, dan blockchain | US-ADM-04, US-ADM-06 |
+| D4 | Admin menutup periode dan menjalankan distribusi | US-ADM-02, US-ADM-03, US-ADM-08 |
+| D5 | Portofolio investor bertambah; semua transaksi bisa dicek di Etherscan | US-INV-03, US-INV-06, US-INV-07, US-INV-08, US-PHN-07, US-PUB-04, US-ADM-03 |
+| D6 | Halaman rekonsiliasi mencocokkan data Midtrans, basis data, dan blockchain | US-ADM-04, US-ADM-06, US-ADM-08 |
 
 ## Keterlacakan ke skenario uji
 
@@ -756,7 +876,7 @@ Prioritas sebaiknya, dibangun di P4, menu Ringkasan (`/admin`).
 | S2 | Bayar via QRIS berhasil, hasil sama dengan S1 | US-PHN-03 | Manual di Midtrans sandbox | P2, P3 |
 | S3 | Pembayaran dibatalkan: tagihan tetap belum dibayar, tidak ada catatan on-chain | US-PHN-04 | Manual dan test integrasi backend | P2 |
 | S4 | Kedaluwarsa (batas 5 menit): tetap belum dibayar, bisa dibuat ulang | US-PHN-05 | Manual dan test integrasi backend | P2 |
-| S5 | Webhook dikirim dua kali: hanya satu pembayaran dan satu catatan on-chain | US-PHN-06 | Test integrasi backend dan test Hardhat | P2, P3 |
+| S5 | Webhook dikirim dua kali: hanya satu pembayaran dan satu catatan on-chain | US-PHN-06, US-ADM-09 | Test integrasi backend dan test Hardhat | P2, P3, P4 |
 | S6 | Signature palsu: ditolak, tidak ada perubahan | US-ADM-05 | Test integrasi backend | P2 |
 | S7 | `gross_amount` tidak cocok: ditolak, dicatat sebagai anomali | US-ADM-06 | Test integrasi backend | P2 |
 | S8 | Beli token melebihi sisa penawaran: ditolak sebelum pembayaran dibuat | US-INV-04 | Test integrasi backend dan uji halaman | P3 |

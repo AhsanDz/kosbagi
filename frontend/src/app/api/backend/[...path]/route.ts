@@ -62,14 +62,29 @@ async function forward(
   // Token ditolak backend (kedaluwarsa atau tidak sah): buang cookie-nya.
   if (backendResponse.status === 401) cookieStore.delete(SESSION_COOKIE);
 
+  const responseHeaders = new Headers({
+    "Content-Type": backendResponse.headers.get("content-type") ?? "application/json",
+    "Cache-Control": "no-store",
+  });
+  // Header keamanan dari backend ikut diteruskan, terutama untuk file nota
+  // (GET /expenses/:id/receipt): nosniff, nama file, dan CSP yang membatasi isinya.
+  for (const name of FORWARDED_RESPONSE_HEADERS) {
+    const value = backendResponse.headers.get(name);
+    if (value) responseHeaders.set(name, value);
+  }
+
   return new Response(backendResponse.body, {
     status: backendResponse.status,
-    headers: {
-      "Content-Type": backendResponse.headers.get("content-type") ?? "application/json",
-      "Cache-Control": "no-store",
-    },
+    headers: responseHeaders,
   });
 }
+
+/** Header respons backend yang diteruskan apa adanya ke peramban. */
+const FORWARDED_RESPONSE_HEADERS = [
+  "x-content-type-options",
+  "content-disposition",
+  "content-security-policy",
+] as const;
 
 export const GET = forward;
 export const POST = forward;

@@ -1,5 +1,6 @@
 import type { Icon } from "@phosphor-icons/react";
 import {
+  ArrowCounterClockwiseIcon,
   ArrowsClockwiseIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -21,6 +22,7 @@ const statusMap: Record<BillStatus, { label: string; variant: BadgeVariant; icon
   EXPIRED: { label: "Kedaluwarsa", variant: "destructive", icon: ClockIcon },
   FAILED: { label: "Gagal", variant: "destructive", icon: XCircleIcon },
   CANCELLED: { label: "Gagal", variant: "destructive", icon: XCircleIcon },
+  REFUND: { label: "Dana dikembalikan", variant: "warning", icon: ArrowCounterClockwiseIcon },
 };
 
 interface BillStatusBadgeProps {

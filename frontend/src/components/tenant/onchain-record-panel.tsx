@@ -15,15 +15,17 @@ import {
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type PanelStatus = "RECORDED" | "PENDING" | "FAILED" | "NOT_RECORDED";
+/**
+ * Status panel untuk penghuni. Tidak ada keadaan gagal: pencatatan yang gagal
+ * dibaca menunggu karena pengulangannya tugas admin (P4).
+ */
+type PanelStatus = "RECORDED" | "PENDING" | "NOT_RECORDED";
 
 const descriptions: Record<PanelStatus, string> = {
   RECORDED:
     "Dicatat fungsi recordRent di kontrak KosLedger. Siapa pun bisa memeriksanya di Etherscan tanpa akun KosBagi.",
   PENDING:
     "Pembayaranmu sudah lunas. Catatan sedang dikirim ke Sepolia, biasanya kurang dari satu menit. Halaman ini diperbarui otomatis.",
-  FAILED:
-    "Pembayaranmu tetap lunas dan kamu tidak perlu membayar lagi. Pencatatan ke Sepolia gagal setelah beberapa percobaan otomatis, dan operator KosBagi sedang mengulangnya.",
   NOT_RECORDED:
     "Tagihan ini lunas sebelum KosBagi mulai mencatat sewa di Sepolia, jadi tidak punya catatan on-chain untuk diperiksa.",
 };
@@ -98,9 +100,7 @@ export function OnchainRecordPanel({ chain, receipt, className }: OnchainRecordP
       ? "NOT_RECORDED"
       : chain?.status === "RECORDED"
         ? "RECORDED"
-        : chain?.status === "FAILED"
-          ? "FAILED"
-          : "PENDING";
+        : "PENDING";
 
   const txHash = status === "RECORDED" ? (chain?.txHash ?? onChain?.txHash ?? null) : null;
   const blockNumber = chain?.blockNumber ?? onChain?.blockNumber ?? null;
@@ -250,8 +250,6 @@ function StatusText({ status, blockNumber }: { status: PanelStatus; blockNumber:
           {blockNumber != null ? `Tercatat di blok ${formatNumber(blockNumber)}` : "Tercatat"}
         </span>
       );
-    case "FAILED":
-      return <span className="text-destructive">Gagal dicatat, diulang operator</span>;
     case "NOT_RECORDED":
       return <span className="text-muted-foreground">Tidak dicatat, data lampau</span>;
     default:
