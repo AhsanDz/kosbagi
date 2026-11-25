@@ -2,7 +2,9 @@
 
 API KosBagi: Node.js 24 + Express 5 + TypeScript, PostgreSQL lewat Prisma 7, antrean BullMQ di Redis, dan integrasi Midtrans sandbox. Dikelola jalur 2 (Backend & Pembayaran), dengan bagian milik jalur 1 dan jalur 3 seperti ditandai di bawah.
 
-Status progress 4 (prototipe lengkap): semua fitur progress 2 dan 3 (login akun dummy + JWT, peran, tagihan penghuni, pembayaran Midtrans Snap, webhook, kuitansi sewa, KYC dengan dompet kustodian, penawaran dan pembelian token `BUY-` dengan skenario 8 dan 9, pengajuan pemilik kos, rate limit), ditambah biaya dengan unggahan nota (hash SHA-256 dicatat on-chain), penutupan periode, distribusi bagi hasil yang membaca kontrak, portofolio investor, status kamar pengelola, ringkasan dan antrean job admin dengan Coba lagi, aturan pembayaran sewa setelah periode ditutup, skrip persiapan demo, dan skema basis data v4. Dispatcher outbox dan pemanggilan kontrak dijalankan proses worker jalur 3 (`src/worker.ts`). Dokumentasi endpoint ada di [`docs/api/`](../docs/api/), laporan uji ada di [`docs/pengujian/pembayaran.md`](../docs/pengujian/pembayaran.md).
+Status progress 5 (finalisasi): fitur sama dengan progress 4, ditambah lint Oxlint (`npm run lint`), pemeriksaan otomatis GitHub Actions (`.github/workflows/ci.yml`), image Docker untuk deploy online opsional di Railway (`Dockerfile`, panduan di [`docs/deploy/online.md`](../docs/deploy/online.md)), dan pengerasan untuk berjalan di balik proxy (`TRUST_PROXY`, penolakan `JWT_SECRET` contoh saat production).
+
+Isi progress 4 (prototipe lengkap): semua fitur progress 2 dan 3 (login akun dummy + JWT, peran, tagihan penghuni, pembayaran Midtrans Snap, webhook, kuitansi sewa, KYC dengan dompet kustodian, penawaran dan pembelian token `BUY-` dengan skenario 8 dan 9, pengajuan pemilik kos, rate limit), ditambah biaya dengan unggahan nota (hash SHA-256 dicatat on-chain), penutupan periode, distribusi bagi hasil yang membaca kontrak, portofolio investor, status kamar pengelola, ringkasan dan antrean job admin dengan Coba lagi, aturan pembayaran sewa setelah periode ditutup, skrip persiapan demo, dan skema basis data v4. Dispatcher outbox dan pemanggilan kontrak dijalankan proses worker jalur 3 (`src/worker.ts`). Dokumentasi endpoint ada di [`docs/api/`](../docs/api/), laporan uji ada di [`docs/pengujian/pembayaran.md`](../docs/pengujian/pembayaran.md).
 
 Cara memasang, menjalankan, dan mengetes backend ada di [README root](../README.md#menjalankan-secara-lokal).
 
@@ -43,9 +45,10 @@ Didefinisikan dan divalidasi di `src/config/env.ts`. Aplikasi menolak start bila
 | `PORT` | tidak | `4000` | Port server HTTP |
 | `LOG_LEVEL` | tidak | `info` | Tingkat log pino: `fatal` sampai `trace`, atau `silent` |
 | `CORS_ORIGIN` | tidak | `http://localhost:3000` | Origin frontend yang boleh memanggil API, pisahkan dengan koma |
+| `TRUST_PROXY` | tidak | `loopback` | Proxy yang dipercaya saat membaca IP klien dari `X-Forwarded-For` untuk rate limit (P5, `src/config/trust-proxy.ts`): kosong = hanya proxy di mesin yang sama (ngrok, Next.js lokal); angka = jumlah proxy (`1` di Railway); daftar alamat/CIDR dipisah koma; `false`. Nilai `true` ditolak. Bila kosong saat `NODE_ENV=production`, server menulis peringatan saat start |
 | `DATABASE_URL` | ya | | Alamat PostgreSQL, format `postgresql://USER:PASSWORD@HOST:PORT/DB?schema=public` |
 | `REDIS_URL` | ya | | Alamat Redis untuk antrean BullMQ |
-| `JWT_SECRET` | ya | | Kunci penandatangan JWT, minimal 32 karakter |
+| `JWT_SECRET` | ya | | Kunci penandatangan JWT, minimal 32 karakter. Saat `NODE_ENV=production`, nilai contoh dari `.env.example` dan konfigurasi test ditolak (P5) |
 | `MIDTRANS_SERVER_KEY` | tidak | | Server key sandbox, wajib berawalan `SB-Mid-server-`. Bila kosong, server tetap jalan dan endpoint pembayaran membalas 503 `MIDTRANS_NOT_CONFIGURED` |
 | `SEPOLIA_RPC_URL` | tidak | | URL RPC Sepolia, dipakai worker. Untuk Hardhat lokal `http://127.0.0.1:8545` |
 | `SEPOLIA_RPC_URL_FALLBACK` | tidak | | URL RPC cadangan |
@@ -76,7 +79,7 @@ backend/
 │   ├── server.ts              entry server HTTP + penutupan rapi
 │   ├── worker.ts              entry worker job blockchain (jalur 3)
 │   ├── app.ts                 rakit Express; router modul dimuat otomatis
-│   ├── config/env.ts          validasi environment variable (zod)
+│   ├── config/                validasi environment variable (zod) dan pembaca TRUST_PROXY
 │   ├── lib/                   prisma, logger, errors, zod, json, password, jwt, module-loader,
 │   │                          advisory-lock, prisma-errors, uuid, wib, chain-status, job-status,
 │   │                          format-id
@@ -106,6 +109,8 @@ backend/
 ├── tests/                     test HTTP tanpa basis data + fixture (unit test berada di samping kode)
 │   └── integration/           test dengan PostgreSQL dan Redis sungguhan
 ├── prisma.config.ts           konfigurasi Prisma CLI
+├── Dockerfile, .dockerignore  image API dan worker untuk deploy online (P5, docs/deploy/online.md)
+├── .oxlintrc.json             aturan lint Oxlint (npm run lint, P5)
 ├── vitest.config.ts           konfigurasi npm test, tanpa basis data
 ├── vitest.integration.config.ts  konfigurasi npm run test:integration
 └── tsconfig.json, tsconfig.build.json
