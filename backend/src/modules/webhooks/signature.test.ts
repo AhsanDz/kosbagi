@@ -8,8 +8,9 @@ const signature = computeSignature(fields, serverKey);
 
 describe('computeSignature', () => {
   it('sesuai rumus SHA-512(order_id + status_code + gross_amount + server key)', () => {
+    // Ditulis dengan nilai mentah, bukan lewat fields, supaya urutan rumusnya terlihat jelas.
     const manual = createHash('sha512')
-      .update('RENT-SMR01-K03-2026-11' + '200' + '1500000.00' + serverKey)
+      .update(['RENT-SMR01-K03-2026-11', '200', '1500000.00', serverKey].join(''))
       .digest('hex');
 
     expect(signature).toBe(manual);

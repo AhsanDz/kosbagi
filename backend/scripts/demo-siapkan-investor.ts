@@ -97,9 +97,11 @@ try {
   fail((error as Error).message);
 }
 
-let interrupted = false;
+// Ctrl+C membatalkan sinyal ini. Perulangan di bawah memeriksa stop.signal.aborted, bukan variabel
+// biasa, supaya jelas bahwa nilainya diubah dari luar perulangan (oleh penangan sinyal).
+const stop = new AbortController();
 process.once('SIGINT', () => {
-  interrupted = true;
+  stop.abort();
   console.log('\nDihentikan. VA yang sudah dibuat tetap bisa dibayar sampai batas waktunya; jalankan ulang untuk melanjutkan.');
   void prisma.$disconnect().finally(() => process.exit(130));
 });
@@ -226,7 +228,7 @@ function printVa(name: string, attempt: Extract<BankTransferAttempt, { kind: 're
 /** Membayar satu pesanan sampai lunas, membuat VA baru bila yang lama kedaluwarsa. */
 async function payPurchase(name: string, userId: string, purchaseId: string, first: BankTransferAttempt, tokens: number): Promise<boolean> {
   let attempt = first;
-  for (let round = 1; round <= maxAttempts && !interrupted; round += 1) {
+  for (let round = 1; round <= maxAttempts && !stop.signal.aborted; round += 1) {
     if (attempt.kind === 'already-paid') return true;
     if (attempt.kind === 'busy') {
       console.log(`   ${name}: pesanan ${attempt.payment.orderId} sedang dibayar lewat Snap sampai ${clock.format(attempt.payment.expiresAt)} WIB, dilewati.`);
@@ -261,11 +263,11 @@ console.log('   Di simulator: tempel nomor VA, tekan Inquire, lalu Pay. Tekan Ct
 const results: Array<{ name: string; result: string }> = [];
 
 for (const target of targets) {
-  if (interrupted) break;
+  if (stop.signal.aborted) break;
   const client = investors.get(target.key) as ApiClient & { userId: string };
   let done = false;
   try {
-    for (let guard = 0; guard < 20 && !interrupted; guard += 1) {
+    for (let guard = 0; guard < 20 && !stop.signal.aborted; guard += 1) {
       const state = await current(target.key);
       const holding = state.investor.holdingTokens;
       if (holding >= target.tokens) {
@@ -311,7 +313,7 @@ for (;;) {
     const { purchases } = await (investors.get(target.key) as ApiClient).get<{ purchases: PurchaseRow[] }>('/api/purchases');
     pending += purchases.filter((purchase) => purchase.status === 'PAID' && purchase.transfer?.status !== 'RECORDED').length;
   }
-  if (pending === 0 || Date.now() > transferDeadline || interrupted) break;
+  if (pending === 0 || Date.now() > transferDeadline || stop.signal.aborted) break;
   await sleep(POLL_INTERVAL_MS);
 }
 
