@@ -37,9 +37,10 @@ export function BlockchainTab({ property }: { property: Property }) {
       <section className="flex flex-col gap-2">
         <h2 className="text-h3 font-semibold text-foreground">Kontrak di Ethereum Sepolia</h2>
         <p className="max-w-[680px] text-base leading-6 text-muted-foreground">
-          Setelah kontrak dideploy, semua angka di halaman ini bisa dicek langsung di Etherscan.
-          Penulisan ke kontrak hanya lewat dompet operator KosBagi. Alamat dan hash transaksi yang
-          tampil saat ini masih contoh.
+          Kedua kontrak sudah di Sepolia dan kodenya terverifikasi, jadi setiap catatan bisa dicek
+          langsung di Etherscan. Penulisan ke kontrak hanya lewat dompet operator KosBagi. Papan
+          kamar dan transaksi terbaru di bawah masih contoh; catatan sungguhan ada di halaman
+          KosLedger di Etherscan.
         </p>
       </section>
 

@@ -34,8 +34,8 @@ export const kosSumbersari01: Property = {
   investorTokens: 12_600,
   maxTokensPerInvestor: 1_800,
   contracts: {
-    kosToken: "0x5f2a1Cf4B2E4F693d305376163DE6ea4c7009c1e",
-    kosLedger: "0x91bDC34885FF25334117A702f6B670fFF4A244A7",
+    kosToken: "0x2E8Bf3f1ea83A43Ba7e22d046E4e340Fb51C7c26",
+    kosLedger: "0xE012C3179E9f501b646741491365eF531042c02e",
   },
 };
 
