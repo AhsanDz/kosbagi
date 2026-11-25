@@ -220,6 +220,8 @@ Pajak adalah asumsi yang paling sensitif. Penghasilan rumah kos tidak dikenai PP
 
 Pada skenario PPh final, dibagikan = Rp162.000.000 − Rp32.400.000 − Rp8.100.000 − Rp810.000 = Rp120.690.000. Skema pajak yang tepat dikonfirmasi kepada konsultan pajak (proposal bagian 2.10), dan kemungkinan pajak kos daerah Kota Malang dimasukkan ke analisis sensitivitas business case (proposal bagian 3.3).
 
+Catatan 24 November 2026: business case final tidak lagi memakai skenario PPh final 0,5%, karena PP 20/2026 membatasinya untuk orang pribadi, PT perorangan, dan koperasi. Sebagai gantinya dipakai fasilitas Pasal 31E (imbal hasil 6,0075%). Lihat [asumsi dan unit ekonomi](asumsi-unit-ekonomi.md) bagian 6 dan [proyeksi keuangan](proyeksi-keuangan.md) bagian 7.
+
 ### 8.6 Pendapatan KosBagi dan dana yang diterima pemilik
 
 | Pos | Rumus | Nilai |
@@ -242,7 +244,7 @@ Semua angka dihitung ulang dengan pecahan eksak, tanpa pembulatan di tengah jala
 | ±Rp439 per token per bulan | Rp438,75 | Cocok, dibulatkan ke rupiah terdekat |
 | ±5,3% per tahun | 5,265% | Cocok, dibulatkan ke 0,1% |
 | 100 token ±Rp43.900 per bulan | Rp43.875 | Cocok, dibulatkan ke ratusan rupiah |
-| PPh final 0,5%: imbal hasil ±6,7% per tahun | 6,705% | Cocok |
+| PPh final 0,5%: imbal hasil ±6,7% per tahun | 6,705% | Cocok; skenarionya tidak dipakai lagi (catatan di 8.5) |
 | Fee penawaran Rp37,8 juta | Rp37.800.000 | Cocok |
 
 ### 8.8 Catatan penerapan di prototipe
