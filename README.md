@@ -31,10 +31,44 @@ Webhook Midtrans adalah satu-satunya pintu perubahan status pembayaran. Setelah 
 
 | Folder | Isi |
 |---|---|
-| [`contracts/`](contracts/) | Smart contract Solidity (KosToken, KosLedger, KosVoting) dan test Hardhat |
+| [`contracts/`](contracts/) | Smart contract Solidity (`KosToken` dan `KosLedger`), test Hardhat, skrip deploy dan verifikasi |
 | [`backend/`](backend/) | API Express + Prisma, integrasi Midtrans, antrean, worker blockchain |
 | [`frontend/`](frontend/) | Aplikasi web Next.js untuk investor, penghuni, pengelola, dan admin |
-| [`docs/`](docs/) | Dokumentasi bisnis, regulasi, API, kontrak, pengujian, dan desain |
+| [`docs/`](docs/) | Dokumentasi bisnis, regulasi, API, kontrak, pengujian, desain, presentasi, dan deploy |
+| [`.github/workflows/`](.github/workflows/) | Pemeriksaan otomatis (CI) untuk setiap Pull Request |
+
+Dokumen yang paling sering dicari:
+
+| Dokumen | Isi |
+|---|---|
+| [`docs/bisnis/business-case.md`](docs/bisnis/business-case.md) | Business case: pasar, model pendapatan, proyeksi tiga tahun, risiko, regulasi, KPI |
+| [`docs/api/README.md`](docs/api/README.md) | Dokumentasi API dan alur webhook |
+| [`docs/desain/`](docs/desain/) | ERD, arsitektur, dan user stories |
+| [`docs/log-ide/`](docs/log-ide/) | Log pengembangan ide dan keputusan tim |
+| [`docs/presentasi/`](docs/presentasi/) | Naskah demo dan aturan bahan presentasi |
+| [`docs/pernyataan-ai.md`](docs/pernyataan-ai.md) | Pernyataan penggunaan AI: alat yang dipakai dan cara verifikasinya |
+
+## Kontrak di Sepolia
+
+Kontrak demo akhir di Ethereum Sepolia testnet (chain ID 11155111), di-deploy 24 November 2026 dari dompet admin dan terverifikasi di Etherscan.
+
+| Kontrak | Alamat | Etherscan |
+|---|---|---|
+| `KosToken` (KB-SMR01) | `0x2E8Bf3f1ea83A43Ba7e22d046E4e340Fb51C7c26` | [kode dan transaksi](https://sepolia.etherscan.io/address/0x2E8Bf3f1ea83A43Ba7e22d046E4e340Fb51C7c26#code), [pemegang token](https://sepolia.etherscan.io/token/0x2E8Bf3f1ea83A43Ba7e22d046E4e340Fb51C7c26) |
+| `KosLedger` | `0xE012C3179E9f501b646741491365eF531042c02e` | [kode dan transaksi](https://sepolia.etherscan.io/address/0xE012C3179E9f501b646741491365eF531042c02e#code), [event](https://sepolia.etherscan.io/address/0xE012C3179E9f501b646741491365eF531042c02e#events) |
+
+| Transaksi | Isi | Etherscan |
+|---|---|---|
+| Deploy `KosToken` | Penerbitan 18.000 token (5.400 ke pemilik lama, 12.600 ke perbendaharaan), hash sertifikat dan laporan penilaian dicatat di konstruktor | [0x4d2264…9874](https://sepolia.etherscan.io/tx/0x4d22640c7b8d1132e64f709bc8e776a4f3fb036e91975c2a68113e81afcd9874) |
+| `anchorDocument` | Hash perjanjian pengelolaan | [0x8f8430…be0](https://sepolia.etherscan.io/tx/0x8f843066dcf3d514db71fedc2ddf06f4fbbbda0d7a2668f041b7d5f4a22c0be0) |
+
+Transaksi demo (whitelist KYC dan pembelian 100 token Dimas, sewa K03, nota perbaikan K07, dan penutupan November 2026 dengan Rp438,75 per token) baru tercatat saat demo dijalankan di kontrak ini. Tautan semuanya, termasuk transaksi persiapan data demo, dicetak skrip tautan demo dari folder `contracts`:
+
+```bash
+npm run links:sepolia
+```
+
+Untuk format tabel Markdown, isi `LINKS_FORMAT=markdown` sebelum perintah itu (PowerShell: `$env:LINKS_FORMAT="markdown"; npm run links:sepolia`). Alamat kontrak, tx hash, dan status verifikasi juga tersimpan di `contracts/deployments/sepolia.json`.
 
 ## Menjalankan secara lokal
 
@@ -42,7 +76,7 @@ Semua langkah memasang, menjalankan, dan mengetes aplikasi ada di bagian ini. RE
 
 Perintah berlaku untuk PowerShell dan Command Prompt di Windows. Di macOS atau Linux, ganti `copy` dengan `cp`.
 
-Mulai progress 3, aplikasi lengkap terdiri atas lima proses yang berjalan bersamaan: PostgreSQL dan Redis (Docker), jaringan blockchain lokal (Hardhat node), backend API, worker blockchain, dan frontend. Buka satu terminal untuk tiap proses yang terus berjalan, masing-masing mulai dari folder `kosbagi`. Tekan `Ctrl+C` untuk menghentikannya.
+Aplikasi lengkap terdiri atas lima proses yang berjalan bersamaan: PostgreSQL dan Redis (Docker), jaringan blockchain (Hardhat node lokal, atau Sepolia lewat RPC), backend API, worker blockchain, dan frontend. Saat demo dengan notifikasi asli Midtrans, ngrok menjadi proses keenam. Buka satu terminal untuk tiap proses yang terus berjalan, masing-masing mulai dari folder `kosbagi`. Tekan `Ctrl+C` untuk menghentikannya.
 
 ### Prasyarat
 
@@ -52,8 +86,9 @@ Mulai progress 3, aplikasi lengkap terdiri atas lima proses yang berjalan bersam
 | [Git](https://git-scm.com/) | Mengambil kode | Progress 1 |
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | PostgreSQL dan Redis lokal | Progress 2 |
 | Akun Midtrans sandbox | Pembayaran (server key dan client key sandbox) | Progress 2 |
-| [ngrok](https://ngrok.com/) (opsional) | Menerima notifikasi Midtrans di laptop | Progress 2 |
-| RPC Sepolia (Alchemy atau Infura), dompet admin dan dompet operator berisi ETH Sepolia, API key Etherscan | Deploy dan transaksi di Sepolia. Untuk mencoba di laptop cukup Hardhat node lokal (langkah 4) | Progress 3 |
+| [ngrok](https://ngrok.com/) dengan akun gratis | Menerima notifikasi asli Midtrans di laptop (langkah 9 Cara B). Untuk mencoba tanpa ngrok, pakai Cara A | Progress 2, dipakai saat demo |
+| RPC Sepolia (Infura, atau Alchemy paket berbayar; lihat langkah 11), dompet admin dan dompet operator berisi ETH Sepolia, API key Etherscan | Deploy dan transaksi di Sepolia. Untuk mencoba di laptop cukup Hardhat node lokal (langkah 4) | Progress 3 |
+| Akun Vercel dan Railway (opsional) | Deploy online, lihat bagian "Deploy online (opsional)" | Progress 5 |
 
 ### 1. Ambil kode
 
@@ -62,7 +97,7 @@ git clone https://github.com/AhsanDz/kosbagi.git
 cd kosbagi
 ```
 
-**Sudah punya `.env` dari progress sebelumnya?** Progress 3 menambah variabel blockchain di `backend/.env` (`CHAIN_ID`, `CUSTODIAL_WALLET_MNEMONIC`, dan alamat kontrak) dan `ADMIN_PRIVATE_KEY` di `contracts/.env`. Progress 4 menambah `UPLOAD_DIR` (opsional, folder file nota, bawaan `./uploads`). Ulangi `copy .env.example .env` di folder `backend` (dan di `contracts` bila akan deploy ke Sepolia), lalu isi lagi nilai yang pernah kamu ubah, termasuk `MIDTRANS_SERVER_KEY`. Lakukan hal yang sama untuk `frontend/.env.local` (`copy .env.example .env.local`).
+**Sudah punya `.env` dari progress sebelumnya?** Progress 3 menambah variabel blockchain di `backend/.env` (`CHAIN_ID`, `CUSTODIAL_WALLET_MNEMONIC`, dan alamat kontrak) dan `ADMIN_PRIVATE_KEY` di `contracts/.env`. Progress 4 menambah `UPLOAD_DIR` (opsional, folder file nota, bawaan `./uploads`). Ulangi `copy .env.example .env` di folder `backend` (dan di `contracts` bila akan deploy ke Sepolia), lalu isi lagi nilai yang pernah kamu ubah, termasuk `MIDTRANS_SERVER_KEY`. Lakukan hal yang sama untuk `frontend/.env.local` (`copy .env.example .env.local`). Progress 5 tidak menambah variabel wajib untuk menjalankan aplikasi di laptop; variabel untuk deploy online dijelaskan di [`docs/deploy/online.md`](docs/deploy/online.md). Progress 5 menambah alat lint di backend, jadi jalankan `npm ci` lagi di folder `backend`.
 
 ### 2. Basis data lokal
 
@@ -239,15 +274,36 @@ Ganti `<order_id>` dengan Order ID yang tertulis di jendela Midtrans pada langka
 
 Untuk skenario uji penolakan, tambahkan opsi setelah `order_id`: `--bad-signature` (signature palsu, skenario 6) atau `--gross-amount 1000.00` (nominal tidak cocok, skenario 7).
 
-**Cara B, dengan ngrok (notifikasi asli dari Midtrans).**
+**Cara B, dengan ngrok (notifikasi asli dari Midtrans).** Cara ini dipakai saat demo (keputusan 20 November 2026): Midtrans sendiri yang mengirim notifikasi, jadi halaman langsung berubah lunas tanpa perintah tambahan. ngrok membuka alamat HTTPS publik yang meneruskan permintaan ke backend di laptop.
 
-```bash
-ngrok http 4000
-```
+1. **Pasang sekali.** Daftar akun gratis di <https://dashboard.ngrok.com/signup>, lalu unduh agen ngrok untuk Windows dari halaman **Setup & Installation** di dashboard ngrok. Simpan `ngrok.exe` di folder yang mudah dijangkau, atau tambahkan foldernya ke `PATH`.
+2. **Hubungkan ke akunmu sekali.** Salin authtoken dari halaman **Your Authtoken** di dashboard ngrok, lalu jalankan:
 
-Salin alamat `https://...` yang muncul. Di dashboard sandbox, buka **Settings > Configuration**, lalu isi **Payment Notification URL** dengan `https://<alamat-ngrok>/api/webhooks/midtrans`. Alamat ngrok gratis berubah setiap dijalankan ulang, jadi isian ini perlu diperbarui.
+   ```bash
+   ngrok config add-authtoken <authtoken>
+   ```
 
-**Membayar semua tagihan satu periode sebelum demo.** Demo penutupan periode di progress 4 butuh sembilan kamar lunas, yaitu sewa kotor Rp13.500.000. Dari folder `backend`, dengan backend dan worker berjalan:
+   Authtoken itu rahasia akunmu. Jangan menaruhnya di repositori atau di `.env.example`.
+3. **Pakai domain tetap bila ada.** Halaman **Domains** di dashboard ngrok menampilkan domain milik akunmu, mis. `nama-acak.ngrok-free.app`; akun gratis biasanya mendapat satu domain tetap **[perlu verifikasi: syarat paket gratis bisa berubah]**. Dengan domain tetap, Payment Notification URL cukup diisi sekali.
+4. **Jalankan** di terminal tersendiri, saat backend (langkah 5) sudah berjalan di port 4000:
+
+   ```bash
+   ngrok http 4000 --url https://<domain-tetap>
+   ```
+
+   Tanpa domain tetap, jalankan `ngrok http 4000` lalu salin alamat `https://...` di baris **Forwarding**. Agen ngrok versi lama memakai `--domain <domain-tetap>` sebagai ganti `--url`. Bila `PORT` di `backend/.env` bukan 4000, ganti angkanya.
+5. **Isi Payment Notification URL.** Di dashboard Midtrans sandbox, buka **Settings > Configuration**, isi **Payment Notification URL** dengan `https://<domain-ngrok>/api/webhooks/midtrans`, lalu simpan. Tanpa domain tetap, alamat berubah setiap ngrok dijalankan ulang, jadi isian ini harus diperbarui setiap kali.
+6. **Periksa.** Buka inspektur ngrok di <http://127.0.0.1:4040>. Setelah membayar di simulator, inspektur menampilkan `POST /api/webhooks/midtrans` dengan status 200, dan halaman tagihan berubah dari **Memeriksa pembayaran** menjadi lunas tanpa `webhook:simulate`.
+
+Catatan Cara B:
+
+- Payment Notification URL berlaku untuk seluruh akun sandbox. Bila beberapa anggota memakai akun sandbox yang sama, notifikasi hanya sampai ke laptop yang alamatnya sedang terpasang; anggota lain memakai Cara A.
+- Cara A tetap bisa dipakai bersamaan. Notifikasi kedua untuk order yang sudah lunas dibalas tanpa mengubah apa pun, jadi tidak ada pembayaran atau catatan on-chain ganda.
+- Tombol **Replay** di inspektur ngrok mengirim ulang notifikasi yang sama. Ini cara cepat menunjukkan skenario uji 5 (webhook dikirim dua kali).
+- Jangan menekan tombol uji notifikasi di dashboard Midtrans saat data demo sudah siap: notifikasi uji memakai `order_id` yang tidak dikenal backend, sehingga bisa tercatat sebagai anomali dan menambah hitungan Perlu perhatian di `/admin`.
+- Setelah selesai, hentikan ngrok dengan `Ctrl+C`. Pembayaran yang notifikasinya tidak sampai selama ngrok mati bisa diselesaikan dengan Cara A, karena server selalu mengecek ulang status ke Midtrans.
+
+**Membayar semua tagihan satu periode sebelum demo.** Demo penutupan periode butuh sembilan kamar lunas, yaitu sewa kotor Rp13.500.000. Dari folder `backend`, dengan backend dan worker berjalan:
 
 ```bash
 npm run demo:bayar-sewa -- --period 2026-11
@@ -298,13 +354,17 @@ Hasil yang diharapkan: kompilasi tanpa warning dan semua test lulus, termasuk sk
 3. Gladi dulu di jaringan lokal: `npm run node:local` di satu terminal, lalu `npm run deploy:local` dan `npm run verify:local` di terminal lain.
 4. Jalankan `npm run deploy:sepolia`, periksa ringkasannya, lalu ketik `DEPLOY`. Dompet admin men-deploy KosToken dan KosLedger, lalu mencatat hash tiga [dokumen penerbitan dummy](docs/bisnis/dokumen-penerbitan/). Alamat hasil deploy tersimpan di `contracts/deployments/sepolia.json`.
 5. Jalankan `npm run verify:sepolia` untuk memverifikasi kode kontrak di Etherscan.
-6. Di `backend/.env`, isi `SEPOLIA_RPC_URL` dengan URL Alchemy atau Infura, isi `CHAIN_ID=11155111` seperti yang dicetak skrip deploy (boleh juga dikosongkan karena bawaannya sama), isi `OPERATOR_PRIVATE_KEY`, lalu salin `KOS_TOKEN_ADDRESS` dan `KOS_LEDGER_ADDRESS` dari `contracts/deployments/sepolia.json`. Jalankan ulang backend dan worker.
+6. Di `backend/.env`, isi `SEPOLIA_RPC_URL` dengan URL RPC Sepolia (lihat catatan memilih RPC di bawah), isi `CHAIN_ID=11155111` seperti yang dicetak skrip deploy (boleh juga dikosongkan karena bawaannya sama), isi `OPERATOR_PRIVATE_KEY`, lalu salin `KOS_TOKEN_ADDRESS` dan `KOS_LEDGER_ADDRESS` dari `contracts/deployments/sepolia.json`. Jalankan ulang backend dan worker.
+
+**Memilih RPC Sepolia.** Paket gratis Alchemy hanya mengizinkan rentang 10 blok per panggilan `eth_getLogs` ([`docs/kontrak/keamanan-dan-gas.md`](docs/kontrak/keamanan-dan-gas.md#8-keterbatasan-yang-diketahui) bagian 8). Status on-chain tetap benar karena dibaca lewat fungsi view, tetapi pencarian event di worker dan rekonsiliasi bisa gagal tanpa pesan, sehingga hash transaksi atau nominal yang dibaca dari event bisa kosong. Infura mengizinkan 10.000 blok, sama dengan rentang pencarian event worker, jadi untuk gladi dan demo isi `SEPOLIA_RPC_URL` di `backend/.env` dengan URL Infura dan `SEPOLIA_RPC_URL_FALLBACK` dengan URL Alchemy. `contracts/.env` boleh tetap memakai Alchemy.
 
 `ADMIN_PRIVATE_KEY` hanya ada di `contracts/.env` dan tidak pernah disalin ke `backend/.env`. Kedua dompet khusus testnet; jangan memakai dompet pribadi.
 
+Deploy demo akhir (tanpa `DEPLOY_LABEL`) sudah dijalankan koordinator 24 November 2026; alamat dan tautannya ada di bagian [Kontrak di Sepolia](#kontrak-di-sepolia). Kontrak itu hanya dipakai untuk demo akhir, jadi gladi berikutnya memakai `DEPLOY_LABEL` (langkah 12). Menjalankan `npm run deploy:sepolia` tanpa label lagi tidak membuat kontrak baru; skrip hanya membaca ulang kontrak demo akhir. Keamanan kontrak, matriks peran, dan pengukuran gas per fungsi ada di [`docs/kontrak/keamanan-dan-gas.md`](docs/kontrak/keamanan-dan-gas.md).
+
 ### 12. Menyiapkan data demo
 
-Demo progress 4 dimulai dari kondisi siap: sewa November sudah lunas dan tercatat, empat investor sudah memegang token, dan sebagian biaya November sudah dicatat. Semua data itu dibuat lewat jalur sungguhan (Midtrans sandbox, webhook, worker, dan kontrak), bukan diisi langsung ke basis data, supaya halaman rekonsiliasi bisa membuktikannya. Siapkan sekitar satu jam sebelum demo karena setiap virtual account dibayar manual di simulator.
+Demo dimulai dari kondisi siap: sewa November sudah lunas dan tercatat, empat investor sudah memegang token, dan sebagian biaya November sudah dicatat. Semua data itu dibuat lewat jalur sungguhan (Midtrans sandbox, webhook, worker, dan kontrak), bukan diisi langsung ke basis data, supaya halaman rekonsiliasi bisa membuktikannya. Siapkan sekitar satu jam sebelum demo karena setiap virtual account dibayar manual di simulator.
 
 **Setiap gladi dimulai dari kontrak dan basis data baru.** Catatan di blockchain tidak ikut terhapus saat basis data di-reset: `closePeriod` untuk satu periode hanya bisa sekali, saldo token investor tetap ada (pembelian ulang ditolak batas 10%), dan nota yang sama sudah tercatat. Karena itu gladi di kontrak yang sama tidak bisa diulang. Urutan setiap gladi adalah deploy kontrak baru, reset basis data, lalu isi alamat kontrak baru di `backend/.env`. Demo akhir di depan dosen memakai deploy terakhir.
 
@@ -320,6 +380,8 @@ Demo progress 4 dimulai dari kondisi siap: sewa November sudah lunas dan tercata
    - **Sepolia:** dari folder `contracts`, beri setiap gladi label berbeda lewat variabel `DEPLOY_LABEL` (huruf kecil, angka, dan tanda hubung, misalnya `gladi1`, `gladi2`), lalu jalankan deploy seperti langkah 11. Di PowerShell: `$env:DEPLOY_LABEL="gladi1"; npm run deploy:sepolia`, lalu `npm run verify:sepolia` di terminal yang sama. Di Command Prompt: `set DEPLOY_LABEL=gladi1`, lalu kedua perintah itu. Setiap label men-deploy `KosToken` dan `KosLedger` baru, dan alamatnya tersimpan di `contracts/deployments/sepolia-<label>.json` (tidak di-commit). Untuk demo akhir, kosongkan labelnya (`$env:DEPLOY_LABEL=""` atau `set DEPLOY_LABEL=`), supaya hasilnya masuk `contracts/deployments/sepolia.json` yang di-commit. Isi label di terminal, jangan di `contracts/.env`, supaya tidak terbawa ke deploy demo akhir. Pakai Sepolia untuk gladi akhir dan demo, supaya semua transaksi bisa dibuka di Etherscan. Rinciannya di [`docs/kontrak/deploy-sepolia.md`](docs/kontrak/deploy-sepolia.md) bagian 5.
 
    Perkiraan biaya satu gladi di Sepolia, dihitung dari angka gas di [`docs/kontrak/deploy-sepolia.md`](docs/kontrak/deploy-sepolia.md): deploy oleh dompet admin sekitar 4,3 juta gas, dan transaksi operator selama gladi (lima whitelist KYC, lima pembelian pertama, sembilan `recordRent`, lima `recordExpense`, satu `closePeriod`) sekitar 2,5 juta gas. Jumlahnya sekitar 6,8 juta gas, atau sekitar 0,007, 0,02, dan 0,07 ETH pada harga gas 1, 3, dan 10 gwei. Pembelian Bagas yang dipecah menambah sekitar 137.000 gas per pesanan tambahan. Skrip deploy juga mensyaratkan saldo admin kira-kira dua kali biaya deploy saat itu. Untuk tiga gladi ditambah demo akhir, siapkan sekitar 0,15 ETH di dompet admin dan 0,15 ETH di dompet operator.
+
+   Angka gas di atas diukur di jaringan Hardhat lokal. Sejak upgrade jaringan Sepolia 6 Oktober 2026, biaya gas penyimpanan data di Sepolia jauh lebih besar: deploy demo akhir 24 November 2026 memakai 27,8 juta gas (KosToken 19,8 juta, KosLedger 7,8 juta, `anchorDocument` 0,24 juta), bukan sekitar 4,3 juta. Harga gas Sepolia saat itu hanya 19 wei, jadi biayanya sekitar 0,0000000005 ETH. Worker tidak memakai batas gas tetap: batas gas setiap transaksi dihitung dari `estimateGas` ditambah 20%, jadi ikut menyesuaikan aturan gas jaringan. Biaya ETH bergantung pada harga gas saat gladi; cek di <https://sepolia.etherscan.io/gastracker>.
 
    Setelah deploy, isi `KOS_TOKEN_ADDRESS` dan `KOS_LEDGER_ADDRESS` di `backend/.env` dengan alamat kontrak baru, lalu jalankan backend (langkah 5), worker (langkah 6), dan frontend (langkah 7) di terminal masing-masing. Basis data dari langkah 1 harus sudah bersih sebelum backend dan worker dijalankan, karena catatan lama menunjuk kontrak lama.
 
@@ -353,7 +415,9 @@ Demo progress 4 dimulai dari kondisi siap: sewa November sudah lunas dan tercata
 
 ### 13. Alur demo lengkap
 
-Urutan ini mengikuti enam butir demo wajib di proposal bagian 4.5. Kata sandi semua akun `demo-kosbagi`.
+Urutan ini mengikuti enam butir demo wajib di proposal bagian 4.5. Kata sandi semua akun `demo-kosbagi`. Naskah presentasinya, layar demi layar dengan narasi, persiapan, dan rencana cadangan, ada di [`docs/presentasi/naskah-demo.md`](docs/presentasi/naskah-demo.md); urutannya sama dengan prototipe klik Alur Demo di Figma (halaman 07). Pakai Cara B di langkah 9 supaya notifikasi Midtrans datang sendiri, dan siapkan Cara A sebagai cadangan.
+
+Data demo selalu memakai periode November 2026, yaitu periode tagihan terbaru di seed, walaupun demo dilakukan pada bulan Desember.
 
 1. **Investor lolos KYC dan membeli token.** Masuk sebagai Dimas Pratama, ajukan KYC di `/investor/kyc` dengan nomor `DUMMY-0042`. Masuk sebagai Laras Kusuma, setujui di `/admin/kyc` dan tunggu status **Tercatat**. Masuk lagi sebagai Dimas, beli 100 token (Rp10.000.000) di `/investor/penawaran`, bayar virtual account-nya di simulator, lalu kirim notifikasinya (langkah 9 Cara A atau Cara B). Pesanan lunas dan token pindah lewat `transferFromTreasury`.
 2. **Penghuni membayar sewa.** Masuk sebagai Sari Wulandari, bayar tagihan K03 di `/penghuni/tagihan`, lalu buka kuitansinya: argumen `recordRent` dan tautan Etherscan tampil setelah worker mencatatnya. Masuk sebagai Hadi Santoso; di `/pengelola` kesembilan kamar terisi kini lunas.
@@ -364,9 +428,9 @@ Urutan ini mengikuti enam butir demo wajib di proposal bagian 4.5. Kata sandi se
 
 Setelah periode ditutup, tagihan November yang belum dibayar tidak bisa dibayar lagi (`PERIOD_CLOSED`). Pembayaran yang dimulai sebelum penutupan lalu lunas sesudahnya tidak ikut dibagikan: penghuni melihat status bahwa dana akan dikembalikan, admin melihat butir "Dana perlu dikembalikan", dan rekonsiliasi menampilkannya sebagai Selisih.
 
-### Yang bisa dicek pada progress 4
+### Halaman aplikasi
 
-Data properti di halaman publik masih statis. Alamat kontrak dan hash dokumen di sana diperbarui setelah deploy Sepolia.
+Data properti di halaman publik masih statis. Alamat kontrak dan tx hash dokumen penerbitan di sana sudah memakai deploy demo akhir Sepolia, sedangkan papan kamar dan transaksi terbaru di tab Blockchain tetap contoh.
 
 | Alamat | Yang tampil |
 |---|---|
@@ -394,6 +458,7 @@ Skenario uji 1 sampai 11 bisa dicoba di aplikasi, dan skenario 12 lewat test kon
 | `frontend` | `npm run build` | Build produksi, termasuk pemeriksaan TypeScript |
 | `frontend` | `npm run start` | Menjalankan hasil build |
 | `frontend` | `npm run lint` | Pemeriksaan ESLint |
+| `backend` | `npm run lint` | Pemeriksaan Oxlint; harus tanpa galat dan peringatan, sama dengan CI |
 | `backend` | `npm test` | Test tanpa basis data, termasuk kalkulator distribusi; tidak butuh Docker |
 | `backend` | `npm run test:integration` | Test skenario pembayaran dengan PostgreSQL dan Redis; jalankan `npm run db:up` lebih dulu |
 | `backend` | `RECONCILIATION_INTEGRATION=1 npx vitest run src/modules/reconciliation/reconciliation.integration.test.ts` | Test rekonsiliasi dengan PostgreSQL (basis data `kosbagi_j1`) dan Hardhat node port 8549 (`npx hardhat build`, lalu `npx hardhat node --port 8549` di `contracts`). Di PowerShell, jalankan `$env:RECONCILIATION_INTEGRATION=1` dulu, lalu perintah `npx vitest` yang sama |
@@ -415,6 +480,9 @@ Skenario uji 1 sampai 11 bisa dicoba di aplikasi, dan skenario 12 lewat test kon
 | `contracts` | `npm run export-abi` | Mengekspor ABI kontrak ke `backend/src/blockchain/abi/` |
 | `contracts` | `npm run node:local`, lalu `npm run deploy:local` dan `npm run verify:local` | Gladi deploy dan verifikasi di Hardhat node port 8546, terpisah dari jaringan port 8545 |
 | `contracts` | `npm run deploy:sepolia`, `npm run verify:sepolia` | Deploy dan verifikasi di Sepolia, lihat langkah 11 |
+| `contracts` | `npm run links:sepolia` | Mencetak tautan Etherscan kedua kontrak dan transaksi penting dari hasil deploy Sepolia, untuk presentasi dan bagian Kontrak di Sepolia |
+| `contracts` | `npm run links:local` | Sama dengan `links:sepolia`, untuk gladi deploy di Hardhat node port 8546 (`npm run node:local` dan `npm run deploy:local` lebih dulu) |
+| `contracts` | `npm run gas:report` | Mengukur gas setiap fungsi tulis dalam satu putaran demo November dan mencetak tabelnya; dipakai di [`docs/kontrak/keamanan-dan-gas.md`](docs/kontrak/keamanan-dan-gas.md) bagian 9 |
 | `contracts` | `npx hardhat clean` | Menghapus hasil build |
 
 `npm ci` memasang versi persis sesuai `package-lock.json`. Pakai `npm install <paket>` hanya saat memang menambah dependensi; bila `npm install` biasa ikut mengubah `package-lock.json`, jangan commit perubahan itu.
@@ -460,6 +528,47 @@ Skenario uji 1 sampai 11 bisa dicoba di aplikasi, dan skenario 12 lewat test kon
 | Skrip demo berhenti dengan `Terlalu banyak permintaan` saat login | Batas login 10 kali per menit. Tunggu satu menit, lalu jalankan ulang skripnya. |
 | `listen EACCES: permission denied` saat menjalankan server di Windows | Port itu masuk rentang yang dicadangkan Windows (Hyper-V atau WSL). Lihat daftarnya dengan `netsh interface ipv4 show excludedportrange protocol=tcp`, lalu pakai port lain, mis. `npm run dev -- --port 3300` di frontend atau `PORT` lain di `backend/.env`. |
 | Ingin mengulang demo dari tagihan belum dibayar | Seed sengaja tidak mengembalikan tagihan lunas. Jalankan `npx prisma migrate reset --force` di folder `backend`, lalu `npm run db:seed`. **Semua data di basis data lokal terhapus.** |
+| `ngrok` tidak dikenali | Jalankan dari folder tempat `ngrok.exe` disimpan (`.\ngrok http 4000` di PowerShell, `ngrok http 4000` di Command Prompt), atau tambahkan folder itu ke `PATH` lalu buka terminal baru. |
+| ngrok menolak berjalan karena belum ada authtoken | Jalankan `ngrok config add-authtoken <authtoken>` sekali (langkah 9 Cara B). |
+| Sudah bayar di simulator, tetapi inspektur ngrok (<http://127.0.0.1:4040>) kosong | Midtrans belum mengirim ke alamat ngrok-mu. Periksa Payment Notification URL di dashboard sandbox: alamat ngrok yang sedang berjalan, diakhiri `/api/webhooks/midtrans`, dan sudah disimpan. Pastikan juga transaksinya dibuat dengan server key dari akun sandbox yang sama. Sementara itu, pakai Cara A. |
+| Inspektur ngrok menampilkan `502 Bad Gateway` | Backend tidak berjalan di port yang diteruskan ngrok. Jalankan backend (langkah 5) atau samakan port di perintah `ngrok http` dengan `PORT` di `backend/.env`. |
+| Inspektur ngrok menampilkan `404` | Alamat di dashboard Midtrans salah jalur. Isinya harus `https://<domain-ngrok>/api/webhooks/midtrans`. |
+| Notifikasi lewat ngrok dibalas `403` | Signature tidak cocok: transaksi dibuat dengan akun sandbox lain, atau `MIDTRANS_SERVER_KEY` di `backend/.env` bukan server key akun yang mengirim notifikasi. |
+| `npm run lint` di backend gagal | Baca berkas dan baris yang disebut, lalu perbaiki penyebabnya. Aturan lint sengaja tidak dilonggarkan supaya hasilnya sama dengan CI. |
+| Pemeriksaan CI di Pull Request merah | Buka tab **Actions** atau tautan **Details** di Pull Request, lihat langkah yang gagal, lalu jalankan perintah yang sama di laptop (bagian "Pemeriksaan otomatis (CI)"). |
+
+## Pemeriksaan otomatis (CI)
+
+Setiap Pull Request dan setiap push ke `main` diperiksa GitHub Actions lewat [`.github/workflows/ci.yml`](.github/workflows/ci.yml), dengan Node.js 24:
+
+| Bagian | Yang dijalankan |
+|---|---|
+| `backend` | `npm ci`, `npx prisma generate`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, lalu `npm run test:integration` dengan PostgreSQL dan Redis yang disediakan CI |
+| `contracts` | `npm ci`, `npx hardhat test` |
+| `frontend` | `npm ci`, `npm run lint`, `npm run build` |
+
+CI tidak memakai secret repositori dan tidak membutuhkan `.env`: test backend meniru Midtrans, dan test kontrak memakai jaringan Hardhat bawaan. Hasilnya tampil sebagai tanda centang atau silang di Pull Request dan di tab **Actions** repositori. Sebelum membuka Pull Request, jalankan perintah yang sama di laptop dari tabel "Perintah lain" supaya hasilnya tidak mengejutkan.
+
+## Deploy online (opsional)
+
+Demo tugas akhir berjalan di laptop presenter dengan ngrok (keputusan 20 November 2026). Konfigurasi untuk menjalankan aplikasi secara online sudah disiapkan supaya bisa di-deploy kapan saja, misalnya bila tautan prototipe yang bisa dibuka dibutuhkan:
+
+| Bagian | Layanan |
+|---|---|
+| Frontend | Vercel, dari folder `frontend` |
+| Server API dan worker blockchain | Railway, dua layanan dari folder `backend` |
+| PostgreSQL dan Redis | Railway |
+
+Langkah lengkap, daftar variabel produksi, urutan deploy, alamat webhook Midtrans, dan catatan biaya ada di [`docs/deploy/online.md`](docs/deploy/online.md). Ringkasnya:
+
+- Deploy online tetap memakai Midtrans sandbox dan Sepolia testnet, dengan data dummy.
+- Setelah server API online, Payment Notification URL di dashboard Midtrans sandbox diarahkan ke alamat server API itu, bukan ke ngrok. Satu akun sandbox hanya punya satu alamat notifikasi, jadi kembalikan ke alamat ngrok sebelum demo di laptop.
+- Layanan hosting bisa berbayar atau memakai kredit uji coba yang terbatas; periksa harga terkini sebelum men-deploy. Hentikan layanan setelah dipakai.
+- Kunci rahasia (server key Midtrans, private key operator, mnemonic dompet kustodian, `JWT_SECRET`) hanya diisi di pengaturan variabel layanan, tidak pernah di repositori.
+
+## Penggunaan AI
+
+Alat AI yang dipakai dalam tugas akhir ini, untuk apa dipakai, dan cara tim memeriksa hasilnya dinyatakan di [`docs/pernyataan-ai.md`](docs/pernyataan-ai.md).
 
 ## Tim
 
