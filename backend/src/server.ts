@@ -6,6 +6,15 @@ import { prisma } from './lib/prisma.js';
 
 const app = await createApp();
 
+// Di hosting, server berada di balik proxy yang bukan loopback. Tanpa TRUST_PROXY, semua permintaan
+// terlihat datang dari IP proxy itu dan berbagi satu jatah rate limit.
+if (env.NODE_ENV === 'production' && env.TRUST_PROXY === undefined) {
+  logger.warn(
+    'TRUST_PROXY belum diisi: rate limit per IP menghitung semua klien sebagai alamat proxy hosting. ' +
+      'Di Railway isi TRUST_PROXY=1 (lihat docs/deploy/online.md).',
+  );
+}
+
 const server = app.listen(env.PORT, (error?: Error) => {
   if (error) {
     logger.fatal({ err: error }, `Server gagal berjalan di port ${env.PORT}`);

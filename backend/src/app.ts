@@ -8,6 +8,7 @@ import express, { type Express } from 'express';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { env } from './config/env.js';
+import { LOCAL_TRUST_PROXY } from './config/trust-proxy.js';
 import { bigIntReplacer } from './lib/json.js';
 import { logger } from './lib/logger.js';
 import { loadModuleRouters } from './lib/module-loader.js';
@@ -21,8 +22,6 @@ const JSON_BODY_LIMIT = '100kb';
 /** Header X-Request-Id dari klien dipakai bila formatnya aman; selain itu dibuat baru. */
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/;
 
-const TRUSTED_PROXY_HOPS = 1;
-
 export interface CreateAppOptions {
   /** Folder modul yang dimuat; default src/modules (atau dist/modules setelah build). */
   modulesDir?: string;
@@ -33,9 +32,11 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
 
   // JSON tidak mengenal BigInt: nominal rupiah dikirim sebagai number (lihat lib/json.ts).
   app.set('json replacer', bigIntReplacer);
-  // Di balik ngrok atau hosting ada tepat satu proxy. Tanpa ini semua permintaan terlihat
-  // datang dari IP proxy, sehingga rate limit per IP tidak berarti.
-  app.set('trust proxy', TRUSTED_PROXY_HOPS);
+  // IP klien untuk rate limit dibaca dari X-Forwarded-For yang ditulis proxy tepercaya (ngrok dan
+  // Next.js lokal, atau proxy hosting). Tanpa ini semua permintaan terlihat datang dari IP proxy,
+  // sehingga rate limit per IP tidak berarti. Proxy lain tidak dipercaya, supaya klien tidak bisa
+  // mengaku sebagai IP lain dengan mengisi header itu sendiri. Lihat config/trust-proxy.ts.
+  app.set('trust proxy', env.TRUST_PROXY ?? LOCAL_TRUST_PROXY);
 
   // 1. Log setiap permintaan + ID permintaan untuk menelusuri error.
   app.use(
