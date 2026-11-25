@@ -1,6 +1,6 @@
 import { id, JsonRpcProvider } from 'ethers';
 import { describe, expect, it } from 'vitest';
-import { KosContracts, kosLedgerInterface, kosTokenInterface } from './contracts.js';
+import { KosContracts, kosLedgerInterface, kosTokenInterface, LOG_LOOKBACK_BLOCKS } from './contracts.js';
 
 describe('ABI kontrak', () => {
   it('memuat fungsi yang dipanggil dan dibaca worker', () => {
@@ -85,6 +85,33 @@ describe('KosContracts', () => {
     await expect(contracts.findRentRecorded(id('x'))).resolves.toBeNull();
     await expect(contracts.findExpenseRecorded(id('x'))).resolves.toBeNull();
     await expect(contracts.findPeriodClosed(202_611)).resolves.toBeNull();
+    provider.destroy();
+  });
+  it('mencari log paling jauh 10.000 blok ke belakang, sesuai batas rentang eth_getLogs Infura', async () => {
+    const LATEST = 12_203_069;
+    const ranges: Array<{ fromBlock: string; toBlock: string }> = [];
+    // Provider tiruan: mencatat rentang eth_getLogs tanpa jaringan.
+    class RecordingProvider extends JsonRpcProvider {
+      override async send(method: string, params: Array<unknown> | Record<string, unknown>): Promise<unknown> {
+        if (method === 'eth_blockNumber') return `0x${LATEST.toString(16)}`;
+        if (method === 'eth_getLogs') {
+          ranges.push((params as Array<{ fromBlock: string; toBlock: string }>)[0]!);
+          return [];
+        }
+        throw new Error(`Metode tidak diharapkan: ${method}`);
+      }
+    }
+    const provider = new RecordingProvider('http://127.0.0.1:1', 11_155_111, { staticNetwork: true });
+    const contracts = new KosContracts(
+      '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+      '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
+      provider,
+    );
+    await expect(contracts.findRentRecorded(id('x'))).resolves.toBeNull();
+    expect(LOG_LOOKBACK_BLOCKS).toBe(10_000);
+    expect(ranges).toHaveLength(1);
+    expect(Number(ranges[0]!.toBlock)).toBe(LATEST);
+    expect(Number(ranges[0]!.toBlock) - Number(ranges[0]!.fromBlock)).toBe(10_000);
     provider.destroy();
   });
 });

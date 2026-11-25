@@ -8,7 +8,7 @@
 // worker baru yang sedang menunggu bisa mengambilnya.
 import { randomUUID } from 'node:crypto';
 import { Redis } from 'ioredis';
-import { safeErrorMessage } from './errors.js';
+import { RedactedCauseError, safeErrorMessage } from './errors.js';
 
 export const WORKER_LOCK_TTL_MS = 15_000;
 const RENEW_INTERVAL_MS = 5_000;
@@ -56,9 +56,11 @@ export async function acquireWorkerLock({
     try {
       await redis.connect();
     } catch (error) {
-      throw new Error(
+      // Error asli disimpan sebagai cause dalam bentuk tersaring: REDIS_URL bisa memuat kata sandi.
+      throw new RedactedCauseError(
         `Redis tidak bisa dihubungi untuk kunci worker (${safeErrorMessage(error, [redisUrl])}). ` +
           'Periksa REDIS_URL dan jalankan npm run db:up.',
+        { cause: error, secrets: [redisUrl] },
       );
     }
     for (;;) {

@@ -1,0 +1,137 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "explorerUrl": "https://sepolia.etherscan.io",
+  "ignitionDeploymentId": "sepolia-smr01",
+  "deployLabel": null,
+  "recordedAt": "2026-11-23T19:27:40.667Z",
+  "propertyCode": "SMR01",
+  "tokenSymbol": "KB-SMR01",
+  "compiler": {
+    "solc": "0.8.34",
+    "evmVersion": "osaka",
+    "buildProfile": "production",
+    "optimizerRuns": 200
+  },
+  "wallets": {
+    "admin": "0xb597b1FdB0F2598bdD3142F689C82712E857665a",
+    "operator": "0xdeCBcf3dC09B8b681d6C6DDd01A2c0ee775ECD3e",
+    "originalOwner": "0x2901BfC91B2c56f3c39807E696d335597fA35cc5",
+    "treasury": "0xef8a79A578D5dD045eB63604c9ca48631D17852E"
+  },
+  "parameters": {
+    "originalOwnerAllocation": 5400,
+    "treasuryAllocation": 12600,
+    "platformFeeBps": 500,
+    "taxBps": 2200
+  },
+  "contracts": {
+    "KosToken": {
+      "address": "0x2E8Bf3f1ea83A43Ba7e22d046E4e340Fb51C7c26",
+      "fullyQualifiedName": "contracts/KosToken.sol:KosToken",
+      "deployTxHash": "0x4d22640c7b8d1132e64f709bc8e776a4f3fb036e91975c2a68113e81afcd9874",
+      "blockNumber": 12197681,
+      "gasUsed": "19801206",
+      "constructorArgs": [
+        "SMR01",
+        "0xec8c1044639cfdf4a8d6fba8c477df0dbe2f09b757f58c918d0676ddda581ef3",
+        "0x49ce16e79ed47d0c21793650545a406c32108d8ba5a5a58a0ec1041d40eed732",
+        "0xb597b1FdB0F2598bdD3142F689C82712E857665a",
+        "0xdeCBcf3dC09B8b681d6C6DDd01A2c0ee775ECD3e",
+        "0x2901BfC91B2c56f3c39807E696d335597fA35cc5",
+        "0xef8a79A578D5dD045eB63604c9ca48631D17852E",
+        "5400",
+        "12600"
+      ],
+      "etherscan": {
+        "verified": true,
+        "url": "https://sepolia.etherscan.io/address/0x2E8Bf3f1ea83A43Ba7e22d046E4e340Fb51C7c26#code",
+        "checkedAt": "2026-11-23T19:28:27.402Z"
+      }
+    },
+    "KosLedger": {
+      "address": "0xE012C3179E9f501b646741491365eF531042c02e",
+      "fullyQualifiedName": "contracts/KosLedger.sol:KosLedger",
+      "deployTxHash": "0x1aebf010924c12022ba3a7c69eed1d2b9c4a150681db779d967e8ceee67eb669",
+      "blockNumber": 12197686,
+      "gasUsed": "7797382",
+      "constructorArgs": [
+        "0xb597b1FdB0F2598bdD3142F689C82712E857665a",
+        "0xdeCBcf3dC09B8b681d6C6DDd01A2c0ee775ECD3e",
+        "0x2E8Bf3f1ea83A43Ba7e22d046E4e340Fb51C7c26",
+        "500",
+        "2200"
+      ],
+      "etherscan": {
+        "verified": true,
+        "url": "https://sepolia.etherscan.io/address/0xE012C3179E9f501b646741491365eF531042c02e#code",
+        "checkedAt": "2026-11-23T19:28:39.437Z"
+      }
+    }
+  },
+  "documents": [
+    {
+      "type": "DOCUMENT_CERTIFICATE",
+      "typeHash": "0x8dbcbfe2d0f8758c5504b6ee1992a86188d18e1c4862c873fb59d7690434821a",
+      "label": "Sertifikat hak milik",
+      "file": "docs/bisnis/dokumen-penerbitan/sertifikat-hak-milik.md",
+      "sha256": "0xec8c1044639cfdf4a8d6fba8c477df0dbe2f09b757f58c918d0676ddda581ef3",
+      "sizeBytes": 3264,
+      "version": 1,
+      "txHash": "0x4d22640c7b8d1132e64f709bc8e776a4f3fb036e91975c2a68113e81afcd9874",
+      "blockNumber": 12197681
+    },
+    {
+      "type": "DOCUMENT_APPRAISAL_REPORT",
+      "typeHash": "0xb34bdac3eea4404de9584a0abf0277df649525d599d4eb6d87e09669cbcd1ced",
+      "label": "Laporan penilaian",
+      "file": "docs/bisnis/dokumen-penerbitan/laporan-penilaian.md",
+      "sha256": "0x49ce16e79ed47d0c21793650545a406c32108d8ba5a5a58a0ec1041d40eed732",
+      "sizeBytes": 4579,
+      "version": 1,
+      "txHash": "0x4d22640c7b8d1132e64f709bc8e776a4f3fb036e91975c2a68113e81afcd9874",
+      "blockNumber": 12197681
+    },
+    {
+      "type": "DOCUMENT_MANAGEMENT_AGREEMENT",
+      "typeHash": "0x08941831b3779bfc33d2f0e540a2138424bb28c3c245319aca58c8673a42f5c0",
+      "label": "Perjanjian pengelolaan",
+      "file": "docs/bisnis/dokumen-penerbitan/perjanjian-pengelolaan.md",
+      "sha256": "0x1839d3cf229ad401b50299dd9fdca617691bef295d720a88ec3ed7f806946741",
+      "sizeBytes": 5962,
+      "version": 1,
+      "txHash": "0x8f843066dcf3d514db71fedc2ddf06f4fbbbda0d7a2668f041b7d5f4a22c0be0",
+      "blockNumber": 12197691
+    }
+  ],
+  "roles": {
+    "KosToken": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0xb597b1FdB0F2598bdD3142F689C82712E857665a"
+      ],
+      "OPERATOR_ROLE": [
+        "0xdeCBcf3dC09B8b681d6C6DDd01A2c0ee775ECD3e"
+      ],
+      "KYC_ROLE": [
+        "0xdeCBcf3dC09B8b681d6C6DDd01A2c0ee775ECD3e"
+      ],
+      "PAUSER_ROLE": [
+        "0xb597b1FdB0F2598bdD3142F689C82712E857665a",
+        "0xdeCBcf3dC09B8b681d6C6DDd01A2c0ee775ECD3e"
+      ]
+    },
+    "KosLedger": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0xb597b1FdB0F2598bdD3142F689C82712E857665a"
+      ],
+      "OPERATOR_ROLE": [
+        "0xdeCBcf3dC09B8b681d6C6DDd01A2c0ee775ECD3e"
+      ],
+      "PAUSER_ROLE": [
+        "0xb597b1FdB0F2598bdD3142F689C82712E857665a",
+        "0xdeCBcf3dC09B8b681d6C6DDd01A2c0ee775ECD3e"
+      ]
+    }
+  },
+  "totalGasUsed": "27839967"
+}

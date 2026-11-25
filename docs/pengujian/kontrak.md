@@ -1,32 +1,34 @@
 # Laporan Uji Smart Contract
 
-Laporan akhir uji `KosToken`, `KosLedger`, perangkat deploy, dan worker backend yang memanggil kedua kontrak, saat progress 4 selesai (18 Nov 2026, ditambah opsi gladi berlabel 20 Nov 2026). Semua uji berjalan di jaringan Hardhat lokal. Deploy ke Sepolia belum dijalankan karena kunci Sepolia belum tersedia; langkahnya ada di [`docs/kontrak/deploy-sepolia.md`](../kontrak/deploy-sepolia.md).
+Laporan akhir uji `KosToken`, `KosLedger`, perangkat deploy, dan worker backend yang memanggil kedua kontrak, diperbarui saat finalisasi progress 5 (20 Nov 2026). Semua uji berjalan di jaringan Hardhat lokal. Deploy ke Sepolia belum dijalankan karena kunci Sepolia belum tersedia; langkahnya ada di [`docs/kontrak/deploy-sepolia.md`](../kontrak/deploy-sepolia.md).
 
-Kode Solidity, ABI, dan modul Ignition tidak berubah sejak P3 (kontrak sendiri tidak berubah sejak P2). Yang baru di P4: worker kini memanggil `recordExpense` dan `closePeriod`, test alur penuh menutup periode November dengan angka bisnis (bagian 11), dan skrip deploy mendapat opsi `DEPLOY_LABEL` supaya setiap gladi demo di Sepolia memakai kontrak baru (bagian 8.3). `KosVoting` tidak dibangun (keputusan 16 Nov 2026).
+Kode Solidity, ABI, dan modul Ignition tidak berubah sejak P3 (kontrak sendiri tidak berubah sejak P2). Yang baru di P5: skrip tautan Etherscan `npm run links:sepolia` dengan 12 test (bagian 8.4), pengukuran gas setiap fungsi tulis (bagian 13, rinciannya di [`docs/kontrak/keamanan-dan-gas.md`](../kontrak/keamanan-dan-gas.md)), pembungkus error worker yang menyimpan penyebab tanpa rahasia (bagian 11.1), dan temuan bahwa verifikasi Etherscan juga membutuhkan kedua kunci dompet di `contracts/.env` (bagian 8.4). Yang baru di P4: worker kini memanggil `recordExpense` dan `closePeriod`, test alur penuh menutup periode November dengan angka bisnis (bagian 11), dan skrip deploy mendapat opsi `DEPLOY_LABEL` supaya setiap gladi demo di Sepolia memakai kontrak baru (bagian 8.3). `KosVoting` tidak dibangun (keputusan 16 Nov 2026).
 
 ## 1. Ringkasan
 
 | Butir | Hasil |
 |---|---|
-| Test kontrak | 169 lulus, 0 gagal (`KosToken` 63, `KosLedger` 65, deploy lokal dan ABI 4, fixture jalur 1 13, deploy Sepolia 24) |
-| Profil `default` dan `production` | Keduanya 169 lulus |
+| Test kontrak | 181 lulus, 0 gagal (`KosToken` 63, `KosLedger` 65, deploy lokal dan ABI 4, fixture jalur 1 13, deploy Sepolia 24, tautan demo 12) |
+| Profil `default` dan `production` | Keduanya 181 lulus |
 | Cakupan baris dan pernyataan | `KosLedger.sol` 100%, `KosToken.sol` 100% |
 | Pemeriksaan tipe dan kompilasi | Lulus, tanpa warning |
 | Skenario proposal | 10, 11, dan 12 lulus di test kontrak; skenario 12 juga dibuktikan lewat worker (bagian 11) |
 | Setiap fungsi tulis | Diuji sukses dan ditolak untuk pemanggil tanpa peran (bagian 5) |
-| Worker backend, unit test | 129 lulus (tiruan jaringan dan basis data) |
-| Worker backend, alur penuh di Hardhat node | 25 dari 25 lulus, diulang dua kali di node yang sama |
+| Worker backend, unit test | 133 lulus (tiruan jaringan dan basis data; P4: 129) |
+| Worker backend, alur penuh di Hardhat node | 25 dari 25 lulus (P4 diulang dua kali di node yang sama; P5 diulang sekali di salinan `main` P4 + file jalur 3) |
 | Angka November lewat worker | Sewa kotor Rp13.500.000, biaya Rp2.700.000, sewa bersih Rp7.897.500, 43875 sen per token, sisa pembulatan Rp0; sama dengan angka bisnis yang disepakati 16 Nov 2026 dan kalkulator jalur 1 |
 | Gladi deploy penuh di Hardhat node lokal port 8546 (P3) | Berhasil, 50 dari 50 pemeriksaan pasca-deploy sesuai, bytecode sama dengan artifact `production` |
 | Deploy gladi berlabel `DEPLOY_LABEL` (P4) | Dua gladi berturut-turut menghasilkan kontrak berbeda; deploy tanpa label melanjutkan jejak lama tanpa transaksi baru (bagian 8.3) |
 | Hash dokumen penerbitan jalur 1 | Ketiganya sama dengan nilai yang diberikan jalur 1 (bagian 9) |
 | Uji mutasi `KosLedger.sol` (P2) | 68 dari 68 mutasi tertangkap; kontrak tidak berubah sesudahnya |
+| Skrip tautan Etherscan (P5) | `links:local` dan `links:sepolia` (Hardhat node chain id 11155111, `DEPLOY_LABEL=gladi1`) mencetak semua tautan tanpa kunci dompet di environment (bagian 8.4) |
+| Gas terukur (P5) | Satu putaran demo 6.907.343 gas: admin 4.307.383, operator 2.599.960 (bagian 13) |
 
 ## 2. Lingkungan
 
 | Komponen | Versi |
 |---|---|
-| Node.js | 25.1.0 di laptop pengembang (P4); P3 juga diulang di 24.22.2, versi proyek |
+| Node.js | 25.1.0 di laptop pengembang (P4 dan P5; Node 24 tidak terpasang di laptop ini, CI memakai Node 24); P3 juga diulang di 24.22.2, versi proyek |
 | Hardhat | 3.21.1 (Ignition 3.1.9, hardhat-verify 3.1.4) |
 | Solidity | 0.8.34, target EVM `osaka` |
 | OpenZeppelin Contracts | 5.6.1 |
@@ -37,14 +39,16 @@ Kode Solidity, ABI, dan modul Ignition tidak berubah sejak P3 (kontrak sendiri t
 
 ## 3. Hasil perintah kontrak
 
-Dijalankan dari folder `contracts/` pada 20 Nov 2026, setelah opsi `DEPLOY_LABEL` ditambahkan.
+Dijalankan dari folder `contracts/` pada 20 Nov 2026 (P5), di folder kerja gabungan dan di salinan `main` P4 ditambah file jalur 3 saja.
 
 | Perintah | Hasil |
 |---|---|
-| `npx hardhat test` | `169 passing`, kode keluar 0 |
-| `npm run test:production` | `169 passing`, kode keluar 0 |
-| `npm run coverage` | `169 passing`, cakupan 100% (bagian 7) |
+| `npx hardhat test` | `181 passing`, kode keluar 0 |
+| `npm run test:production` | `181 passing`, kode keluar 0 |
+| `npm run coverage` | `181 passing`, cakupan 100% (bagian 7) |
 | `npm run typecheck` | Kompilasi tanpa warning, `tsc` lulus tanpa error |
+| `npm run gas:report` | Tabel gas setiap fungsi tulis; penutupan November 7.897.500 dan 43875 sen per token (bagian 13) |
+| `npx hardhat test --build-profile production --gas-stats` | `181 passing`; median gas per fungsi sama dengan `gas:report` (bagian 13) |
 
 `npm run deploy:local` dan `npm run verify:local` diulang 20 Nov 2026 karena skrip deploy berubah: 50 dari 50 pemeriksaan sesuai, gas total 4.307.383, pemeriksaan bytecode lulus; dengan `DEPLOY_LABEL=gladi1` hasilnya `deployments/lokal-gladi1.json` dengan kontrak di alamat lain. Hasil P3 untuk perintah yang tidak diulang (kode yang diuji tidak berubah): `npm run export-abi` menulis `KosToken` 104 entri dan `KosLedger` 53 entri tanpa mengubah isi file backend. Di P3 semua perintah di atas juga lulus di Node 24.22.2.
 
@@ -110,6 +114,11 @@ Test "setiap fungsi tulis berperan menolak pemanggil tanpa peran" di `KosToken.t
 | `SepoliaDeployment`: Pemeriksaan bytecode | 3 | Bytecode hasil deploy sama dengan artifact di luar immutable, kontrak lain dan bytecode yang diubah satu byte ditolak, masker immutable |
 | `SepoliaDeployment`: Target dan parameter | 8 | Hanya Sepolia dan Hardhat lokal, normalisasi checksum, tolak alamat nol, tidak valid, dan kembar, tolak hash dokumen dan kunci lain di file parameter, file parameter lokal = akun Hardhat, file parameter Sepolia valid atau masih placeholder; id deployment dan berkas hasil gladi berlabel, validasi `DEPLOY_LABEL` (P4) |
 | `SepoliaDeployment`: Dokumen penerbitan | 6 | Tiga nama file eksplisit dan `README.md` diabaikan, jenis dokumen ada di `KosToken`, vektor uji SHA-256, file hilang, tolak file kosong, CRLF, dan BOM, path relatif repo |
+| `DemoLinks`: Opsi dan format | 4 | Opsi bawaan dan nilai tidak dikenal, API key kosong atau placeholder, format Rupiah, sen, periode, kamar, hash, penyaringan URL dan rahasia (P5) |
+| `DemoLinks`: Berkas hasil deploy | 2 | Tautan Sepolia untuk kontrak, dompet, dan tiga transaksi penerbitan; tanda terverifikasi; Hardhat lokal tanpa tautan (P5) |
+| `DemoLinks`: Event dari RPC | 3 | KYC, pembelian, sewa, biaya, tutup periode (Rp48,75 per token pada skenario kecil), jeda, dan peran dari kontrak sungguhan; transaksi penerbitan dilewati; potongan 1 blok dan 10.000 blok sama; RPC yang menolak rentang memberi petunjuk tanpa mencetak URL (P5) |
+| `DemoLinks`: Event dari API Etherscan | 2 | Jawaban getLogs tiruan berformat Etherscan (angka heksadesimal, nol ditulis `0x`) berhalaman menghasilkan bagian yang sama dengan RPC; parameter permintaan; ulang saat batas laju; penolakan dan koneksi putus tanpa mencetak API key (P5) |
+| `DemoLinks`: Keluaran | 1 | Teks dan Markdown memuat semua butir; bagian kosong; Hardhat lokal menampilkan alamat (P5) |
 
 Test dokumen penerbitan memakai file contoh di folder sementara sistem, bukan file jalur 1. Dengan begitu test kontrak tetap lulus walaupun paket jalur 3 di-merge lebih dulu daripada paket jalur 1. Hal ini dibuktikan 15 Nov 2026 di salinan yang hanya berisi `main` setelah P2 ditambah file jalur 3 P3, tanpa folder `docs/bisnis/dokumen-penerbitan/` dan tanpa file `.env`: `hardhat test`, profil `production`, dan coverage `167 passing`; `deploy:local` berhenti sebelum transaksi apa pun dengan pesan dokumen tidak ditemukan.
 
@@ -174,6 +183,29 @@ Catatan on-chain tidak ikut terhapus saat basis data di-reset, jadi setiap gladi
 
 `git check-ignore` memastikan `deployments/sepolia-<label>.json`, `deployments/lokal-<label>.json`, dan `ignition/deployments/sepolia-smr01-<label>/` diabaikan Git, sedangkan `deployments/sepolia.json` dan `ignition/parameters/sepolia.json` tetap ikut repo.
 
+### 8.4 Skrip tautan Etherscan dan verifikasi (P5)
+
+Diuji 20 Nov 2026 di salinan `main` P4 ditambah file jalur 3, tanpa file `.env`. Jalur lokal memakai `npm run node:local` (port 8546) lalu `npm run deploy:local`; jalur Sepolia memakai Hardhat node port 8545 dengan `--chain-id 11155111` seperti bagian 8.2 dan 8.3, deploy `DEPLOY_LABEL=gladi1`. Setelah deploy, skrip uji di luar repo mengirim satu putaran transaksi operator (tiga KYC, empat pembelian termasuk satu pembelian lanjutan, sembilan sewa, lima biaya, tutup periode 2026-11).
+
+| Uji | Hasil |
+|---|---|
+| `links:local` sebelum deploy | Berhenti: `contracts/deployments/lokal.json tidak ditemukan`, kode keluar 1 |
+| `links:local` setelah deploy, tanpa transaksi | Kontrak, dompet, dan tiga transaksi penerbitan; kelima bagian event "belum ada"; KYC pemilik lama dan perbendaharaan dari konstruktor tidak dihitung |
+| `links:local` setelah satu putaran | 3 KYC, 4 pembelian, 9 sewa (K01 sampai K09), 5 biaya dengan label kategori, tutup periode sewa bersih Rp7.897.500 dan Rp438,75 per token |
+| `LINKS_BLOCK_RANGE=1` | 25 potongan `eth_getLogs`, isi keluaran sama dengan potongan 10.000 blok |
+| `LINKS_FORMAT=markdown` | Satu tabel per bagian; alamat dan hash ditulis dalam kode karena jaringan lokal tidak punya penjelajah |
+| `LINKS_FORMAT=html`, `LINKS_SOURCE=etherscan` di jaringan lokal | Berhenti dengan pesan yang menjelaskan nilai yang benar |
+| `links:sepolia` tanpa label, sebelum deploy utama | Berhenti: `contracts/deployments/sepolia.json tidak ditemukan` |
+| `DEPLOY_LABEL=gladi1 npm run links:sepolia` hanya dengan `SEPOLIA_RPC_URL` | Berhasil tanpa `ADMIN_PRIVATE_KEY` dan `OPERATOR_PRIVATE_KEY`; semua tautan `https://sepolia.etherscan.io/...`; catatan ke stderr bahwa kedua kontrak belum terverifikasi, dengan perintah `verify:sepolia` dan label yang sama |
+| `ETHERSCAN_API_KEY` berisi placeholder `.env.example` | Event dibaca lewat RPC, bukan API Etherscan |
+| `DEPLOY_LABEL=gladi9` (tidak ada) | Berhenti: berkas tidak ditemukan, periksa label |
+| RPC mati (`127.0.0.1:8599/v2/kunci-rahasia-uji`) | Berhenti: `RPC jaringan sepolia tidak bisa dihubungi`, tanpa URL |
+| `SEPOLIA_RPC_URL` kosong | Berhenti dengan pesan Hardhat `Invalid URL value for the configuration variable "SEPOLIA_RPC_URL"` |
+| `verify:sepolia` hanya dengan `SEPOLIA_RPC_URL` | Berhenti sebelum apa pun: `Configuration Variable "ADMIN_PRIVATE_KEY" not found`. Jaringan `sepolia` memuat kedua kunci dompet saat terhubung walaupun verifikasi tidak menandatangani. Panduan verifikasi diperbaiki ([`deploy-sepolia.md`](../kontrak/deploy-sepolia.md) bagian 6.1) |
+| `verify:sepolia` dengan kedua kunci, tanpa `ETHERSCAN_API_KEY` | Pemeriksaan bytecode kedua kontrak lulus, lalu berhenti di `Configuration Variable "ETHERSCAN_API_KEY" not found` sebelum permintaan ke Etherscan |
+
+Semua berkas hasil uji ada di folder sementara dan sudah dihapus dari salinan. Jalur API Etherscan (`LINKS_SOURCE=etherscan`) hanya diuji dengan jawaban tiruan berformat dokumentasi getLogs Etherscan V2 (bagian 6); permintaan ke API Etherscan sungguhan menunggu API key dan deploy Sepolia.
+
 ## 9. Hash dokumen penerbitan
 
 SHA-256 dihitung skrip deploy dari byte file apa adanya, lalu dicocokkan dengan nilai yang diberikan jalur 1 dan dengan `sha256sum`. Ketiganya sama, dan ketiga file berakhiran baris LF tanpa BOM.
@@ -202,11 +234,11 @@ Dijalankan dengan `npm test` di folder `backend/`. Jaringan Ethereum dan basis d
 |---|---|---|
 | `processors.test.ts` | 39 | Argumen kelima fungsi tulis (`recordRent`, `setKycStatus`, `transferFromTreasury`, `recordExpense(202611, 4, 300000, hash)`, `closePeriod(202611)`); nota sudah tercatat dengan isi sama (selesai) dan isi berbeda (gagal permanen); `ReceiptAlreadyRecorded` dan `PeriodAlreadyClosed` hanya selesai bila status on-chain cocok; `EmptyPeriod`, `NoSupplyAtSnapshot`, periode ditutup gagal permanen; Coba lagi admin |
 | `chain-executor.test.ts` | 33 | Urutan pemeriksaan sebelum mengirim, hash disimpan sebelum disiarkan, transaksi lama ditunggu, baris `FAILED` yang transaksinya masuk blok belakangan atau masih di mempool, revert di blok, gangguan RPC |
-| `contracts.test.ts`, `chain-params.test.ts`, lainnya | 57 | Fungsi dan event yang dipakai worker ada di ABI, tipe argumen `recordExpense` dan isi `periods`, konversi kamar, periode, dan kategori |
+| `contracts.test.ts`, `chain-params.test.ts`, `errors.test.ts`, lainnya | 61 | Fungsi dan event yang dipakai worker ada di ABI, tipe argumen `recordExpense` dan isi `periods`, konversi kamar, periode, dan kategori; `RedactedCauseError` menyimpan penyebab tersaring sehingga serializer error pino tidak mencetak URL RPC, API key, atau kata sandi Redis (P5) |
 
 ### 11.2 Alur penuh di Hardhat node
 
-`backend/src/blockchain/local-chain.e2e.test.ts`, dijalankan dengan `BLOCKCHAIN_E2E=1` terhadap `npx hardhat node` port 8545, PostgreSQL `kosbagi_j3`, dan Redis db 5. Worker sungguhan (BullMQ, dispatcher outbox, kunci tunggal) mengirim transaksi dari dompet operator akun #1 Hardhat. Hasil 18 Nov 2026: **25 dari 25 lulus**, diulang dua kali berturut-turut di node yang sama dengan hasil sama (±32 detik per putaran).
+`backend/src/blockchain/local-chain.e2e.test.ts`, dijalankan dengan `BLOCKCHAIN_E2E=1` terhadap `npx hardhat node` port 8545, PostgreSQL `kosbagi_j3`, dan Redis db 5. Worker sungguhan (BullMQ, dispatcher outbox, kunci tunggal) mengirim transaksi dari dompet operator akun #1 Hardhat. Hasil 18 Nov 2026: **25 dari 25 lulus**, diulang dua kali berturut-turut di node yang sama dengan hasil sama (±32 detik per putaran). Diulang 20 Nov 2026 (P5) di salinan `main` P4 ditambah file jalur 3: **25 dari 25 lulus**, termasuk test alamat kontrak salah yang kini dilempar sebagai `RedactedCauseError`.
 
 Kelompok "periode November" men-deploy `KosToken` dan `KosLedger` baru di setiap putaran (parameter sama dengan modul lokal), sehingga saldo pemegang selalu persis angka yang disepakati 16 Nov 2026 (sama dengan Figma dan `docs/bisnis/perhitungan-distribusi.md`). Lima investor menerima token lewat job `WHITELIST_KYC` dan `TRANSFER_TOKENS`, sembilan sewa lewat `RECORD_RENT`, lima nota lewat `RECORD_EXPENSE` (persiapan Rp2.400.000 dan perbaikan K07 Rp300.000), lalu periode ditutup lewat `CLOSE_PERIOD`. Isi `periods(202611)` dan bagian tiap pemegang di blok snapshot:
 
@@ -246,8 +278,25 @@ Setiap test yang menyatakan "tanpa transaksi" memeriksa nonce dompet operator se
 
 ## 12. Yang belum diuji
 
-- Deploy, verifikasi Etherscan, dan perilaku kontrak di Sepolia (menunggu kunci Sepolia; langkahnya di `docs/kontrak/deploy-sepolia.md`). Worker belum pernah mengirim transaksi ke Sepolia.
-- Harga gas Sepolia sebenarnya; perkiraan ETH memakai gas terukur di jaringan lokal.
-- Batas `eth_getLogs` RPC gratis di Sepolia. Pencarian event hanya pelengkap: bila RPC menolak, nota yang sudah tercatat tetap dianggap selesai tanpa pencocokan isi dan tanpa tautan Etherscan.
+- Perilaku worker di Sepolia. Deploy demo akhir dan verifikasi Etherscan sudah dijalankan 24 November 2026: 50 dari 50 pemeriksaan pasca-deploy sesuai, bytecode kedua kontrak sama dengan artifact profil `production`, keduanya terverifikasi (alamat di README bagian Kontrak di Sepolia). Worker belum pernah mengirim transaksi ke Sepolia.
+- Gas fungsi tulis operator di Sepolia. Sejak upgrade jaringan 6 Oktober 2026, gas penyimpanan di Sepolia lebih mahal: deploy demo akhir memakai 27.839.967 gas, bukan 4.307.383 seperti di jaringan lokal, dengan harga gas efektif 19 wei ([`keamanan-dan-gas.md`](../kontrak/keamanan-dan-gas.md) bagian 9.2).
+- Perilaku worker dan rekonsiliasi dengan batas `eth_getLogs` RPC gratis. Batasnya sendiri terbukti 24 November 2026: RPC Alchemy paket gratis menerima rentang 10 blok dan menolak rentang 11 blok atau lebih, sedangkan Infura menerima 10.000 blok dan menolak 20.000. Karena itu pencarian mundur worker (`LOG_LOOKBACK_BLOCKS`) diturunkan dari 50.000 ke 10.000 blok, dengan test unit yang memeriksa rentangnya. Pencarian event hanya pelengkap: bila RPC menolak, nota yang sudah tercatat tetap dianggap selesai tanpa pencocokan isi dan tanpa tautan Etherscan.
 - Tombol Coba lagi lewat API admin jalur 2; alur penuh di atas meniru caranya dengan mengembalikan baris outbox ke `PENDING`.
-- Audit keamanan oleh pihak ketiga. Checklist keamanan di rancangan bagian 3.12, 4.12, dan 8.7 dikerjakan sendiri oleh tim.
+- Audit keamanan oleh pihak ketiga. Checklist keamanan di rancangan bagian 3.12, 4.12, dan 8.7 dikerjakan sendiri oleh tim; ringkasannya di [`docs/kontrak/keamanan-dan-gas.md`](../kontrak/keamanan-dan-gas.md).
+- `npm run links:sepolia` untuk transaksi demo. Skrip sudah dijalankan terhadap Sepolia dan API Etherscan sungguhan 24 November 2026 dan mencetak kontrak, dompet, dan tiga transaksi penerbitan dengan benar; bagian KYC, pembelian, sewa, biaya, dan tutup periode masih kosong karena demo belum dijalankan di kontrak demo akhir.
+
+## 13. Gas terukur (P5)
+
+Diukur 20 Nov 2026 dengan `npm run gas:report` pada bytecode profil `production` di jaringan Hardhat dalam proses, lalu dicocokkan dengan `--gas-stats` dari seluruh test dan dengan gladi `deploy:local`. Tabel lengkap per fungsi dan per kasus ada di [`docs/kontrak/keamanan-dan-gas.md`](../kontrak/keamanan-dan-gas.md) bagian 9.
+
+| Butir | Gas |
+|---|---|
+| Deploy KosToken + KosLedger + `anchorDocument` (sama dengan `deploy:local`) | 4.307.383 |
+| `setKycStatus` alamat baru | 48.143 |
+| `transferFromTreasury` penerima pertama / lanjutan | 191.003 sampai 191.015 / 136.929 |
+| `recordRent` pertama di periode / berikutnya | 99.039 / 81.927 sampai 81.939 |
+| `recordExpense` pertama di periode / berikutnya | 76.339 / 59.227 sampai 59.239 |
+| `closePeriod` November | 199.431 |
+| Operator satu putaran demo (26 transaksi) | 2.599.960 |
+| Satu putaran demo, admin + operator (29 transaksi) | 6.907.343 |
+| Ukuran bytecode `production` | KosToken 10.805 byte, KosLedger 4.607 byte |

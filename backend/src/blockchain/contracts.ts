@@ -15,8 +15,12 @@ import kosTokenAbi from './abi/KosToken.json' with { type: 'json' };
 export const kosTokenInterface = new Interface(kosTokenAbi);
 export const kosLedgerInterface = new Interface(kosLedgerAbi);
 
-/** Seberapa jauh ke belakang log dicari saat mencari transaksi asal catatan yang sudah ada (±7 hari di Sepolia). */
-export const LOG_LOOKBACK_BLOCKS = 50_000;
+/**
+ * Seberapa jauh ke belakang log dicari saat mencari transaksi asal catatan yang sudah ada (±33 jam di
+ * Sepolia, blok ±12 detik). Sama dengan batas rentang eth_getLogs Infura (10.000 blok per permintaan,
+ * diuji 24 Nov 2026); rentang yang lebih panjang ditolak RPC sehingga pencarian selalu gagal.
+ */
+export const LOG_LOOKBACK_BLOCKS = 10_000;
 
 export interface RecordedEvent {
   txHash: string;

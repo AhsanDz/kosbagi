@@ -18,7 +18,7 @@ import { type ExecutorTiming, TIMING_BY_CHAIN } from './chain-executor.js';
 import { type BlockchainConfig, describeConfig, secretValues } from './config.js';
 import { type DeploymentInfo, KosContracts } from './contracts.js';
 import { createCustodialDeriver } from './custodial-wallet.js';
-import { safeErrorMessage } from './errors.js';
+import { RedactedCauseError, safeErrorMessage } from './errors.js';
 import { etherscanAddressUrl } from './etherscan.js';
 import { type BlockchainJobResult, createBlockchainProcessor } from './processors.js';
 import { type ChainConnection, createChainConnection, verifyChainId } from './provider.js';
@@ -78,8 +78,11 @@ async function preflight(
     deployment = await contracts.readDeployment();
     ledgerToken = await contracts.ledgerTokenAddress();
   } catch (error) {
-    throw new Error(
-      `Kontrak di alamat yang dikonfigurasi tidak bisa dibaca sebagai KosToken dan KosLedger (${safeErrorMessage(error, secretValues(config))}).`,
+    // Error asli disimpan sebagai cause dalam bentuk tersaring: error ethers memuat URL RPC berisi API key.
+    const secrets = secretValues(config);
+    throw new RedactedCauseError(
+      `Kontrak di alamat yang dikonfigurasi tidak bisa dibaca sebagai KosToken dan KosLedger (${safeErrorMessage(error, secrets)}).`,
+      { cause: error, secrets },
     );
   }
   if (ledgerToken !== contracts.tokenAddress) {

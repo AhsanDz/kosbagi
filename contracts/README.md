@@ -8,7 +8,7 @@ Smart contract KosBagi di Ethereum Sepolia, dibangun dengan Hardhat 3 dan OpenZe
 | `KosLedger` | `recordRent`, `recordExpense`, `closePeriod`, `shareOf` | Satu kontrak per token properti. Menolak referensi pembayaran ganda dan sewa kedua untuk kamar + periode yang sama; menyimpan sewa bersih, nilai per token, dan blok snapshot tiap periode |
 | `KosVoting` (opsional) | `propose`, `vote`, `tally` | Tidak dibangun di prototipe (keputusan 16 Nov 2026); rancangannya disimpan sebagai pengembangan lanjutan |
 
-Semua fungsi tulis khusus dibatasi peran `AccessControl`: operasi harian (KYC, penyaluran token dari perbendaharaan, pencatatan sewa dan biaya, penutupan periode, jeda) oleh dompet operator; pengaturan peran, registri dokumen, dan jeda darurat oleh dompet admin. Fungsi standar ERC-20 (`transfer`, `approve`, `transferFrom`, `permit`) tetap terbuka bagi pemegang token, tetapi tunduk pada aturan KYC, batas 10%, dan jeda. Data on-chain hanya kode properti, nomor kamar, periode, nominal, `keccak256(order_id)`, dan hash dokumen atau nota, tanpa data pribadi. Rancangan lengkap: [`docs/kontrak/rancangan-kontrak.md`](../docs/kontrak/rancangan-kontrak.md). Laporan uji: [`docs/pengujian/kontrak.md`](../docs/pengujian/kontrak.md).
+Semua fungsi tulis khusus dibatasi peran `AccessControl`: operasi harian (KYC, penyaluran token dari perbendaharaan, pencatatan sewa dan biaya, penutupan periode, jeda) oleh dompet operator; pengaturan peran, registri dokumen, dan jeda darurat oleh dompet admin. Fungsi standar ERC-20 (`transfer`, `approve`, `transferFrom`, `permit`) tetap terbuka bagi pemegang token, tetapi tunduk pada aturan KYC, batas 10%, dan jeda. Data on-chain hanya kode properti, nomor kamar, periode, nominal, `keccak256(order_id)`, dan hash dokumen atau nota, tanpa data pribadi. Rancangan lengkap: [`docs/kontrak/rancangan-kontrak.md`](../docs/kontrak/rancangan-kontrak.md). Keamanan dan gas terukur: [`docs/kontrak/keamanan-dan-gas.md`](../docs/kontrak/keamanan-dan-gas.md). Laporan uji: [`docs/pengujian/kontrak.md`](../docs/pengujian/kontrak.md).
 
 ## Versi yang dipakai
 
@@ -35,9 +35,11 @@ Deploy dan verifikasi memakai variabel environment dari file `.env` di folder in
 | `SEPOLIA_RPC_URL` | URL RPC Sepolia dari Alchemy atau Infura |
 | `ADMIN_PRIVATE_KEY` | Private key dompet admin: menandatangani deploy dan pencatatan dokumen. Hanya dipakai di folder ini, tidak pernah di backend |
 | `OPERATOR_PRIVATE_KEY` | Private key dompet operator: di folder ini hanya untuk mencocokkan alamat operator |
-| `ETHERSCAN_API_KEY` | API key Etherscan untuk verifikasi kontrak |
+| `ETHERSCAN_API_KEY` | API key Etherscan untuk verifikasi kontrak, juga untuk membaca event di `npm run links:sepolia` |
 | `ISSUANCE_DOCS_DIR` | Opsional, hanya untuk gladi lokal: folder lain berisi tiga dokumen penerbitan |
 | `DEPLOY_LABEL` | Opsional, hanya untuk gladi demo di Sepolia: label kontrak baru, mis. `gladi1`. Hasilnya `deployments/sepolia-<label>.json` dan tidak ikut repo. Kosongkan untuk deploy demo akhir (`deployments/sepolia.json`). Lebih aman diisi di terminal |
+
+Verifikasi tetap butuh keempat variabel pertama walaupun tidak mengirim transaksi. `npm run links:sepolia` (tautan Etherscan untuk presentasi dan README) cukup dengan `SEPOLIA_RPC_URL`, ditambah `ETHERSCAN_API_KEY` untuk membaca event; opsinya (`LINKS_FORMAT`, `LINKS_SOURCE`, `LINKS_BLOCK_RANGE`) di panduan deploy bagian 10.
 
 File `.env` diabaikan Git dan **tidak boleh** di-commit. Alternatifnya, simpan nilai terenkripsi dengan `npx hardhat keystore set <NAMA_VARIABEL>`; variabel environment tetap diutamakan bila keduanya ada.
 
@@ -62,6 +64,8 @@ contracts/
 ├── scripts/
 │   ├── deploy.ts         deploy KosToken + KosLedger, catat tiga dokumen, periksa hasil, tulis deployments/
 │   ├── verify.ts         periksa bytecode lalu verifikasi kode sumber di Etherscan
+│   ├── links.ts          cetak tautan Etherscan kontrak, dompet, dan transaksi penting (npm run links:sepolia)
+│   ├── gas-report.ts     ukur gas setiap fungsi tulis pada bytecode production (npm run gas:report)
 │   ├── export-abi.ts     salin ABI ke backend/src/blockchain/abi/
 │   └── lib/              fungsi bersama skrip (target jaringan, dokumen penerbitan, pemeriksaan, format hasil)
 ├── deployments/          hasil deploy: sepolia.json (alamat, blok, dokumen, peran); lokal.json dan sepolia-<label>.json tidak ikut repo

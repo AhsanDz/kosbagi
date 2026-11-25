@@ -122,3 +122,36 @@ export function safeErrorMessage(error: unknown, secrets: readonly string[] = []
   message = redactSecrets(message, secrets).replace(/\s+/g, ' ').trim();
   return message.length > MAX_MESSAGE_LENGTH ? `${message.slice(0, MAX_MESSAGE_LENGTH - 3)}...` : message;
 }
+
+// Baris stack trace V8 berbentuk "    at fungsi (berkas:baris:kolom)". Baris lain di stack adalah
+// pesan error (bisa lebih dari satu baris) dan tidak boleh ikut tersalin.
+const STACK_FRAME = /^\s+at\s/;
+
+/**
+ * Salinan error yang aman dijadikan `cause`: nama error asli, pesan dari safeErrorMessage (kode error
+ * ikut, rahasia dan URL disamarkan), dan baris lokasi stack tanpa pesan aslinya. Objek aslinya
+ * sengaja tidak disimpan. Error ethers memuat URL RPC beserta API key di `message` dan `info`, dan
+ * serializer error pino ikut mencetak pesan dan stack setiap `cause`, jadi objek asli yang tersimpan
+ * sebagai `cause` akan bocor begitu ada yang mencatat error lengkap ke log.
+ */
+export function sanitizedErrorCopy(error: unknown, secrets: readonly string[] = []): Error {
+  const copy = new Error(safeErrorMessage(error, secrets));
+  const frames =
+    error instanceof Error ? (error.stack ?? '').split('\n').filter((line) => STACK_FRAME.test(line)) : [];
+  if (error instanceof Error) copy.name = error.name;
+  copy.stack = [`${copy.name}: ${copy.message}`, ...frames.map((line) => redactSecrets(line, secrets))].join('\n');
+  return copy;
+}
+
+/**
+ * Error baru yang membungkus error lain tanpa membawa rahasia di rantai penyebabnya. `cause` berisi
+ * salinan tersaring (sanitizedErrorCopy), bukan error aslinya, sehingga penyebab dan lokasinya tetap
+ * bisa ditelusuri tanpa URL RPC berisi API key, URL Redis berisi kata sandi, atau kunci. Pesan yang
+ * diberikan pemanggil juga harus sudah aman, mis. memakai safeErrorMessage.
+ */
+export class RedactedCauseError extends Error {
+  constructor(message: string, options: { cause: unknown; secrets?: readonly string[] }) {
+    super(message, { cause: sanitizedErrorCopy(options.cause, options.secrets) });
+    this.name = 'RedactedCauseError';
+  }
+}
