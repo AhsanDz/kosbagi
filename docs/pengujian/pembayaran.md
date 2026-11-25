@@ -1,6 +1,6 @@
 # Laporan Uji Pembayaran (S1 sampai S9)
 
-Laporan final skenario uji 1 sampai 9 dari Tabel 4.3 proposal. S1 sampai S7 (pembayaran sewa) dibangun di progress 2, S8 dan S9 (pembelian token) di progress 3. Progress 4 menambah aturan pembayaran sewa setelah periode ditutup, biaya dengan nota, distribusi bagi hasil, dan skrip persiapan demo, lihat [Tambahan progress 4](#tambahan-progress-4). Skenario 10 sampai 12 ada di [`kontrak.md`](kontrak.md).
+Laporan final skenario uji 1 sampai 9 dari Tabel 4.3 proposal. S1 sampai S7 (pembayaran sewa) dibangun di progress 2, S8 dan S9 (pembelian token) di progress 3. Progress 4 menambah aturan pembayaran sewa setelah periode ditutup, biaya dengan nota, distribusi bagi hasil, dan skrip persiapan demo, lihat [Tambahan progress 4](#tambahan-progress-4). Progress 5 tidak mengubah alur pembayaran; isinya pemeriksaan otomatis di GitHub Actions, pembacaan IP di balik proxy, dan image untuk deploy online, lihat [Tambahan progress 5](#tambahan-progress-5). Skenario 10 sampai 12 ada di [`kontrak.md`](kontrak.md).
 
 Tanggal uji: 2 November 2026 (S1 sampai S7, tiruan), 3 November 2026 (S1 sampai S7, Midtrans sandbox sungguhan), 4 sampai 15 November 2026 (S8, S9, dan alur pembelian token, tiruan), 15 November 2026 (pembelian token dan skrip demo ke Midtrans sandbox sungguhan, tanpa membayar di simulator), 16 sampai 19 November 2026 (tambahan P4: tiruan, PostgreSQL, Hardhat lokal, dan Midtrans sandbox sungguhan tanpa membayar).
 
@@ -35,13 +35,14 @@ S8 dan S9 tidak butuh uji sandbox sungguhan, karena syaratnya justru Midtrans ti
 
 Hasil:
 
-| Perintah | P2 | P3 (jalur 2) | P4 (paket jalur 2 di atas `main` P3) |
-|---|---|---|---|
-| `npm test` | 206 test lulus, 21 file | 279 test lulus, 27 file, tanpa Docker dan tanpa jaringan | 518 lulus, 12 dilewati, 49 file. Termasuk test P3 jalur 1 dan 3 yang sudah ada di `main`; 12 yang dilewati adalah e2e jalur 3 tanpa Hardhat node |
-| `npm run test:integration` | 82 test lulus, 4 file | 169 test lulus, 7 file | 234 lulus, 1 dilewati, 12 file |
-| Distribusi dari kontrak di Hardhat lokal (`DISTRIBUTION_E2E=1`) | | | 1 lulus, diulang tiga kali di node yang sama |
-| Alur penuh | 36 langkah lulus | Belum diulang untuk pembelian token | Lewat skrip demo terhadap server sungguhan, lihat [uji sandbox P4](#uji-sandbox-p4-19-november-2026) |
-| `npm run typecheck`, `npm run build` | Lulus | Lulus | Lulus |
+| Perintah | P2 | P3 (jalur 2) | P4 (paket jalur 2 di atas `main` P3) | P5 (paket jalur 2 di atas `main` P4) |
+|---|---|---|---|---|
+| `npm test` | 206 test lulus, 21 file | 279 test lulus, 27 file, tanpa Docker dan tanpa jaringan | 518 lulus, 12 dilewati, 49 file. Termasuk test P3 jalur 1 dan 3 yang sudah ada di `main`; 12 yang dilewati adalah e2e jalur 3 tanpa Hardhat node | 661 lulus, 32 dilewati, 56 file (termasuk 23 test baru `TRUST_PROXY` dan `JWT_SECRET`) |
+| `npm run test:integration` | 82 test lulus, 4 file | 169 test lulus, 7 file | 234 lulus, 1 dilewati, 12 file | 234 lulus, 1 dilewati, 12 file |
+| Distribusi dari kontrak di Hardhat lokal (`DISTRIBUTION_E2E=1`) | | | 1 lulus, diulang tiga kali di node yang sama | Tidak diulang (kode distribusi tidak berubah) |
+| Alur penuh | 36 langkah lulus | Belum diulang untuk pembelian token | Lewat skrip demo terhadap server sungguhan, lihat [uji sandbox P4](#uji-sandbox-p4-19-november-2026) | Image Docker, lihat [Tambahan progress 5](#tambahan-progress-5) |
+| `npm run typecheck`, `npm run build` | Lulus | Lulus | Lulus | Lulus |
+| `npm run lint` | | | | 3 temuan, semuanya di file jalur 1 dan 3 yang diperbaiki di paket mereka; di folder kerja gabungan lulus |
 
 Di folder kerja gabungan (keempat paket P4), `npm test` juga menjalankan test kalkulator dan rekonsiliasi jalur 1 serta layanan blockchain jalur 3: 638 lulus dan 32 dilewati pada 20 November 2026, dan `npm run test:integration` 234 lulus dan 1 dilewati.
 
@@ -247,6 +248,37 @@ Test Hardhat lokal memakai kontrak hasil deploy modul Ignition `LocalDeployment`
 | VA gagal dibuat | Sisihan dilepas, pesanan pecahan berikutnya mendapat nomor baru |
 | Login skrip kena batas 10 per menit (temuan QA R5) | Skrip menunggu sesuai header `Retry-After` sekali lalu login lagi; bila masih kena batas, berhenti dengan pesan API (`tests/demo-api-client.test.ts`) |
 
+## Tambahan progress 5
+
+### Pemeriksaan otomatis di GitHub Actions
+
+`.github/workflows/ci.yml` menjalankan job backend untuk setiap Pull Request dan push ke `main`: `npm ci`, `npx prisma generate`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, lalu `npm run test:integration` dengan service container PostgreSQL 17 dan Redis 8. Jadi test otomatis S1 sampai S9 (`tests/integration/payment-scenarios.test.ts`, `token-purchase.test.ts`, `payment-concurrency.test.ts`, dan test HTTP di `tests/`) ikut berjalan di setiap PR, dengan Midtrans tetap ditiru dan tanpa secret repositori.
+
+Workflow belum dijalankan di GitHub (repo tidak diubah agen). Uji lokal 20 November 2026: struktur `ci.yml` diperiksa dengan pengurai YAML (pemicu, izin `contents: read`, tidak ada secret, versi action, path lockfile, dan setiap `npm run` ada di `package.json`), lalu setiap langkah `run` dijalankan persis di container Linux `node:24.22.3-trixie-slim` dari salinan bersih repo, dengan service container baru `postgres:17-alpine` dan `redis:8-alpine`. Satu-satunya beda dengan runner GitHub: service dihubungi lewat nama container, bukan `localhost`. Hasilnya di tabel di bawah.
+
+| Job (salinan folder kerja gabungan keempat jalur P5, 20 November 2026) | Hasil di Node 24.22.3 |
+|---|---|
+| backend | `npm ci` lulus; lint 0 temuan; typecheck lulus; `npm test` 665 lulus, 32 dilewati; build lulus; `npm run test:integration` 234 lulus, 1 dilewati di PostgreSQL 17 dan Redis 8 yang baru dibuat |
+| contracts | `npm ci` lulus; `npx hardhat test` 181 lulus |
+| frontend | `npm ci` lulus; ESLint lulus; `next build` lulus |
+
+Peringatan `npm warn install-scripts` dari npm 11.19 (paket dengan skrip pasang yang belum terdaftar di `allowScripts`) muncul di ketiga job tetapi tidak menggagalkan langkah apa pun. Jumlah test di salinan gabungan bisa bertambah bila jalur lain menambah test sebelum paketnya selesai.
+
+### IP klien di balik proxy dan rahasia produksi
+
+| Kasus | Hasil |
+|---|---|
+| `TRUST_PROXY` kosong (bawaan, demo laptop) | Hanya proxy di mesin yang sama yang dipercaya. IP dari ngrok dan Next.js lokal terbaca; isian `X-Forwarded-For` palsu di sebelah kiri entri ngrok diabaikan (`src/config/trust-proxy.test.ts`). Test rate limit login, form pemilik, webhook, dan per pengguna tetap lulus |
+| `TRUST_PROXY=1` (Railway) | Hanya entri paling kanan yang ditulis proxy hosting yang dipakai |
+| `TRUST_PROXY=false`, daftar CIDR tanpa loopback | `X-Forwarded-For` dari koneksi lokal diabaikan |
+| `TRUST_PROXY=true`, nilai bukan alamat | Ditolak saat start dengan pesan menyebut `TRUST_PROXY` |
+| `NODE_ENV=production` dengan `JWT_SECRET` dari `.env.example` atau konfigurasi test | Ditolak saat start (`src/config/env.test.ts`, juga dicoba di container); nilainya tidak muncul di pesan |
+| `NODE_ENV=production` tanpa `TRUST_PROXY` | Server tetap start dan menulis peringatan |
+
+### Image Docker untuk deploy online
+
+Dicoba di Docker Desktop 20 November 2026 dengan basis data uji tersendiri: `npm run db:deploy` di dalam image menerapkan keempat migrasi ke basis data kosong, `GET /api/health` membalas `environment: production`, login ke basis data berjalan, dan `docker stop` (SIGTERM) memicu penutupan rapi dengan kode keluar 0. Worker di image yang sama menolak start dengan daftar variabel blockchain yang belum diisi. Contoh "Mencoba di laptop" di komentar `backend/Dockerfile` (jaringan `kosbagi_default`, `JWT_SECRET` acak yang menimpa isi `.env`) dicoba 21 November 2026 di Git Bash dan PowerShell dengan `.env` salinan `.env.example`: health 200 dan login ke basis data berjalan. Notifikasi Midtrans ke Railway belum diuji karena belum di-deploy.
+
 ## Kasus tambahan
 
 | Kasus | Hasil |
@@ -388,6 +420,8 @@ Jadi VA BCA Rp180.000.000 diterima sandbox, dan pesanan Bagas tidak perlu dipeca
 | `npm run demo:bayar-sewa -- --period 2026-11` untuk sembilan kamar seed | Butuh server, basis data seed P3, dan pembayaran di simulator |
 | `npm run demo:siapkan-investor` sampai empat investor memegang token di Sepolia | Butuh server, worker jalur 3 di Sepolia, dan pembayaran empat VA di simulator |
 | Tutup periode dan distribusi November di Sepolia | Butuh deploy Sepolia, semua sewa dan nota tercatat, lalu `/admin/periode` |
+| Workflow CI di GitHub | Jalan otomatis setelah PR paket P5 jalur 2 dibuat |
+| Deploy online: notifikasi Midtrans ke Railway | Ikuti [`docs/deploy/online.md`](../deploy/online.md), lalu bayar satu tagihan dari frontend Vercel |
 
 Cara menguji dari simulator tanpa ngrok: bayar di simulator sandbox, lalu jalankan `webhook:simulate` dengan `order_id` yang tampil di halaman tagihan (atau di keluaran `demo:bayar-sewa`). Setelah basis data diisi ulang, nomor itu bisa bersufiks, mis. `RENT-SMR01-K03-2026-11-2`, karena nomor tanpa sufiks sudah terpakai di sandbox.
 
@@ -416,4 +450,6 @@ Untuk membayar semua tagihan satu periode sekaligus, `npm run demo:bayar-sewa --
 - Pesanan token yang sisihannya lepas karena waktu, tanpa notifikasi `expire`, tetap berstatus `PENDING_PAYMENT` di basis data tetapi dibaca `EXPIRED` di API dan tidak dihitung di sisihan.
 - Waktu blok di kuitansi belum tersedia, karena tabel `chain_transactions` belum menyimpan waktu blok.
 - Rate limit disimpan di memori proses, jadi kosong lagi saat server restart dan tidak berlaku lintas proses.
+- Bila di-deploy online, batas login per IP dihitung per alamat server Vercel, bukan per peramban, karena login lewat route handler Vercel (lihat [`docs/deploy/online.md`](../deploy/online.md) bagian 11). Form `/pemilik` memanggil api langsung dari peramban, jadi tetap dihitung per IP peramban. Batas per pengguna dan batas webhook tidak terpengaruh.
+- Di laptop dengan `TRUST_PROXY` kosong, pemanggil dari laptop itu sendiri tetap dianggap proxy lokal (supaya ngrok dan Next.js lokal terbaca), jadi masih bisa mengganti IP lewat `X-Forwarded-For`. Yang tertutup sejak P5 adalah pemalsuan dari perangkat lain di jaringan yang sama.
 - Bila pool benar-benar habis, permintaan gagal setelah menunggu 5 detik (`connectionTimeoutMillis`) dan dibalas 500. Pool masih berukuran bawaan, 10 koneksi.

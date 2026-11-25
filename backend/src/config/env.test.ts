@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { parse } from 'dotenv';
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
-import { BACKEND_ROOT, parseEnv } from './env.js';
+import { BACKEND_ROOT, PUBLIC_JWT_SECRETS, parseEnv } from './env.js';
 
 const minimal = {
   DATABASE_URL: 'postgresql://kosbagi:kosbagi@localhost:5432/kosbagi?schema=public',
@@ -155,5 +155,52 @@ describe('parseEnv: UPLOAD_DIR', () => {
 
   it('BACKEND_ROOT menunjuk folder yang berisi package.json backend', () => {
     expect(readFileSync(path.join(BACKEND_ROOT, 'package.json'), 'utf8')).toContain('"name": "kosbagi-backend"');
+  });
+});
+
+describe('parseEnv: TRUST_PROXY', () => {
+  it('kosong berarti belum diisi; aplikasi lalu hanya memercayai proxy lokal', () => {
+    expect(parseEnv(minimal).TRUST_PROXY).toBeUndefined();
+    expect(parseEnv({ ...minimal, TRUST_PROXY: '' }).TRUST_PROXY).toBeUndefined();
+  });
+
+  it('membaca jumlah proxy, false, dan daftar alamat', () => {
+    expect(parseEnv({ ...minimal, TRUST_PROXY: '1' }).TRUST_PROXY).toBe(1);
+    expect(parseEnv({ ...minimal, TRUST_PROXY: 'false' }).TRUST_PROXY).toBe(false);
+    expect(parseEnv({ ...minimal, TRUST_PROXY: 'loopback, 100.64.0.0/10' }).TRUST_PROXY).toEqual(['loopback', '100.64.0.0/10']);
+  });
+
+  it('menolak true dan nilai yang bukan alamat dengan pesan menyebut variabelnya', () => {
+    expect(() => parseEnv({ ...minimal, TRUST_PROXY: 'true' })).toThrow(/TRUST_PROXY: true terlalu longgar/);
+    expect(() => parseEnv({ ...minimal, TRUST_PROXY: 'railway' })).toThrow(/TRUST_PROXY: railway bukan alamat IP/);
+  });
+});
+
+describe('parseEnv: JWT_SECRET saat NODE_ENV=production', () => {
+  const example = parse(readFileSync(new URL('../../.env.example', import.meta.url)));
+
+  it('menolak nilai contoh .env.example dan nilai test yang tertulis di repo', () => {
+    expect(PUBLIC_JWT_SECRETS.has(example['JWT_SECRET'] ?? '')).toBe(true);
+    for (const secret of PUBLIC_JWT_SECRETS) {
+      expect(() => parseEnv({ ...minimal, NODE_ENV: 'production', JWT_SECRET: secret })).toThrow(
+        /JWT_SECRET: nilai contoh dari repo tidak boleh dipakai saat NODE_ENV=production/,
+      );
+    }
+  });
+
+  it('pesan tolakannya tidak menampilkan nilai JWT_SECRET', () => {
+    try {
+      parseEnv({ ...example, NODE_ENV: 'production' });
+      expect.unreachable('seharusnya ditolak');
+    } catch (error) {
+      expect((error as Error).message).not.toContain(example['JWT_SECRET']);
+    }
+  });
+
+  it('tetap menerima nilai contoh saat development dan test, serta nilai acak saat production', () => {
+    expect(() => parseEnv({ ...example, NODE_ENV: 'development' })).not.toThrow();
+    expect(() => parseEnv({ ...minimal, NODE_ENV: 'test', JWT_SECRET: example['JWT_SECRET'] })).not.toThrow();
+    const random = 'uji-produksi-nilai-di-luar-daftar-contoh-repo';
+    expect(parseEnv({ ...minimal, NODE_ENV: 'production', JWT_SECRET: random }).JWT_SECRET).toBe(random);
   });
 });

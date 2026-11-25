@@ -26,6 +26,14 @@ export default defineConfig({
       // pernah dipakai mengirim transaksi: test hanya menurunkan alamat dompet kustodian.
       CUSTODIAL_WALLET_MNEMONIC: 'test test test test test test test test test test test junk',
       KOS_LEDGER_ADDRESS: '0x2b9c000000000000000000000000000000007e10',
+      // Variabel Sepolia lain sengaja dikosongkan supaya backend/.env di laptop (yang terisi setelah
+      // deploy Sepolia) tidak ikut terbaca: dotenv tidak menimpa variabel yang sudah ada, dan nilai
+      // kosong dibaca sebagai belum diisi. Hasil test jadi sama dengan clone bersih dan CI.
+      SEPOLIA_RPC_URL: '',
+      SEPOLIA_RPC_URL_FALLBACK: '',
+      CHAIN_ID: '',
+      OPERATOR_PRIVATE_KEY: '',
+      KOS_TOKEN_ADDRESS: '',
       // Test tidak boleh menulis file nota ke backend/uploads.
       UPLOAD_DIR: path.join(tmpdir(), 'kosbagi-uji-nota-unit'),
     },

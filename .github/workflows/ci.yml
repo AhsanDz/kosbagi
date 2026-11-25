@@ -1,0 +1,148 @@
+# Pemeriksaan otomatis KosBagi: berjalan untuk setiap Pull Request dan setiap push ke main.
+# Tiga job terpisah (backend, contracts, frontend) supaya kegagalan satu bagian langsung terlihat.
+#
+# Tidak memakai secret repositori sama sekali. Test backend meniru Midtrans, test kontrak memakai
+# jaringan Hardhat bawaan, dan semua variabel di bawah hanya nilai uji yang memang publik.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Token bawaan GitHub hanya bisa membaca isi repo.
+permissions:
+  contents: read
+
+# Push baru ke branch PR yang sama membatalkan pemeriksaan lama yang belum selesai. Di main tidak
+# dibatalkan, supaya setiap merge commit punya hasil pemeriksaan sendiri.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  backend:
+    name: Backend (lint, typecheck, test, build, test integrasi)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+
+    # PostgreSQL dan Redis untuk npm run test:integration, versinya sama dengan docker-compose.yml.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: kosbagi
+          POSTGRES_PASSWORD: kosbagi
+          POSTGRES_DB: kosbagi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kosbagi -d kosbagi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Dibaca tests/integration/test-env.ts. Basis data kosbagi_test dibuat otomatis oleh test.
+      TEST_DATABASE_URL: postgresql://kosbagi:kosbagi@localhost:5432/kosbagi_test?schema=public
+      TEST_REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Pasang dependensi
+        run: npm ci
+
+      - name: Buat klien Prisma
+        run: npx prisma generate
+
+      - name: Lint (Oxlint)
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test unit dan HTTP
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Test integrasi (PostgreSQL dan Redis)
+        run: npm run test:integration
+
+  contracts:
+    name: Kontrak (Hardhat test)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Pasang dependensi
+        run: npm ci
+
+      - name: Test kontrak
+        run: npx hardhat test
+
+  frontend:
+    name: Frontend (lint, build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Pasang dependensi
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Build
+        run: npm run build

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { config as loadEnv } from 'dotenv';
 import { Mnemonic } from 'ethers';
 import { z } from '../lib/zod.js';
+import { parseTrustProxy, TrustProxyError, type TrustProxySetting } from './trust-proxy.js';
 
 // Muat backend/.env bila ada. Variabel yang sudah diset di sistem tidak ditimpa.
 loadEnv({ quiet: true });
@@ -14,6 +15,16 @@ loadEnv({ quiet: true });
 export const BACKEND_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
+
+/**
+ * Nilai JWT_SECRET yang tertulis di repo publik (.env.example dan konfigurasi test). Siapa pun bisa
+ * memakainya untuk membuat token admin palsu, jadi ditolak saat NODE_ENV=production.
+ */
+export const PUBLIC_JWT_SECRETS: ReadonlySet<string> = new Set([
+  'contoh-lokal-saja-ganti-sebelum-deploy-kosbagi-2026',
+  'nilai-khusus-test-bukan-rahasia-sungguhan',
+  'nilai-uji-env-minimal-tiga-puluh-dua-karakter',
+]);
 
 // Pesan khusus bila variabel wajib belum diisi; kesalahan lain memakai pesan bawaan zod.
 const required = { error: (issue: { input: unknown }) => (issue.input === undefined ? 'wajib diisi' : undefined) };
@@ -67,6 +78,29 @@ const envSchema = z.object({
     (value) => (value === '' ? undefined : value),
     z.coerce.number().int().positive().default(11155111),
   ),
+  // Proxy yang dipercaya saat membaca IP klien untuk rate limit (lihat config/trust-proxy.ts).
+  // Kosong = hanya proxy di laptop yang sama (ngrok, Next.js lokal). Di Railway isi 1.
+  TRUST_PROXY: optional(
+    z.string().transform((value, context): TrustProxySetting => {
+      try {
+        return parseTrustProxy(value);
+      } catch (error) {
+        if (!(error instanceof TrustProxyError)) throw error;
+        context.addIssue({ code: 'custom', message: error.message });
+        return z.NEVER;
+      }
+    }),
+  ),
+}).superRefine((value, context) => {
+  if (value.NODE_ENV === 'production' && PUBLIC_JWT_SECRETS.has(value.JWT_SECRET)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['JWT_SECRET'],
+      message:
+        'nilai contoh dari repo tidak boleh dipakai saat NODE_ENV=production. Buat nilai acak, mis. ' +
+        `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`,
+    });
+  }
 });
 
 export type Env = z.output<typeof envSchema>;

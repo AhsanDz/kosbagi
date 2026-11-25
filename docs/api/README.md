@@ -8,13 +8,14 @@ API backend KosBagi (Express 5 + TypeScript). Dokumen ini memuat konvensi yang b
 | P2 | Login akun dummy + JWT, peran, tagihan penghuni, pembayaran Midtrans Snap, webhook, properti dan kamar, KYC dummy, pengajuan pemilik kos, rate limit |
 | P3 | Kuitansi sewa dan status `NOT_RECORDED`, alamat dan pengelola di kartu kamar, KYC dengan pemeriksaan otomatis dan dompet kustodian, penawaran dan pembelian token (`BUY-`), webhook pembelian, status on-chain whitelist dan transfer token |
 | P4 | Biaya dan nota (unggahan multipart, hash SHA-256), status dan struk periode, tutup periode, distribusi bagi hasil, portofolio investor, status kamar pengelola, ringkasan dan antrean job admin dengan Coba lagi dan Tandai ditangani, rekonsiliasi (modul jalur 1), pembayaran sewa setelah periode ditutup (`periodClosed`, `refund`), status gagal tidak pernah terlihat investor maupun penghuni |
+| P5 | Tidak ada endpoint atau bentuk respons baru. IP klien untuk rate limit per IP kini mengikuti `TRUST_PROXY` (bagian 5, Rate limit), dan alamat deploy online opsional di Railway (bagian 1) |
 
 ## 1. Alamat dasar
 
 | Lingkungan | Alamat dasar |
 |---|---|
 | Lokal (`npm run dev` di `backend/`) | `http://localhost:4000/api` |
-| Deploy | menyusul (progress 5) |
+| Deploy online (opsional, belum di-deploy) | `https://<api>.up.railway.app/api`, lihat [`docs/deploy/online.md`](../deploy/online.md) |
 
 - Semua endpoint berada di bawah awalan `/api`.
 - Nama sumber daya berbahasa Inggris, huruf kecil, bentuk jamak, dipisah tanda hubung: `/api/bills`, `/api/owner-applications`.
@@ -147,6 +148,8 @@ Peran: `INVESTOR`, `TENANT`, `MANAGER`, `ADMIN`.
 ### Rate limit
 
 Lewat dari batas dibalas 429 `RATE_LIMITED`.
+
+Untuk batas per IP, IP klien dibaca dari header `X-Forwarded-For` hanya sejauh proxy yang dipercaya variabel `TRUST_PROXY`. Bawaannya (variabel kosong) hanya proxy di mesin yang sama, yaitu ngrok dan server Next.js lokal; `X-Forwarded-For` yang dikirim perangkat lain langsung ke backend diabaikan. Pemanggil dari laptop itu sendiri tetap dianggap proxy lokal. Di Railway nilainya `1`. Halaman frontend memanggil backend lewat route handler Next.js, jadi saat frontend online di Vercel, login dihitung per alamat server Vercel (lihat [`docs/deploy/online.md`](../deploy/online.md) bagian 11). Pengecualiannya form `/pemilik`, yang memanggil `POST /api/owner-applications` langsung dari peramban (karena itu origin frontend harus ada di `CORS_ORIGIN`), sehingga dihitung per IP peramban. Batas per pengguna dihitung dari id akun di JWT dan tidak bergantung pada IP.
 
 | Endpoint | Batas per menit | Dihitung per |
 |---|---|---|

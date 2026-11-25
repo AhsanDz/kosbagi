@@ -1,0 +1,16 @@
+# Berkas yang tidak dikirim ke docker build (lihat Dockerfile).
+# Rahasia: .env tidak boleh masuk image; variabel diberikan saat container jalan.
+.env
+.env.*
+!.env.example
+
+# Dibuat ulang di dalam image
+node_modules/
+dist/
+src/generated/
+
+# Tidak dibutuhkan saat produksi
+uploads/
+coverage/
+tests/
+*.log

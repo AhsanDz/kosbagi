@@ -1,7 +1,6 @@
 // Modul owner-applications: form pengajuan kos dari halaman publik /pemilik.
 import { Router } from 'express';
 import { withAdvisoryLock } from '../../lib/advisory-lock.js';
-import { prisma } from '../../lib/prisma.js';
 import { wibYear } from '../../lib/wib.js';
 import { validationError } from '../../middleware/error-handler.js';
 import { createRateLimiter } from '../../middleware/rate-limit.js';
