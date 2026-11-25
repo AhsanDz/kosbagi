@@ -1,5 +1,6 @@
 import { UnrecoverableError } from 'bullmq';
 import { id, makeError } from 'ethers';
+import { stdSerializers } from 'pino';
 import { describe, expect, it } from 'vitest';
 import { kosLedgerInterface, kosTokenInterface } from './contracts.js';
 import {
@@ -7,9 +8,11 @@ import {
   extractRevertData,
   isDeterministicError,
   PermanentJobError,
+  RedactedCauseError,
   redactSecrets,
   RetryableJobError,
   safeErrorMessage,
+  sanitizedErrorCopy,
 } from './errors.js';
 import { connectionRefused, revertError } from './testing/fakes.js';
 
@@ -81,6 +84,54 @@ describe('safeErrorMessage', () => {
 
   it('nilai bukan Error tetap diubah menjadi teks', () => {
     expect(safeErrorMessage('putus')).toBe('putus');
+  });
+});
+
+describe('RedactedCauseError', () => {
+  const RPC_URL = 'https://eth-sepolia.g.alchemy.com/v2/kunci-api-rahasia';
+  // Bentuk error ethers saat RPC menolak permintaan: pesan lengkapnya memuat URL RPC beserta API key.
+  const rpcError = () =>
+    makeError('server response 401 Unauthorized', 'SERVER_ERROR', { request: RPC_URL, info: { requestUrl: RPC_URL } });
+
+  it('menyimpan salinan tersaring sebagai cause, bukan error aslinya', () => {
+    const original = rpcError();
+    expect(original.message).toContain('kunci-api-rahasia');
+
+    const wrapped = new RedactedCauseError('Kontrak tidak bisa dibaca.', { cause: original, secrets: [RPC_URL] });
+    const cause = wrapped.cause as Error;
+    expect(wrapped.name).toBe('RedactedCauseError');
+    expect(cause).toBeInstanceOf(Error);
+    expect(cause).not.toBe(original);
+    expect(cause.name).toBe(original.name);
+    expect(cause.message).toBe('server response 401 Unauthorized (SERVER_ERROR)');
+    expect(cause.stack).not.toContain('kunci-api-rahasia');
+    expect(cause.stack).toMatch(/^Error: server response 401 Unauthorized \(SERVER_ERROR\)\n\s+at /);
+  });
+
+  it('serializer error pino tidak mencetak rahasia dari rantai penyebab, berbeda dengan cause mentah', () => {
+    const wrapped = new RedactedCauseError('Kontrak tidak bisa dibaca.', { cause: rpcError(), secrets: [RPC_URL] });
+    const logged = JSON.stringify(stdSerializers.err(wrapped));
+    expect(logged).toContain('server response 401 Unauthorized');
+    expect(logged).not.toContain('kunci-api-rahasia');
+
+    // Alasan cause tidak diisi error asli: pino ikut mencetak pesan dan stack cause.
+    const raw = new Error('Kontrak tidak bisa dibaca.', { cause: rpcError() });
+    expect(JSON.stringify(stdSerializers.err(raw))).toContain('kunci-api-rahasia');
+  });
+
+  it('nilai rahasia selain URL http ikut disamarkan, mis. kata sandi di REDIS_URL', () => {
+    const redisUrl = 'redis://default:sandi-redis-rahasia@redis.contoh:6379';
+    const original = Object.assign(new Error(`gagal terhubung ke ${redisUrl}`), { code: 'ECONNREFUSED' });
+    const cause = new RedactedCauseError('Redis tidak bisa dihubungi.', { cause: original, secrets: [redisUrl] })
+      .cause as Error;
+    expect(cause.message).toBe('gagal terhubung ke [disamarkan] (ECONNREFUSED)');
+    expect(cause.stack).not.toContain('sandi-redis-rahasia');
+  });
+
+  it('nilai bukan Error menjadi Error berpesan teks tanpa stack palsu', () => {
+    const copy = sanitizedErrorCopy('putus');
+    expect(copy.message).toBe('putus');
+    expect(copy.stack).toBe('Error: putus');
   });
 });
 
