@@ -34,7 +34,8 @@ export async function mapWithConcurrency<T, R>(
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     throw new RangeError('Batas konkurensi harus bilangan bulat minimal 1.');
   }
-  const results = new Array<R>(items.length);
+  // Panjang hasil disiapkan sejak awal supaya setiap tugas mengisi posisinya sendiri.
+  const results = Array.from<R>({ length: items.length });
   let next = 0;
 
   async function worker(): Promise<void> {

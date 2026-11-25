@@ -52,6 +52,8 @@ Setiap gladi di Sepolia dimulai dengan deploy `KosToken` dan `KosLedger` baru, l
 
 Alasan: catatan on-chain tidak ikut terhapus saat basis data di-reset. `closePeriod` untuk satu periode hanya bisa sekali, saldo token investor tetap ada sehingga pembelian ulang ditolak batas 10%, dan nota yang sama sudah tercatat. Gladi kedua di kontrak yang sama tidak mungkin sampai tutup periode.
 
+Catatan: sebagian diganti oleh [keputusan 24 November 2026 K2](2026-11-24-keputusan-akhir-progress-5.md). Kontrak demo akhir di-deploy 24 November 2026 tanpa `DEPLOY_LABEL` sebelum ada gladi Sepolia, jadi demo akhir memakai kontrak itu, bukan deploy terakhir. Gladi Sepolia sesudahnya tetap men-deploy kontrak baru lewat `DEPLOY_LABEL`.
+
 ## Tindak lanjut
 
 | Apa | Siapa | Tenggat | Status |

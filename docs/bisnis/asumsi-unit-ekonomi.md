@@ -1,6 +1,6 @@
 # Asumsi dan Unit Ekonomi Kos Sumbersari 01
 
-Status: draf P2, 2 November 2026; diperbarui P3, 3 November 2026 (skenario Pasal 31E dan tautan ke proyeksi).
+Status: draf P2, 2 November 2026; diperbarui P3, 3 November 2026 (skenario Pasal 31E dan tautan ke proyeksi); diperbarui P5, 24 November 2026 (biaya peralihan hak, biaya virtual account, audit, dan skenario PPh final disamakan dengan business case yang dikumpulkan). Angka per token tidak berubah.
 
 Dokumen ini mengumpulkan semua asumsi angka di satu tempat, lalu menghitung unit ekonomi dari asumsi itu. Isinya menjadi dasar bab model pendapatan dan proyeksi 3 tahun di [business case](business-case.md). Rincian alur bisnisnya ada di [model bisnis](model-bisnis.md), dan aturan pembulatan per periode ada di [perhitungan distribusi](perhitungan-distribusi.md).
 
@@ -58,7 +58,7 @@ Dokumen dan kode memakai nilai eksak. Proposal memakai nilai yang dibulatkan unt
 | Imbal hasil per tahun | 5,265% | ±5,3% | Dibulatkan ke 0,1% |
 | 100 token per bulan | Rp43.875 | ±Rp43.900 | Dibulatkan ke ratusan rupiah |
 | Fee pengelolaan per tahun | Rp8.100.000 | ±Rp8,1 juta | Sama |
-| Imbal hasil skenario PPh final | 6,705% | ±6,7% | Dibulatkan ke 0,1% |
+| Imbal hasil skenario PPh final | 6,705% | ±6,7% | Dibulatkan ke 0,1%. Skenario ini tidak dipakai lagi (bagian 6) |
 
 Pembulatan hanya boleh dilakukan di akhir, pada angka yang ditampilkan. Bila angka bulat dipakai untuk menghitung lagi, hasilnya bergeser. Contohnya bagian pemilik lama: 5.400 × Rp438,75 = Rp2.369.250, sedangkan 5.400 × Rp439 = Rp2.370.600, selisih Rp1.350 per bulan.
 
@@ -101,10 +101,10 @@ Halaman `/pemilik` memakai rumus yang sama untuk simulasi dana: token = nilai pr
 Biaya per properti dan biaya tetap platform dirumuskan di [proyeksi keuangan](proyeksi-keuangan.md) bagian 2 (P07 sampai P25), termasuk kontribusi bersih per properti di bagian 3. Status butir yang dulu dicatat terbuka:
 
 - biaya penilaian properti dan notaris: asumsi kelompok Rp10.000.000 dan Rp5.000.000 per properti **[perlu verifikasi]**;
-- biaya penurunan SHM menjadi HGB, pajak pengalihan hak, dan BPHTB: sekitar Rp153.000.000 untuk properti Rp1,8 miliar; siapa yang menanggungnya masih perlu keputusan tim **[perlu verifikasi]**;
-- tarif transaksi Midtrans: virtual account Rp4.000 sebelum PPN dan QRIS 0,7% (Midtrans, 2026), ditanggung PT KosBagi Teknologi, bukan biaya operasional kos;
+- biaya penurunan SHM menjadi HGB, pajak pengalihan hak, dan BPHTB: sekitar Rp140.000.000 untuk properti Rp1,8 miliar (PPh final Rp45.000.000, BPHTB setelah NPOPTKP Rp86.000.000, jasa PPAT Rp9.000.000), ditanggung pemilik lama sesuai keputusan 15 November 2026; rinciannya di [proyeksi keuangan](proyeksi-keuangan.md) bagian 7;
+- tarif transaksi Midtrans: virtual account Rp4.000 sebelum PPN, atau Rp4.440 dengan PPN efektif 11%, dan QRIS 0,7% (Midtrans, 2026), ditanggung PT KosBagi Teknologi, bukan biaya operasional kos;
 - biaya verifikasi e-KYC: asumsi kelompok Rp10.000 per investor **[perlu verifikasi]**;
-- biaya audit smart contract Rp75.000.000 sekali dan gas Rp500 per transaksi di jaringan produksi: asumsi kelompok **[perlu verifikasi]**.
+- biaya audit smart contract Rp125.000.000 sekali, di dalam kisaran biaya audit kontrak token sederhana (proyeksi keuangan P23); gas Rp500 per transaksi di jaringan produksi: asumsi kelompok **[perlu verifikasi]**.
 
 ## 6. Analisis sensitivitas
 
@@ -116,9 +116,9 @@ Semua tabel memakai Kos Sumbersari 01 dan mengubah satu asumsi. Baris tebal adal
 |---|---|---|---|---|
 | **PPh badan 22% atas laba** | Rp26.730.000 | Rp94.770.000 | Rp438,75 | 5,265% |
 | PPh badan dengan fasilitas Pasal 31E, tarif efektif 11% | Rp13.365.000 | Rp108.135.000 | Rp500,625 | 6,0075% |
-| PPh final 0,5% dari omzet | Rp810.000 | Rp120.690.000 | Rp558,75 | 6,705% |
+| PPh final 0,5% dari omzet (tidak dipakai lagi) | Rp810.000 | Rp120.690.000 | Rp558,75 | 6,705% |
 
-Syarat tarif 0,5% bagi kustodian belum dikonfirmasi **[perlu verifikasi]**. Skenario Pasal 31E ditambahkan di P3 dan dijelaskan di [proyeksi keuangan](proyeksi-keuangan.md) bagian 7, termasuk batas peredaran bruto Rp4,8 miliar yang dihitung untuk seluruh properti kustodian **[perlu verifikasi]**. Pajak kos daerah Kota Malang belum masuk tabel karena status dan tarifnya belum pasti (Ikatan Konsultan Pajak Indonesia, 2025) **[perlu verifikasi]**.
+Skenario PPh final 0,5% dari proposal tidak dipakai lagi di business case final: PP 20/2026 membatasi tarif itu untuk wajib pajak orang pribadi, PT perorangan, dan koperasi, sedangkan PT KosBagi Properti adalah perseroan biasa ([proyeksi keuangan](proyeksi-keuangan.md) bagian 7). Barisnya tetap ditampilkan sebagai pembanding angka proposal. Skenario Pasal 31E ditambahkan di P3 dan dijelaskan di [proyeksi keuangan](proyeksi-keuangan.md) bagian 7, termasuk batas peredaran bruto Rp4,8 miliar yang dihitung untuk seluruh properti kustodian **[perlu verifikasi]**. Pajak kos daerah Kota Malang belum masuk tabel karena status dan tarifnya belum pasti (Ikatan Konsultan Pajak Indonesia, 2025) **[perlu verifikasi]**.
 
 ### Okupansi
 

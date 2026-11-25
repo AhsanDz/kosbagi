@@ -177,7 +177,7 @@ export function FundSimulator() {
         </dl>
         <p className="text-xs leading-4 text-muted-foreground">
           Asumsi: biaya operasional 20%, fee pengelolaan 5%, PPh badan 22%. Dana diterima belum
-          dipotong biaya peralihan sertifikat ke kustodian (pajak dan jasa PPAT, sekitar 8,5% nilai
+          dipotong biaya peralihan sertifikat ke kustodian (pajak dan jasa PPAT, sekitar 7,8% nilai
           kos) yang ditanggung pemilik. Hanya simulasi, bukan penawaran resmi.
         </p>
         <Button asChild className="w-full">

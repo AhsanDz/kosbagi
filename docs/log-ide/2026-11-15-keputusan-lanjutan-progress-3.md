@@ -27,11 +27,15 @@ Proyeksi 3 tahun tetap memakai properti baru seukuran Kos Sumbersari 01 (10 kama
 
 Alasan: angka skenario dasar berasal dari studi kasus yang sama dengan prototipe, jadi lebih mudah dipertanggungjawabkan. Mengganti skenario dasar hanya supaya NPV positif akan menyembunyikan temuan bahwa ukuran properti adalah pengungkit terbesar.
 
+Catatan: angkanya diperbarui oleh [keputusan 24 November 2026 K1](2026-11-24-keputusan-akhir-progress-5.md). Keputusannya tetap, tetapi dengan asumsi biaya naskah final NPV skenario dasar menjadi −Rp690,8 juta, BEP 70 properti, dan strategi kos 20 kamar memakai 3, 8, dan 12 properti baru (NPV Rp19,8 juta).
+
 ### K2. Biaya peralihan hak ditanggung pemilik lama
 
 Biaya peralihan sertifikat ke PT KosBagi Properti, yaitu PPh final 2,5%, BPHTB 5%, dan jasa PPAT sekitar 1% (±Rp153 juta untuk properti Rp1,8 miliar), ditanggung pemilik lama dan dibayar dari dana hasil penawaran. Imbal hasil investor dan fee KosBagi tidak berubah. FAQ dan simulasi dana di halaman pemilik kos menyebut potongan ini.
 
 Alasan: membebankannya ke investor menurunkan imbal hasil per token sekitar 8%, dan membebankannya ke KosBagi membuat setiap penerbitan merugi karena fee penawaran 3% hanya Rp37,8 juta.
+
+Catatan: besarannya diperbarui oleh [keputusan 24 November 2026 K1](2026-11-24-keputusan-akhir-progress-5.md) menjadi sekitar Rp140 juta, karena BPHTB dihitung setelah NPOPTKP Rp80 juta dan jasa PPAT paling tinggi 0,5% untuk nilai transaksi ini. Pihak yang menanggungnya tetap pemilik lama.
 
 ### K3. Jeda darurat tetap dipegang admin dan operator
 
