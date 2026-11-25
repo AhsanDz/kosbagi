@@ -80,6 +80,13 @@ export function ClosingReceipt({ payload, ready, className }: ClosingReceiptProp
       className={cn("relative flex w-full flex-col rounded-xl bg-card text-card-foreground", className)}
     >
       <div className="flex flex-col gap-1.5 px-6 pt-7 pb-6 md:px-8">
+        {/* Di ponsel cap berada di atas judul supaya tidak menutupi nama periode (P5). */}
+        {closed ? (
+          <RecordedStamp
+            rotated={false}
+            className="mb-1.5 self-start sm:absolute sm:top-[22px] sm:right-3 sm:mb-0"
+          />
+        ) : null}
         <p className="text-sm leading-5 font-medium text-muted-foreground">
           {final ? "Struk penutupan" : "Struk sementara"}
         </p>
@@ -91,7 +98,6 @@ export function ClosingReceipt({ payload, ready, className }: ClosingReceiptProp
           {kosSumbersari01.tokenSymbol}
         </p>
       </div>
-      {closed ? <RecordedStamp rotated={false} className="absolute top-[22px] right-3" /> : null}
 
       <TearLine />
 

@@ -8,6 +8,7 @@ import useSWR, { useSWRConfig } from "swr";
 import { ResolveJobDialog } from "@/components/admin/resolve-job-dialog";
 import { ChainStatus } from "@/components/common/chain-status";
 import { LoadError } from "@/components/common/load-error";
+import { StackedListHead, StackedListItem, StackedListMeta } from "@/components/common/stacked-list";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -111,7 +112,7 @@ function ActionCell({
   if (isActionable(job)) {
     const name = jobName(job);
     return (
-      <span className="flex items-center gap-2">
+      <span className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           variant="outline"
@@ -147,6 +148,61 @@ interface JobTableProps {
 }
 
 /**
+ * Antrean job versi daftar untuk kartu yang lebih sempit dari tabel 1.000 px
+ * (ponsel dan laptop kecil, P5). Isinya sama dengan baris tabel: jenis,
+ * status, referensi, waktu dibuat, percobaan, lalu tombol atau penanganannya.
+ */
+function JobList({ jobs, retryingId, onRetry, onResolve }: Omit<JobTableProps, "view">) {
+  if (jobs !== undefined && jobs.length === 0) return null;
+
+  return (
+    <ul className="@min-[62.5rem]:hidden" aria-label="Antrean job on-chain">
+      {jobs === undefined
+        ? SKELETON_ROWS.map((key) => (
+            <StackedListItem key={key} className="gap-2.5">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-3 w-48 max-w-full" />
+              <Skeleton className="h-3 w-36" />
+            </StackedListItem>
+          ))
+        : jobs.map((job) => (
+            <StackedListItem key={job.id} className="gap-2">
+              <StackedListHead
+                title={JOB_TYPE_LABELS[job.type]}
+                value={
+                  <ChainStatus
+                    status={jobChainStatus[job.status]}
+                    txHash={job.txHash ?? undefined}
+                    className="flex-wrap justify-end"
+                  />
+                }
+              />
+              <StackedListMeta className="font-mono break-all text-card-foreground">
+                {jobReference(job)}
+              </StackedListMeta>
+              <StackedListMeta>
+                Dibuat {formatDateTime(job.createdAt)}, percobaan {job.attempts} dari {MAX_JOB_ATTEMPTS}
+              </StackedListMeta>
+              {job.status === "FAILED" && job.lastError && !job.resolution ? (
+                <StackedListMeta className="text-destructive">{job.lastError}</StackedListMeta>
+              ) : null}
+              {isActionable(job) || job.resolution ? (
+                <div className="pt-1">
+                  <ActionCell
+                    job={job}
+                    retrying={retryingId === job.id}
+                    onRetry={onRetry}
+                    onResolve={onResolve}
+                  />
+                </div>
+              ) : null}
+            </StackedListItem>
+          ))}
+    </ul>
+  );
+}
+
+/**
  * Tabel antrean job on-chain (Figma: "Baris job on-chain"). Tombol di kolom Aksi
  * memakai Outline dan rata kiri. Job Gagal punya Coba lagi dan Tandai ditangani;
  * job yang sudah ditangani menulis siapa yang menanganinya dan catatannya; job
@@ -154,69 +210,72 @@ interface JobTableProps {
  */
 function JobTable({ view, jobs, retryingId, onRetry, onResolve }: JobTableProps) {
   return (
-    <div className="overflow-hidden rounded-xl bg-card text-card-foreground">
-      <Table className="min-w-[1000px] table-fixed">
-        <HeadRow />
-        <TableBody>
-          {jobs === undefined
-            ? SKELETON_ROWS.map((key) => (
-                <TableRow key={key} aria-hidden className="h-16">
-                  <TableCell>
-                    <Skeleton className="h-3 w-24" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-3 w-35 max-w-full" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-3 w-24" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-3 w-12" />
-                  </TableCell>
-                  <TableCell />
-                  <TableCell />
-                </TableRow>
-              ))
-            : jobs.map((job) => (
-                <TableRow key={job.id} className="h-16">
-                  <TableCell>
-                    <span className="flex flex-col gap-0.5">
-                      <span className="truncate text-sm leading-5 font-medium">{JOB_TYPE_LABELS[job.type]}</span>
-                      <span className="truncate font-mono text-xs leading-4 text-muted-foreground">{job.type}</span>
-                    </span>
-                  </TableCell>
-                  <TableCell className="truncate font-mono" title={job.reference}>
-                    {jobReference(job)}
-                  </TableCell>
-                  <TableCell>{formatDateTime(job.createdAt)}</TableCell>
-                  <TableCell className="tabular-nums">
-                    {job.attempts} dari {MAX_JOB_ATTEMPTS}
-                  </TableCell>
-                  <TableCell
-                    className="whitespace-normal"
-                    title={job.status === "FAILED" ? (job.lastError ?? undefined) : undefined}
-                  >
-                    <ChainStatus
-                      status={jobChainStatus[job.status]}
-                      txHash={job.txHash ?? undefined}
-                      className="flex-wrap"
-                    />
-                    {job.status === "FAILED" && job.lastError ? (
-                      <span className="sr-only">. Penyebab terakhir: {job.lastError}</span>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    <ActionCell
-                      job={job}
-                      retrying={retryingId === job.id}
-                      onRetry={onRetry}
-                      onResolve={onResolve}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-        </TableBody>
-      </Table>
+    <div className="@container overflow-hidden rounded-xl bg-card text-card-foreground">
+      <div className="hidden @min-[62.5rem]:block">
+        <Table className="min-w-[1000px] table-fixed">
+          <HeadRow />
+          <TableBody>
+            {jobs === undefined
+              ? SKELETON_ROWS.map((key) => (
+                  <TableRow key={key} aria-hidden className="h-16">
+                    <TableCell>
+                      <Skeleton className="h-3 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-3 w-35 max-w-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-3 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-3 w-12" />
+                    </TableCell>
+                    <TableCell />
+                    <TableCell />
+                  </TableRow>
+                ))
+              : jobs.map((job) => (
+                  <TableRow key={job.id} className="h-16">
+                    <TableCell>
+                      <span className="flex flex-col gap-0.5">
+                        <span className="truncate text-sm leading-5 font-medium">{JOB_TYPE_LABELS[job.type]}</span>
+                        <span className="truncate font-mono text-xs leading-4 text-muted-foreground">{job.type}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell className="truncate font-mono" title={job.reference}>
+                      {jobReference(job)}
+                    </TableCell>
+                    <TableCell>{formatDateTime(job.createdAt)}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {job.attempts} dari {MAX_JOB_ATTEMPTS}
+                    </TableCell>
+                    <TableCell
+                      className="whitespace-normal"
+                      title={job.status === "FAILED" ? (job.lastError ?? undefined) : undefined}
+                    >
+                      <ChainStatus
+                        status={jobChainStatus[job.status]}
+                        txHash={job.txHash ?? undefined}
+                        className="flex-wrap"
+                      />
+                      {job.status === "FAILED" && job.lastError ? (
+                        <span className="sr-only">. Penyebab terakhir: {job.lastError}</span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <ActionCell
+                        job={job}
+                        retrying={retryingId === job.id}
+                        onRetry={onRetry}
+                        onResolve={onResolve}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+          </TableBody>
+        </Table>
+      </div>
+      <JobList jobs={jobs} retryingId={retryingId} onRetry={onRetry} onResolve={onResolve} />
       {jobs === undefined ? <p className="sr-only">Memuat antrean job.</p> : null}
       {jobs !== undefined && jobs.length === 0 ? (
         <Empty className="rounded-none border-0 px-6 py-10">

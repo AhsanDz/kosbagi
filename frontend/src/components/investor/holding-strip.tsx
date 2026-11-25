@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { CaretRightIcon } from "@phosphor-icons/react/ssr";
 
 import type { HoldingDto } from "@/lib/api/types";
@@ -14,7 +15,7 @@ function Figure({
   first = false,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   mono?: boolean;
   first?: boolean;
 }) {
@@ -57,7 +58,13 @@ export function HoldingStrip({ holding, className }: { holding: HoldingDto; clas
         <Figure
           first
           label="Token dimiliki"
-          value={`${formatNumber(holding.tokenBalance)} token ${holding.tokenSymbol}`}
+          value={
+            <>
+              {formatNumber(holding.tokenBalance)} token{" "}
+              {/* Simbol tidak dipatah di tanda hubung pada layar sempit ("KB-" lalu "SMR01"). */}
+              <span className="whitespace-nowrap">{holding.tokenSymbol}</span>
+            </>
+          }
         />
         <Figure label="Nilai beli" value={formatRupiah(holdingCostIdr(holding.tokenBalance))} />
         <Figure

@@ -16,7 +16,8 @@ interface FollowUpView {
 function describe(
   item: ManagerFollowUpDto,
   payload: ManagerRoomsPayload,
-  index: number
+  index: number,
+  periodClosed: boolean
 ): FollowUpView {
   const room = payload.rooms.find((candidate) => candidate.roomNumber === item.roomNumber);
   const key = `${item.kind}-${item.roomNumber ?? item.expenseId ?? index}`;
@@ -29,9 +30,13 @@ function describe(
       title: item.roomNumber ?? "Kamar",
       status: "Belum dibayar",
       warning: false,
-      body: due
-        ? `Jatuh tempo ${formatDayMonth(due)} sudah lewat ${days} hari.`
-        : "Tagihan sudah lewat jatuh tempo.",
+      body: [
+        due ? `Jatuh tempo ${formatDayMonth(due)} sudah lewat ${days} hari.` : "Tagihan sudah lewat jatuh tempo.",
+        // Sama dengan keterangan di slip penghuni: tagihan periode tertutup tidak bisa dibayar.
+        periodClosed ? "Periode sudah ditutup, jadi tagihan ini tidak bisa lagi dibayar lewat KosBagi." : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
     };
   }
   if (item.kind === "CHAIN_FAILED") {
@@ -57,15 +62,35 @@ function describe(
   };
 }
 
+/** Teks saat tidak ada tindak lanjut, mengikuti status periode (temuan QA P5 R10). */
+function emptyText(payload: ManagerRoomsPayload, periodClosed: boolean | undefined): string {
+  const { summary } = payload;
+  const allRecorded = summary.roomsOccupied > 0 && summary.roomsRecorded >= summary.roomsOccupied;
+  if (!allRecorded) return "Tidak ada yang perlu ditindaklanjuti sekarang.";
+
+  const recorded = `Tidak ada. Semua sewa ${periodMonthName(payload.period)} sudah tercatat`;
+  if (periodClosed === true) return `${recorded} dan periode sudah ditutup admin.`;
+  if (periodClosed === false) return `${recorded}, jadi periode siap ditutup admin.`;
+  // Status periode belum terbaca: jangan menebak.
+  return `${recorded}.`;
+}
+
+interface FollowUpCardProps {
+  payload: ManagerRoomsPayload;
+  /** Dari `closed` GET /expenses periode yang sama; undefined selama belum terbaca. */
+  periodClosed?: boolean;
+}
+
 /**
  * Kartu Perlu ditindaklanjuti (Figma: Pengelola / Status kamar): tagihan yang
  * lewat jatuh tempo, sewa lunas yang pencatatannya gagal, dan nota yang belum
- * tercatat. Pengelola melihat status sebenarnya, termasuk kata gagal.
+ * tercatat. Pengelola melihat status sebenarnya, termasuk kata gagal. Setelah
+ * periode ditutup, kartu tidak lagi menulis "siap ditutup".
  */
-export function FollowUpCard({ payload }: { payload: ManagerRoomsPayload }) {
-  const items = payload.followUps.map((item, index) => describe(item, payload, index));
-  const { summary } = payload;
-  const allRecorded = summary.roomsOccupied > 0 && summary.roomsRecorded >= summary.roomsOccupied;
+export function FollowUpCard({ payload, periodClosed }: FollowUpCardProps) {
+  const items = payload.followUps.map((item, index) =>
+    describe(item, payload, index, periodClosed === true)
+  );
 
   return (
     <section
@@ -77,9 +102,7 @@ export function FollowUpCard({ payload }: { payload: ManagerRoomsPayload }) {
       </h2>
       {items.length === 0 ? (
         <p className="pt-1 text-sm leading-5 text-muted-foreground">
-          {allRecorded
-            ? `Tidak ada. Semua sewa ${periodMonthName(payload.period)} sudah tercatat, jadi periode siap ditutup admin.`
-            : "Tidak ada yang perlu ditindaklanjuti sekarang."}
+          {emptyText(payload, periodClosed)}
         </p>
       ) : (
         <ul className="mt-2">
