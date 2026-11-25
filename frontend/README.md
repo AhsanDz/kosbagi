@@ -8,14 +8,29 @@ Catatan keamanan dependensi: `npm ci` melaporkan kerentanan tingkat low dan mode
 
 ## Variabel lingkungan
 
-Variabel lingkungan ada di `.env.example`. Hanya variabel berawalan `NEXT_PUBLIC_` yang sampai ke peramban, jadi frontend hanya boleh berisi URL API dan client key Midtrans. Server key Midtrans dan private key dompet tidak pernah ada di sini.
+Variabel lingkungan ada di `.env.example`. Hanya variabel berawalan `NEXT_PUBLIC_` yang sampai ke peramban, jadi variabel itu hanya boleh berisi URL API dan client key Midtrans. Server key Midtrans dan private key dompet tidak pernah ada di sini.
 
 | Variabel | Wajib | Keterangan |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | ya | Alamat backend tanpa `/api` |
+| `NEXT_PUBLIC_API_URL` | ya | Alamat backend tanpa `/api`. Dipakai route handler di server; karena berawalan `NEXT_PUBLIC_`, nilainya tertanam saat build, jadi ubah lalu build ulang |
 | `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY` | tidak | Client key sandbox untuk `snap.js`. Kalau kosong, tombol bayar menampilkan pesan yang jelas |
+| `TRUST_PROXY_HEADERS` | tidak | Hanya server, tidak sampai ke peramban. Isi `true` bila frontend berjalan di balik proxy yang menimpa `X-Forwarded-Host` dan `X-Forwarded-For` (mis. Vercel). Kosong saat lokal |
 
-## Status progress 4
+Di Vercel, Next.js terdeteksi otomatis dari folder `frontend`, jadi tidak ada `vercel.json`. Ketiga variabel di atas diisi di pengaturan proyek Vercel; langkah deploy lengkapnya ada di [`docs/deploy/online.md`](../docs/deploy/online.md).
+
+## Status progress 5
+
+Finalisasi P5 (tanpa fitur besar baru):
+
+- Pengerasan untuk berjalan di balik proxy: pemeriksaan `Origin` hanya memakai `X-Forwarded-Host`, dan `X-Forwarded-For` hanya diteruskan ke backend, bila `TRUST_PROXY_HEADERS=true`. `/masuk?sesi=` tidak lagi menghapus cookie lewat GET.
+- Header keamanan di semua respons lewat `next.config.ts`: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, `Permissions-Policy`, tanpa `X-Powered-By`.
+- `error.tsx` untuk halaman publik, setiap peran, dan akar aplikasi: galat tak terduga menampilkan pesan berbahasa Indonesia dengan Muat ulang. Muat ulang mengosongkan cache SWR dulu supaya data rusak tidak langsung memicu galat lagi, dan di halaman peran sidebar, header, serta tombol menu tetap tampil.
+- Kartu Perlu ditindaklanjuti di `/pengelola` membaca status ditutup dari `GET /expenses` periode yang sama, jadi tidak lagi menulis "siap ditutup" setelah periode ditutup.
+- Ponsel 390 px: tabel portofolio, biaya, antrean job, dan KYC admin berganti menjadi daftar bertumpuk bila kartunya lebih sempit dari tabel, jadi status dan tombol tidak tersembunyi di luar layar.
+- Mode gelap diperiksa di semua halaman peran dengan skrip kontras; hash di ubin kamar lime pengelola kini terbaca di mode gelap.
+- Footer publik menautkan Pernyataan penggunaan AI (`docs/pernyataan-ai.md` di repo GitHub).
+
+### Status progress 4
 
 - Masuk berfungsi sungguhan lewat backend. Kartu akun demo memakai kata sandi `demo-kosbagi`, dan form email menerima akun yang sama.
 - Penghuni: `/penghuni`, `/penghuni/tagihan`, dan kuitansi `/penghuni/tagihan/[id]` memakai API sungguhan. Slip lunas punya tombol Lihat kuitansi, riwayat punya kolom Aksi (desktop) dan baris yang bisa diketuk (ponsel). Kuitansi bisa dicetak; stylesheet cetak hanya menampilkan kartu kuitansi.
@@ -88,7 +103,8 @@ frontend/
 │   │   ├── (publik)/         route group halaman publik (navbar + footer)
 │   │   ├── api/              route handler sesi dan penerus API backend
 │   │   ├── masuk/            halaman masuk
-│   │   ├── investor/ penghuni/ pengelola/ admin/   app shell per peran
+│   │   ├── investor/ penghuni/ pengelola/ admin/   app shell per peran, masing-masing dengan error.tsx
+│   │   ├── error.tsx         halaman galat akar (P5)
 │   │   └── not-found.tsx     halaman 404
 │   ├── components/
 │   │   ├── ui/               komponen shadcn/ui yang sudah dikustom (termasuk dialog sejak P3)
@@ -96,7 +112,7 @@ frontend/
 │   │   ├── app-shell/        sidebar, blok akun dari sesi, header, banner sandbox, skeleton
 │   │   ├── auth/             kartu akun demo, form masuk
 │   │   ├── brand/            logo
-│   │   ├── common/           tautan, status on-chain, badge tagihan, dll.
+│   │   ├── common/           tautan, status on-chain, badge tagihan, daftar bertumpuk, halaman galat, dll.
 │   │   ├── home/             bagian-bagian beranda
 │   │   ├── investor/         KYC, penawaran, Kartu saldo bagi hasil, Daftar sewa masuk, portofolio
 │   │   ├── manager/          pengelola: ringkasan sewa, papan kamar, tindak lanjut, biaya, Sheet catat biaya
@@ -111,7 +127,7 @@ frontend/
 │   │   └── midtrans/         pemuat snap.js
 │   └── proxy.ts              penjaga halaman peran
 ├── components.json           konfigurasi shadcn/ui (base radix, ikon Phosphor)
-└── next.config.ts, eslint.config.mjs, tsconfig.json, .env.example
+└── next.config.ts (termasuk header keamanan), eslint.config.mjs, tsconfig.json, .env.example
 ```
 
 ## Catatan desain
@@ -120,5 +136,5 @@ frontend/
 - Lime (`success`) hanya untuk bukti: lunas, tercatat on-chain, cap TERCATAT, garis grafik. Tombol memakai tinta (`primary`).
 - Ikon: `@phosphor-icons/react` (weight regular). Komponen yang dipakai di Server Component mengimpor dari `@phosphor-icons/react/ssr`.
 - Frame penghuni, investor, pengelola, dan admin belum punya versi gelap di Figma. Warnanya memakai token tema, dan hasil gelapnya diperiksa langsung di aplikasi. Panel catatan on-chain, Kartu bukti, dan Kartu saldo bagi hasil selalu gelap lewat class `dark`.
-- Frame P4 hanya desktop. Di bawah 1280 px kolom kanan turun ke bawah, dan tabel lebar bisa digulir mendatar di dalam kartunya tanpa membuat halaman melebar.
+- Frame P4 hanya desktop. Di bawah 1280 px kolom kanan turun ke bawah. Tabel lebar memakai container query: bila kartunya lebih sempit dari tabel, isinya ditampilkan sebagai daftar bertumpuk (`components/common/stacked-list.tsx`), pola yang sama dengan Baris riwayat penghuni versi Ponsel (P5).
 - Menambah komponen shadcn: `npx shadcn@4.23.0 add <nama>`. CLI menulis `import { cn } from "cn"`; ganti menjadi `import { cn } from "@/lib/utils"` supaya token tipografi KosBagi (mis. `text-button`) tidak terhapus saat class digabung.

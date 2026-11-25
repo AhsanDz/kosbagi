@@ -9,13 +9,13 @@ Folder ini berisi dokumen desain KosBagi yang dikelola jalur 4 (Frontend & Desai
 | [arsitektur.md](arsitektur.md) | Diagram konteks, komponen, dompet dan token, sekuens pembayaran sewa dan pembelian token, status di layar, deployment, dan keputusan arsitektur |
 | [user-stories.md](user-stories.md) | User stories per aktor dengan kriteria penerimaan Given/When/Then, prioritas, progress, serta kaitannya dengan demo wajib dan skenario uji |
 | [erd.md](erd.md) | ERD basis data dari `backend/prisma/schema.prisma`: skema v4 (P4, 18 tabel) dengan penjelasan kolom, relasi, constraint, enum, dan riwayat skema v1 sampai v4. Diperbarui setiap kali skema berubah |
-| Alur demo | Storyboard video demo, menyusul di P5 |
+| [storyboard-demo.md](storyboard-demo.md) | Storyboard video demo: adegan, layar, frame Figma, aksi, narasi singkat, dan durasi, mengikuti prototipe klik 07 Alur Demo (P5) |
 
 ## Desain antarmuka di Figma
 
 File: [KosBagi Desain UI](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI). Bila Figma meminta izin, minta akses lihat ke koordinator.
 
-Seluruh layar P1 disetujui pada 29 Okt 2026, layar P2 pada 2 Nov 2026, dan layar P3 (kuitansi, KYC investor, penawaran token, KYC admin) pada 3 Nov 2026. Layar P4 (ringkasan dan portofolio investor, status kamar dan biaya pengelola, ringkasan admin, tutup periode, rekonsiliasi) disetujui pada 16 Nov 2026 setelah satu revisi gaya tombol kolom Aksi. Semua layar ada di file yang sama, jadi tautan file tidak berubah.
+Seluruh layar P1 disetujui pada 29 Okt 2026, layar P2 pada 2 Nov 2026, dan layar P3 (kuitansi, KYC investor, penawaran token, KYC admin) pada 3 Nov 2026. Layar P4 (ringkasan dan portofolio investor, status kamar dan biaya pengelola, ringkasan admin, tutup periode, rekonsiliasi) disetujui pada 16 Nov 2026 setelah satu revisi gaya tombol kolom Aksi. Desain P5 (Figma disamakan dengan aplikasi P4 dan prototipe klik 07 Alur Demo) disetujui pada 20 Nov 2026 tanpa revisi. Semua layar ada di file yang sama, jadi tautan file tidak berubah.
 
 ### Frame P1
 
@@ -112,7 +112,7 @@ Komponen baru P3 ada di frame main component: [Kuitansi sewa](https://www.figma.
 
 ### Frame P4
 
-Frame P4 hanya untuk desktop dan belum punya versi mode gelap, kecuali Kartu saldo bagi hasil yang selalu gelap. Di aplikasi, tata letaknya menyusun ulang menjadi satu kolom di bawah 1280 px dan tabel bisa digulir mendatar di ponsel; warnanya memakai variabel tema sehingga mode gelap tetap terbaca.
+Frame P4 hanya untuk desktop dan belum punya versi mode gelap, kecuali Kartu saldo bagi hasil yang selalu gelap. Di aplikasi, tata letaknya menyusun ulang menjadi satu kolom di bawah 1280 px. Sejak P5, tabel lebar (portofolio, biaya, antrean job, dan KYC admin) berganti menjadi daftar bertumpuk bila kartunya lebih sempit dari tabel, jadi di ponsel tidak ada kolom yang tersembunyi di luar layar. Warnanya memakai variabel tema; pemeriksaan mode gelap P5 dijelaskan di bagian Mode gelap.
 
 | Layar | Rute | Desktop | Ponsel |
 |---|---|---|---|
@@ -150,6 +150,24 @@ Frame P4 hanya untuk desktop dan belum punya versi mode gelap, kecuali Kartu sal
 | Rekonsiliasi, memuat (jalur 1) | `/admin/rekonsiliasi` | [148-3246](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=148-3246) | - |
 
 Komponen baru P4 ada di frame main component: [Kartu saldo bagi hasil](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=142-1767), [Daftar sewa masuk](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=142-1939), [Baris biaya](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=138-1541), [Sheet catat biaya](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=138-1751), [Struk penutupan](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=140-1576), [Kartu syarat penutupan](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=140-1812), [Baris job on-chain](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=141-1710), [Baris rekonsiliasi](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=141-1818). Revisi pengguna di P4: tombol di kolom Aksi tabel memakai varian Outline dan rata kiri bersama judul kolom, termasuk tombol Tinjau dan Detail di tabel KYC admin (P3). Tautan yang berpindah halaman, seperti Kuitansi di riwayat tagihan, tetap berupa Tautan.
+
+### Frame P5
+
+Desain P5 menyamakan Figma dengan aplikasi P4 setelah QA dan menambah prototipe klik untuk video demo. Tidak ada perubahan perilaku aplikasi yang diminta.
+
+| Layar | Rute | Frame |
+|---|---|---|
+| Alur Demo, sampul dan daftar demo | - | [178-4802](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=178-4802) |
+| Tagihan, dana dikembalikan | `/penghuni/tagihan` | [172-7438](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=172-7438) |
+| Tagihan, periode ditutup | `/penghuni/tagihan` | [172-7713](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=172-7713) |
+| Admin ringkasan, tandai ditangani | `/admin` | [175-3028](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=175-3028) |
+| Admin ringkasan, job ditangani (tab Semua) | `/admin` | [175-3297](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=175-3297) |
+| Admin ringkasan, dana perlu dikembalikan | `/admin` | [175-3580](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=175-3580) |
+| Rekonsiliasi, lunas telat (jalur 1) | `/admin/rekonsiliasi` | [176-4876](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=176-4876) |
+
+Komponen yang berubah di P5: [Dialog tandai ditangani](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=173-1716) (baru), [Baris job on-chain](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=141-1710) (kolom Aksi 270 px, varian Ditangani), [Slip tagihan](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=70-1033) (Dana dikembalikan, Periode ditutup), dan [Jejak pembayaran](https://www.figma.com/design/SiWSQc651BxoJmt67erq2d/KosBagi-Desain-UI?node-id=71-1044) (Dana dikembalikan, Periode ditutup, Data lampau). Urutan 29 layar di 07 Alur Demo dijabarkan per adegan di [storyboard-demo.md](storyboard-demo.md).
+
+Yang belum ada di Figma dan dibangun langsung di kode mengikuti pola yang sudah ada: Slip ringkas untuk Dana dikembalikan dan Periode ditutup (memakai isi Slip tagihan), daftar bertumpuk pengganti tabel di ponsel (pola Baris riwayat versi Ponsel), dan halaman galat `error.tsx` (pola state galat dan halaman 404).
 
 ## Arah visual: Lime kuitansi
 
@@ -216,7 +234,8 @@ Ikon memakai Phosphor (`@phosphor-icons/react`, weight regular), bukan lucide. I
 ### Mode gelap
 
 - Mode gelap berupa tombol toggle (`next-themes`, class `.dark`). Layar didesain dalam mode terang, ditambah satu contoh beranda gelap.
-- Pengecualian yang disengaja: bagian "Dari sewa ke bagi hasil" di beranda, panel penawaran di detail kos, dan Kartu bukti di halaman penghuni selalu gelap. Di kode, ketiganya memakai `class="dark"`.
+- Pengecualian yang disengaja: bagian "Dari sewa ke bagi hasil" di beranda, panel penawaran di detail kos, Kartu bukti di halaman penghuni, panel catatan on-chain di kuitansi, dan Kartu saldo bagi hasil investor selalu gelap. Di kode, semuanya memakai `class="dark"`.
+- Pemeriksaan P5: semua halaman peran dan halaman publik dicek di mode terang dan gelap pada 1440 px dan 390 px, dengan skrip yang menghitung rasio kontras setiap teks terhadap latarnya (batas WCAG AA 4,5:1, atau 3:1 untuk teks besar). Satu temuan diperbaiki: hash transaksi di ubin kamar lime pada papan pengelola memakai warna `primary`, yang di mode gelap berwarna terang (1,06:1). Kini memakai `success-foreground` seperti papan kamar beranda.
 
 ### Teks dan format
 
@@ -276,7 +295,7 @@ Navbar publik berisi Beranda, Daftar kos, Cara kerja (menuju bagian di beranda),
 
 ### Halaman per peran
 
-Semua layar setelah masuk memakai app shell yang sama: sidebar tinta berisi menu peran dan pengguna dari sesi, banner sandbox di atas header, judul halaman dengan keterangan, dan cip properti Kos Sumbersari 01 KB-SMR01. Di ponsel, header diganti Header ponsel dan menu dibuka lewat Sheet. Halaman penghuni terisi di P2; isi menu peran lain masih berupa skeleton sampai progressnya.
+Semua layar setelah masuk memakai app shell yang sama: sidebar tinta berisi menu peran dan pengguna dari sesi, banner sandbox di atas header, judul halaman dengan keterangan, dan cip properti Kos Sumbersari 01 KB-SMR01. Di ponsel, header diganti Header ponsel dan menu dibuka lewat Sheet. Sejak P4 semua menu sudah berisi. Bila sebuah halaman melempar galat yang tidak tertangani, `error.tsx` per peran menampilkan pesan galat dengan tombol Muat ulang di dalam app shell. Header dengan judul menu dan tombol menu ikut dirender ulang, jadi navigasi tetap bisa dipakai di ponsel (P5).
 
 | Peran | Menu di sidebar | Rute | Isi dibangun |
 |---|---|---|---|
