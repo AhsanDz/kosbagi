@@ -30,7 +30,11 @@ export function proxy(request: NextRequest) {
   const role = claims ? toAppRole(claims.role) : null;
 
   if (pathname === LOGIN_PATH) {
-    if (searchParams.has(SESSION_ENDED_PARAM)) return withoutSession(NextResponse.next());
+    // Sesi ditolak backend: tampilkan form tanpa mengarahkan balik ke halaman
+    // peran (mencegah putaran). Cookie sengaja tidak dihapus di sini karena GET
+    // tidak boleh mengubah sesi: tautan dari situs lain ke /masuk?sesi= tidak
+    // bisa lagi mengeluarkan pengguna. Cookie lama tertimpa saat masuk lagi.
+    if (searchParams.has(SESSION_ENDED_PARAM)) return NextResponse.next();
     return role ? redirectTo(request, roleHomePath(role)) : NextResponse.next();
   }
 

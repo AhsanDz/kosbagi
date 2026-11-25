@@ -2,8 +2,10 @@
 export const SESSION_COOKIE = "kosbagi_session";
 
 /**
- * Tanda di URL bahwa backend menolak token yang masih ada di cookie. proxy.ts
- * menghapus cookie itu, supaya /masuk tidak mengarahkan balik ke halaman peran.
+ * Tanda di URL bahwa backend menolak token yang masih ada di cookie. Dengan
+ * tanda ini proxy.ts menampilkan /masuk tanpa mengarahkan balik ke halaman
+ * peran. Cookie-nya tidak dihapus lewat GET (P5); cookie itu tertimpa saat
+ * pengguna masuk lagi, atau dihapus route handler begitu backend membalas 401.
  */
 export const SESSION_ENDED_PARAM = "sesi";
 
