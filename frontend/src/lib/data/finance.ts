@@ -76,7 +76,7 @@ export const projectionHighlights = [
 ] as const;
 
 export const taxSensitivityNote =
-  "Bila memenuhi PPh final 0,5% dari omzet, estimasi naik menjadi ±6,7% per tahun.";
+  "Bila kustodian memperoleh fasilitas Pasal 31E UU PPh, estimasi naik menjadi ±6,0% per tahun.";
 
 /**
  * Angka untuk pemilik kos (bagian "Punya kos dekat kampus?" di beranda):
