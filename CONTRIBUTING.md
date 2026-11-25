@@ -15,7 +15,8 @@ Semua perubahan masuk ke `main` lewat Pull Request. Tidak ada yang push langsung
    ```
 3. Kerjakan perubahan hanya di wilayah file jalurmu, lalu commit.
 4. Push branch dan buka Pull Request ke `main` dengan judul `[P2][J2] Webhook Midtrans`.
-5. Koordinator repo (Ahsan Faqih) memeriksa tab **Files changed**, lalu merge dengan **Create a merge commit** dan menghapus branch.
+5. Tunggu pemeriksaan otomatis (CI) di Pull Request selesai. Bila ada yang merah, buka **Details**, perbaiki di branch yang sama, lalu push lagi. Daftar pemeriksaannya ada di README bagian "Pemeriksaan otomatis (CI)".
+6. Koordinator repo (Ahsan Faqih) memeriksa tab **Files changed**, lalu merge dengan **Create a merge commit** dan menghapus branch.
 
 Satu pekerjaan = satu branch = satu Pull Request. Progress berikutnya dimulai setelah semua Pull Request progress sebelumnya di-merge.
 
@@ -23,8 +24,8 @@ Satu pekerjaan = satu branch = satu Pull Request. Progress berikutnya dimulai se
 
 | Jalur | Anggota | Wilayah utama |
 |---|---|---|
-| 1 Bisnis & Keuangan | Alya Hamidah Izzatul Laili | file root repo, `docs/bisnis`, `docs/regulasi`, `docs/log-ide`, `docs/presentasi`, seed data (`backend/prisma/seed*`), `backend/src/finance`, modul & halaman rekonsiliasi, halaman `/pemilik`, fixture `contracts/test/fixtures` |
-| 2 Backend & Pembayaran | Nofita Rahma Sabillah | `backend/` (selain wilayah jalur 1 dan 3), `docker-compose.yml`, `.github/`, `docs/api`, laporan uji pembayaran |
+| 1 Bisnis & Keuangan | Alya Hamidah Izzatul Laili | file root repo, `docs/bisnis`, `docs/regulasi`, `docs/log-ide`, `docs/presentasi`, `docs/pernyataan-ai.md`, seed data (`backend/prisma/seed*`), `backend/src/finance`, modul & halaman rekonsiliasi, halaman `/pemilik`, fixture `contracts/test/fixtures` |
+| 2 Backend & Pembayaran | Nofita Rahma Sabillah | `backend/` (selain wilayah jalur 1 dan 3), `docker-compose.yml`, `.github/`, `docs/api`, `docs/deploy`, laporan uji pembayaran |
 | 3 Kontrak & Blockchain | Ahsan Faqih | `contracts/` (selain fixture), `backend/src/blockchain`, `backend/src/worker.ts`, `docs/kontrak`, laporan uji kontrak |
 | 4 Frontend & Desain | Azzahra Callysta Putri Aditya | `frontend/` (selain halaman rekonsiliasi dan `/pemilik`), `docs/desain` |
 
@@ -49,3 +50,7 @@ Format [Conventional Commits](https://www.conventionalcommits.org/) berbahasa In
 - Jangan pernah commit file `.env`, private key, mnemonic, atau server key Midtrans. Yang boleh masuk repo hanya `.env.example` berisi nilai contoh.
 - Hanya data dummy: tanpa nama asli, KTP, atau nomor rekening asli.
 - Hanya Midtrans sandbox dan Sepolia testnet.
+
+## Penggunaan AI
+
+Pesan commit tidak memuat penanda AI per commit. Penggunaan alat AI dinyatakan menyeluruh di [`docs/pernyataan-ai.md`](docs/pernyataan-ai.md). Bila kamu memakai alat AI yang belum tercantum di sana, sampaikan ke jalur 1 supaya dokumen itu diperbarui.
