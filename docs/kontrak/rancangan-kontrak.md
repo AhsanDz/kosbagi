@@ -1,6 +1,6 @@
 # Rancangan Smart Contract KosBagi
 
-Dokumen ini menjelaskan rancangan smart contract KosBagi di Ethereum Sepolia: `KosToken` (selesai di progress 1) dan `KosLedger` (selesai di progress 2), cara keduanya di-deploy (progress 3, bagian 8), dan cara worker backend memakainya (bagian 7). `KosVoting` (opsional) tidak dibangun di prototipe (bagian 5). Kode ada di [`contracts/contracts/`](../../contracts/contracts/), test di [`contracts/test/`](../../contracts/test/), laporan uji di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md), panduan deploy di [`deploy-sepolia.md`](deploy-sepolia.md).
+Dokumen ini menjelaskan rancangan smart contract KosBagi di Ethereum Sepolia: `KosToken` (selesai di progress 1) dan `KosLedger` (selesai di progress 2), cara keduanya di-deploy (progress 3, bagian 8), dan cara worker backend memakainya (bagian 7). Ringkasan keamanan (model ancaman, matriks peran, keterbatasan) dan gas terukur setiap fungsi tulis ada di [`keamanan-dan-gas.md`](keamanan-dan-gas.md). `KosVoting` (opsional) tidak dibangun di prototipe (bagian 5). Kode ada di [`contracts/contracts/`](../../contracts/contracts/), test di [`contracts/test/`](../../contracts/test/), laporan uji di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md), panduan deploy di [`deploy-sepolia.md`](deploy-sepolia.md).
 
 | Kontrak | Fungsi utama | Progress | Status |
 |---|---|---|---|
@@ -8,7 +8,7 @@ Dokumen ini menjelaskan rancangan smart contract KosBagi di Ethereum Sepolia: `K
 | `KosLedger` | `recordRent`, `recordExpense`, `closePeriod`, `shareOf`: buku besar sewa dan biaya per periode, angka distribusi final | P2 | Selesai, 65 test lulus (ditambah 13 test fixture jalur 1 di P3), cakupan baris 100% |
 | `KosVoting` | `propose`, `vote`, `tally` | Opsional | Tidak dibangun (keputusan 16 Nov 2026), dicatat sebagai pengembangan lanjutan (bagian 5) |
 
-Kode kedua kontrak tidak berubah sejak P2. P3 menambahkan modul deploy Sepolia, skrip deploy dan verifikasi, pencatatan tiga dokumen penerbitan, dan test skenario 12 yang membaca fixture jalur 1. P4 tidak mengubah kontrak, ABI, maupun modul deploy: yang bertambah adalah worker backend yang kini juga memanggil `recordExpense` dan `closePeriod`, serta test alur penuh yang menutup periode November dengan angka bisnis (bagian 7). Alamat Sepolia dicatat di `contracts/deployments/sepolia.json` setelah koordinator menjalankan deploy.
+Kode kedua kontrak tidak berubah sejak P2. P3 menambahkan modul deploy Sepolia, skrip deploy dan verifikasi, pencatatan tiga dokumen penerbitan, dan test skenario 12 yang membaca fixture jalur 1. P4 tidak mengubah kontrak, ABI, maupun modul deploy: yang bertambah adalah worker backend yang kini juga memanggil `recordExpense` dan `closePeriod`, serta test alur penuh yang menutup periode November dengan angka bisnis (bagian 7). P5 (finalisasi) juga tidak mengubah kontrak, ABI, maupun modul deploy: yang bertambah ringkasan keamanan dan gas terukur ([`keamanan-dan-gas.md`](keamanan-dan-gas.md)), skrip pengukur gas `npm run gas:report`, skrip tautan Etherscan untuk presentasi `npm run links:sepolia` (bagian 8.8), dan panduan verifikasi Etherscan yang lebih lengkap. Alamat Sepolia dicatat di `contracts/deployments/sepolia.json` setelah koordinator menjalankan deploy.
 
 ## 1. Posisi kontrak dalam arsitektur
 
@@ -227,7 +227,7 @@ Error bawaan OpenZeppelin yang mungkin muncul: `AccessControlUnauthorizedAccount
 | `transfer` antarpemegang (penerima baru) | ± 164.000 |
 | `pause` / `unpause` | ± 47.000 / 25.000 |
 
-Dengan harga gas Sepolia 1 sampai 10 gwei, deploy menghabiskan sekitar 0,003 sampai 0,031 ETH Sepolia. Ukuran bytecode 10.805 byte (profil `production`) dan 19.852 byte (profil `default`), di bawah batas 24.576 byte. Gladi deploy P3 di Hardhat node lokal mengukur angka yang sama: deploy KosToken 3.073.916 gas dan `anchorDocument` perjanjian pengelolaan 71.439 gas (bagian 8.5).
+Angka di tabel ini dibulatkan dari pengukuran P1. Pengukuran ulang P5 dengan `npm run gas:report` (profil `production`) memberi angka yang sama; nilai persisnya, termasuk `transfer`, `permit`, `transferFrom`, `grantRole`, dan `revokeRole`, ada di [`keamanan-dan-gas.md`](keamanan-dan-gas.md) bagian 9. Dengan harga gas Sepolia 1 sampai 10 gwei, deploy menghabiskan sekitar 0,003 sampai 0,031 ETH Sepolia. Ukuran bytecode 10.805 byte (profil `production`) dan 19.852 byte (profil `default`), di bawah batas 24.576 byte. Gladi deploy P3 di Hardhat node lokal mengukur angka yang sama: deploy KosToken 3.073.916 gas dan `anchorDocument` perjanjian pengelolaan 71.439 gas (bagian 8.5).
 
 ### 3.11 Compiler, profil build, dan bug compiler yang diketahui
 
@@ -466,7 +466,7 @@ Error bawaan OpenZeppelin yang mungkin muncul: `AccessControlUnauthorizedAccount
 | `closePeriod` | ± 199.000 |
 | `pause` / `unpause` | ± 47.000 / 25.000 |
 
-Satu bulan penuh (9 `recordRent`, satu `recordExpense`, satu `closePeriod`) sekitar 1,03 juta gas, atau 0,001 sampai 0,01 ETH Sepolia pada harga gas 1 sampai 10 gwei. Ukuran bytecode 4.607 byte (profil `production`) dan 8.067 byte (profil `default`), di bawah batas 24.576 byte.
+Angka di tabel ini dibulatkan dari pengukuran P2 dan sama dengan pengukuran ulang P5 ([`keamanan-dan-gas.md`](keamanan-dan-gas.md) bagian 9). Satu bulan penuh (9 `recordRent`, satu `recordExpense`, satu `closePeriod`) sekitar 1,03 juta gas, atau 0,001 sampai 0,01 ETH Sepolia pada harga gas 1 sampai 10 gwei. Ukuran bytecode 4.607 byte (profil `production`) dan 8.067 byte (profil `default`), di bawah batas 24.576 byte.
 
 ### 4.12 Checklist keamanan
 
@@ -526,11 +526,12 @@ npm run test:production   # test yang sama pada bytecode teroptimasi (yang akan 
 npm run coverage          # laporan cakupan test
 npm run typecheck         # build + pemeriksaan tipe TypeScript
 npm run export-abi        # salin ABI KosToken dan KosLedger ke backend/src/blockchain/abi/
+npm run gas:report        # gas setiap fungsi tulis pada bytecode production (P5)
 ```
 
-Perintah deploy (`node:local`, `deploy:local`, `verify:local`, `deploy:sepolia`, `verify:sepolia`) dijelaskan langkah demi langkah di [`deploy-sepolia.md`](deploy-sepolia.md).
+Perintah deploy (`node:local`, `deploy:local`, `verify:local`, `deploy:sepolia`, `verify:sepolia`) dan tautan demo (`links:local`, `links:sepolia`) dijelaskan langkah demi langkah di [`deploy-sepolia.md`](deploy-sepolia.md).
 
-Hasil saat P4 selesai: kompilasi tanpa warning, **169 passing** pada profil `default` dan `production` (P3: 167; dua test baru untuk opsi gladi `DEPLOY_LABEL`), cakupan `KosToken.sol` dan `KosLedger.sol` 100% baris dan pernyataan. Test berjalan di jaringan lokal Hardhat (EDR), tidak memakai Sepolia, tidak butuh file `.env`, dan tidak membaca dokumen penerbitan jalur 1 (test memakai file contoh di folder sementara sistem). Rincian hasil ada di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md).
+Hasil saat P5 selesai: kompilasi tanpa warning, **181 passing** pada profil `default` dan `production` (P4: 169; dua belas test baru untuk skrip tautan demo), cakupan `KosToken.sol` dan `KosLedger.sol` 100% baris dan pernyataan. Test berjalan di jaringan lokal Hardhat (EDR), tidak memakai Sepolia, tidak butuh file `.env`, dan tidak membaca dokumen penerbitan jalur 1 (test memakai file contoh di folder sementara sistem). Rincian hasil ada di [`docs/pengujian/kontrak.md`](../pengujian/kontrak.md).
 
 | File test | Jumlah | Isi |
 |---|---|---|
@@ -539,6 +540,7 @@ Hasil saat P4 selesai: kompilasi tanpa warning, **169 passing** pada profil `def
 | `Deployment.test.ts` | 4 | Modul deploy lokal dan kecocokan ABI backend |
 | `ManualDistribution.test.ts` | 13 | **Skenario 12** dengan fixture jalur 1 (bagian 4.5) |
 | `SepoliaDeployment.test.ts` | 24 | Modul deploy Sepolia, pemeriksaan pasca-deploy, pemeriksaan bytecode, parameter dompet, label gladi, dokumen penerbitan (bagian 8) |
+| `DemoLinks.test.ts` | 12 | Skrip tautan Etherscan (bagian 8.8): opsi, tautan dari berkas hasil deploy, event dari RPC per potongan blok dan dari API Etherscan berhalaman, penolakan RPC dan API tanpa membocorkan URL atau API key, keluaran teks dan Markdown |
 
 Ringkasan test `contracts/test/ManualDistribution.test.ts`:
 
@@ -634,6 +636,8 @@ Panduan langkah demi langkah untuk koordinator ada di [`deploy-sepolia.md`](depl
 | `contracts/ignition/parameters/lokal.json` | Empat akun pertama Hardhat untuk gladi lokal |
 | `contracts/scripts/deploy.ts` | Skrip deploy: pemeriksaan awal, hash dokumen, Ignition, pemeriksaan pasca-deploy, berkas hasil |
 | `contracts/scripts/verify.ts` | Skrip verifikasi Etherscan dengan pemeriksaan bytecode lebih dulu |
+| `contracts/scripts/links.ts` | Skrip tautan Etherscan untuk presentasi dan README (P5, bagian 8.8) |
+| `contracts/scripts/gas-report.ts` | Pengukur gas setiap fungsi tulis pada bytecode `production` (P5, [`keamanan-dan-gas.md`](keamanan-dan-gas.md) bagian 9) |
 | `contracts/scripts/lib/` | Fungsi bersama yang diuji: target jaringan dan parameter, dokumen penerbitan, pemeriksaan pasca-deploy dan bytecode, format berkas hasil |
 | `contracts/deployments/sepolia.json` | Hasil deploy Sepolia utama, ditulis skrip (belum ada sampai koordinator men-deploy) |
 | `contracts/deployments/sepolia-<label>.json` | Hasil deploy gladi berlabel (`DEPLOY_LABEL`), tidak ikut repo |
@@ -699,7 +703,7 @@ Perkiraan ETH Sepolia tiap dompet ada di [`deploy-sepolia.md`](deploy-sepolia.md
 2. Mengirim kode sumber dan argumen konstruktor yang tercatat saat deploy ke Etherscan lewat `verifyContract` dari `@nomicfoundation/hardhat-verify`.
 3. Menulis status verifikasi dan tautan `#code` ke berkas hasil.
 
-Verifikasi tidak membutuhkan ETH, hanya `ETHERSCAN_API_KEY`. Di jaringan lokal hanya langkah 1 yang berjalan.
+Verifikasi tidak membutuhkan ETH. Selain `ETHERSCAN_API_KEY`, `ADMIN_PRIVATE_KEY` dan `OPERATOR_PRIVATE_KEY` tetap harus terisi walaupun tidak dipakai menandatangani, karena jaringan `sepolia` di `hardhat.config.ts` memuat keduanya saat terhubung (ditemukan saat uji P5, panduan [`deploy-sepolia.md`](deploy-sepolia.md) bagian 6.1). Di jaringan lokal hanya langkah 1 yang berjalan.
 
 ### 8.7 Keamanan deploy
 
@@ -713,3 +717,14 @@ Verifikasi tidak membutuhkan ETH, hanya `ETHERSCAN_API_KEY`. Di jaringan lokal h
 | Deploy setengah jalan | Ignition melanjutkan dari jejak; pemeriksaan pasca-deploy wajib lulus sebelum berkas hasil ditulis |
 | Gladi menimpa deploy utama | `DEPLOY_LABEL` membuat id deployment dan berkas hasil terpisah; label yang jejaknya sudah hilang tetapi berkas hasilnya masih ada ditolak |
 | Bytecode berbeda dari yang diverifikasi | Profil `production` diwajibkan; verifikasi didahului perbandingan bytecode |
+| Rahasia tampil di layar presentasi | Skrip tautan demo tidak memakai koneksi jaringan Hardhat (yang memuat kunci dompet), hanya membaca URL RPC, dan menyaring URL serta API key dari setiap pesan error |
+
+### 8.8 Tautan demo (P5)
+
+`contracts/scripts/links.ts` (`npm run links:sepolia`, `npm run links:local`) mencetak tautan Etherscan untuk presentasi dan README. Fungsi bersamanya di `scripts/lib/demo-links.ts` dan diuji di `DemoLinks.test.ts`.
+
+1. URL RPC dibaca langsung dari konfigurasi jaringan dan dipakai lewat `JsonRpcProvider` ethers, bukan lewat koneksi jaringan Hardhat, sehingga skrip tidak membutuhkan `ADMIN_PRIVATE_KEY` maupun `OPERATOR_PRIVATE_KEY`. Chain id dibaca dengan satu permintaan berbatas waktu, lalu menentukan berkas hasil deploy lewat fungsi yang sama dengan skrip deploy (`resolveDeployTarget`, `parseDeployLabel`, `deploymentRecordPath`), jadi `DEPLOY_LABEL` berlaku sama.
+2. Bagian kontrak, dompet, dan penerbitan dibentuk dari berkas hasil deploy saja.
+3. Event kedua kontrak dibaca dari blok deploy sampai blok terbaru. Di Sepolia dengan `ETHERSCAN_API_KEY`, sumbernya getLogs API Etherscan V2 (berhalaman 1.000 baris, mengulang saat kena batas laju); selain itu `eth_getLogs` RPC per potongan `LINKS_BLOCK_RANGE` blok. Log dari transaksi penerbitan dilewati karena sudah ada di bagian penerbitan.
+4. Event diurai dengan ABI artifact dan dikelompokkan: whitelist KYC, pembelian token, sewa, biaya, tutup periode, serta dokumen versi baru, jeda darurat, dan perubahan peran bila ada. Kode kategori biaya diberi label daftar backend (KONTRAK_P4 bagian 3); kontrak sendiri hanya menyimpan kodenya.
+5. Keluaran teks (dua baris per butir, tautan di baris kedua) atau Markdown (`LINKS_FORMAT=markdown`, satu tabel per bagian).
