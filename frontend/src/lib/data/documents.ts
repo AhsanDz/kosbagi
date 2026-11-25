@@ -10,8 +10,9 @@ import type { PropertyDocument } from "@/lib/types";
  *
  * Dipakai tab Dokumen di /kos/sumbersari-01 dan kartu "Dokumen tercatat di
  * KosToken" di /investor/penawaran. fileInfo mengikuti file .md sebenarnya
- * (ukuran dalam KB = 1.024 byte, tanggal dokumen). txHash masih contoh sampai
- * deploy Sepolia; koordinator menggantinya bersama alamat kontrak.
+ * (ukuran dalam KB = 1.024 byte, tanggal dokumen). txHash dari deploy demo akhir
+ * Sepolia 24 Nov 2026 (contracts/deployments/sepolia.json): sertifikat dan laporan
+ * penilaian sama-sama tercatat di tx deploy KosToken.
  */
 export const propertyDocuments: PropertyDocument[] = [
   {
@@ -20,7 +21,7 @@ export const propertyDocuments: PropertyDocument[] = [
     fileInfo: "Markdown, 3,2 KB, 20 Okt 2026",
     contentHash: "0xec8c1044639cfdf4a8d6fba8c477df0dbe2f09b757f58c918d0676ddda581ef3",
     chainStatus: "CONFIRMED",
-    txHash: "0x3a9e8b7ded794ff75aa526c0e4fac230d11ba03b8b02cbc103c6a99c42281f04",
+    txHash: "0x4d22640c7b8d1132e64f709bc8e776a4f3fb036e91975c2a68113e81afcd9874",
   },
   {
     title: "Laporan penilaian properti (dummy)",
@@ -28,7 +29,7 @@ export const propertyDocuments: PropertyDocument[] = [
     fileInfo: "Markdown, 4,5 KB, 21 Okt 2026",
     contentHash: "0x49ce16e79ed47d0c21793650545a406c32108d8ba5a5a58a0ec1041d40eed732",
     chainStatus: "CONFIRMED",
-    txHash: "0x7c219a6b3c7fc679e6f4981d56abf58a32621f731938ae85836f220e9140a9d3",
+    txHash: "0x4d22640c7b8d1132e64f709bc8e776a4f3fb036e91975c2a68113e81afcd9874",
   },
   {
     title: "Perjanjian pengelolaan (dummy)",
@@ -36,6 +37,6 @@ export const propertyDocuments: PropertyDocument[] = [
     fileInfo: "Markdown, 5,8 KB, 22 Okt 2026",
     contentHash: "0x1839d3cf229ad401b50299dd9fdca617691bef295d720a88ec3ed7f806946741",
     chainStatus: "CONFIRMED",
-    txHash: "0xb48fb1654b5d2dbdb8d9c36e00c105a058e67d2c8a4618ccc56bbe548ad420ce",
+    txHash: "0x8f843066dcf3d514db71fedc2ddf06f4fbbbda0d7a2668f041b7d5f4a22c0be0",
   },
 ];

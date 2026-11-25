@@ -8,6 +8,7 @@ import { FollowUpCard } from "@/components/manager/follow-up-card";
 import { RentSummaryCard } from "@/components/manager/rent-summary-card";
 import { RoomStatusBoard } from "@/components/manager/room-status-board";
 import { Skeleton } from "@/components/ui/skeleton";
+import { expensesKey, fetchExpenses } from "@/lib/api/expenses";
 import { fetchManagerRooms, managerRoomsKey } from "@/lib/api/manager";
 import { roomsHavePending } from "@/lib/manager";
 
@@ -38,7 +39,8 @@ export function ManagerRoomsSkeleton() {
 
 /**
  * Isi /pengelola: Ringkasan sewa, Papan kamar dengan sepuluh Ubin kamar, dan
- * kartu Perlu ditindaklanjuti (GET /manager/rooms). Tanpa periode, backend
+ * kartu Perlu ditindaklanjuti (GET /manager/rooms, ditambah status ditutup dari
+ * GET /expenses untuk periode yang sama). Tanpa periode, backend
  * memakai periode berjalan dan semua teks memakai `data.period`. Dipantau ulang
  * selama ada sewa lunas yang menunggu pencatatan.
  */
@@ -52,6 +54,9 @@ export function ManagerRooms({ period }: { period: string | null }) {
       onSuccess: (payload) => setWatch(roomsHavePending(payload)),
     }
   );
+  // GET /manager/rooms tidak membawa status periode; GET /expenses membawa
+  // `closed` untuk periode yang sama, dipakai kartu Perlu ditindaklanjuti (P5).
+  const expenses = useSWR(data ? expensesKey(data.period) : null, fetchExpenses);
 
   if (!data && error) {
     return (
@@ -67,7 +72,7 @@ export function ManagerRooms({ period }: { period: string | null }) {
       <RentSummaryCard payload={data} />
       <div className="grid items-start gap-4 md:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <RoomStatusBoard rooms={data.rooms} />
-        <FollowUpCard payload={data} />
+        <FollowUpCard payload={data} periodClosed={expenses.data?.closed} />
       </div>
     </div>
   );

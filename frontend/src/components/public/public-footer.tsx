@@ -43,7 +43,8 @@ function ExternalItem({ href, children }: { href?: string; children: ReactNode }
 
 /**
  * Footer semua halaman publik (Figma: "Footer publik"): identitas prototipe,
- * tautan halaman, tautan transparansi, dan catatan foto buatan AI.
+ * tautan halaman, tautan transparansi (kontrak di Etherscan, repositori, dan
+ * pernyataan penggunaan AI sejak P5), dan catatan foto buatan AI.
  */
 export function PublicFooter() {
   const { contracts } = kosSumbersari01;
@@ -85,6 +86,7 @@ export function PublicFooter() {
               Kontrak KosLedger di Etherscan
             </ExternalItem>
             <ExternalItem href={siteConfig.repositoryUrl}>Repositori GitHub</ExternalItem>
+            <ExternalItem href={siteConfig.aiStatementUrl}>Pernyataan penggunaan AI</ExternalItem>
           </FooterColumn>
         </div>
 

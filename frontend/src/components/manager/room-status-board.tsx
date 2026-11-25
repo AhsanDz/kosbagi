@@ -53,7 +53,9 @@ function TileDetail({ room, kind }: { room: ManagerRoomDto; kind: ManagerTileKin
       <HashLink
         hash={room.chain.txHash}
         label={`Transaksi sewa ${room.roomNumber}`}
-        className="text-[11px] leading-4 text-primary"
+        // Warna teks ubin lime, bukan text-primary: di mode gelap primary
+        // berwarna terang sehingga hash hampir tak terbaca di atas lime (P5).
+        className="text-[11px] leading-4 text-success-foreground"
       />
     ) : (
       <span>Tercatat</span>

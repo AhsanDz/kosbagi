@@ -2,7 +2,7 @@
 
 Dokumen ini menggambarkan cara komponen KosBagi bekerja sama: siapa memakai apa, bagaimana pembayaran sewa sampai tercatat di blockchain, bagaimana investor membeli token, status apa yang tampil di layar, dan di mana aplikasi dijalankan. Semua diagram ditulis dengan Mermaid sehingga tampil langsung di GitHub.
 
-Status: versi P4 (19 Nov 2026), prototipe lengkap. Bagian 9 menambah alur biaya dan nota, tutup periode, dan distribusi bagi hasil; bagian 6C menjelaskan status on-chain yang dilihat tiap peran.
+Status: versi P5 (20 Nov 2026), finalisasi. Bagian 9 (P4) menjelaskan alur biaya dan nota, tutup periode, dan distribusi bagi hasil; bagian 6C status on-chain yang dilihat tiap peran. P5 memperbarui bagian 7B (demo lokal, deploy online opsional) dan menambah keputusan K14 tentang frontend di balik proxy dan header keamanan.
 
 Rincian teknis yang dimiliki dokumen lain:
 
@@ -556,7 +556,9 @@ flowchart TB
 - Midtrans tidak bisa menjangkau `localhost`. Agen ngrok membuka URL publik HTTPS yang meneruskan notifikasi ke endpoint webhook di laptop. URL itu dipasang sebagai Payment Notification URL di dashboard Midtrans sandbox dan perlu diperbarui bila URL ngrok berganti.
 - Worker berjalan sebagai proses terpisah dari server API, jadi pengiriman transaksi blockchain yang lama tidak menahan permintaan HTTP.
 
-### 7B. Lingkungan demo (P5)
+### 7B. Deploy online opsional (P5)
+
+Keputusan 20 Nov 2026: demo dijalankan di laptop presenter seperti bagian 7A, dengan ngrok untuk notifikasi Midtrans. Konfigurasi online disiapkan supaya aplikasi bisa di-deploy kapan saja, tetapi tidak wajib untuk demo. Panduan lengkapnya ada di [`docs/deploy/online.md`](../deploy/online.md) (jalur 2).
 
 ```mermaid
 flowchart TB
@@ -564,7 +566,7 @@ flowchart TB
     subgraph VC["Vercel"]
         FE["Frontend Next.js"]
     end
-    subgraph RW["Railway atau Render"]
+    subgraph RW["Railway"]
         API["Layanan API Express"]
         W["Layanan worker"]
         PG[("PostgreSQL terkelola")]
@@ -598,8 +600,10 @@ flowchart TB
     class SEP bukti
 ```
 
-- Frontend di Vercel. API dan worker di Railway atau Render sebagai dua layanan terpisah, bersama PostgreSQL dan Redis terkelola. Pilihan penyedia diputuskan di P5.
-- Saat demo, ngrok tidak dipakai lagi: Payment Notification URL diarahkan ke URL publik layanan API.
+- Frontend di Vercel (folder `frontend`, Next.js terdeteksi otomatis). API dan worker di Railway sebagai dua layanan terpisah, bersama PostgreSQL dan Redis terkelola.
+- Bila di-deploy online, ngrok tidak dipakai: Payment Notification URL diarahkan ke URL publik layanan API.
+- Peramban hanya berbicara dengan frontend. Route handler Next.js di Vercel meneruskan permintaan ke API (K9), jadi API tidak perlu membuka CORS untuk peramban.
+- Variabel frontend di Vercel: `NEXT_PUBLIC_API_URL` (alamat API tanpa `/api`, ikut tertanam saat build), `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY`, dan `TRUST_PROXY_HEADERS=true` (lihat K14).
 
 ### Letak kunci dan konfigurasi
 
@@ -608,6 +612,7 @@ flowchart TB
 | Client key Midtrans sandbox | Environment frontend (`NEXT_PUBLIC_*`) | Ya, memang dipakai Snap.js |
 | JWT sesi pengguna | Cookie httpOnly `kosbagi_session`, diatur route handler Next.js | Terkirim otomatis, tetapi tidak bisa dibaca JavaScript |
 | URL API | Environment frontend (`NEXT_PUBLIC_*`) | Ya |
+| `TRUST_PROXY_HEADERS` (percaya header `X-Forwarded-*`) | Environment frontend, hanya server | Tidak, tetapi bukan rahasia |
 | Server key Midtrans sandbox | Environment backend | Tidak |
 | Secret JWT | Environment backend | Tidak |
 | URL PostgreSQL dan Redis | Environment backend dan worker | Tidak |
@@ -695,6 +700,12 @@ Halaman yang menunggu sesuatu di luar peramban (konfirmasi Midtrans, pencatatan 
 - **Keputusan:** Sheet catat biaya menghitung SHA-256 isi file dengan Web Crypto dan menampilkannya sebelum disimpan. Backend menghitung ulang dari file yang diterima; hash itulah yang disimpan, diperiksa keunikannya, dan dikirim ke `recordExpense`.
 - **Alasan:** pengelola bisa melihat hash yang akan tercatat on-chain tanpa menunggu unggahan, tetapi peramban tidak boleh dipercaya untuk data yang dicatat permanen.
 - **Akibat:** nota yang sama ditolak 409 `RECEIPT_ALREADY_RECORDED` sebelum job dibuat, dan Alert di Sheet menyebut biaya serta tanggal nota pertama. Web Crypto hanya tersedia di konteks aman (HTTPS atau localhost); di luar itu Sheet tetap bisa menyimpan dan hash ditampilkan setelah tercatat.
+
+### K14. Frontend di balik proxy: header diteruskan hanya bila dipercaya (P5)
+
+- **Keputusan:** route handler Next.js memakai `X-Forwarded-Host` (pemeriksaan `Origin`) dan meneruskan `X-Forwarded-For` ke backend hanya bila `TRUST_PROXY_HEADERS=true`. Semua respons frontend membawa header keamanan `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, dan `Permissions-Policy` yang mematikan kamera, mikrofon, lokasi, dan topik iklan. `/masuk?sesi=` tidak lagi menghapus cookie lewat GET.
+- **Alasan:** tanpa proxy di depannya, header `X-Forwarded-*` dikirim langsung oleh pengunjung dan bisa dipalsukan, misalnya untuk melewati rate limit backend atau membuat pemeriksaan `Origin` cocok dengan host palsu. Di Vercel header itu ditimpa oleh platform, jadi aman dipercaya. GET harus aman diulang: bila GET bisa menghapus sesi, tautan dari situs lain bisa mengeluarkan pengguna (logout CSRF).
+- **Akibat:** saat lokal variabel itu dibiarkan kosong; backend melihat alamat server Next.js, sama seperti sebelumnya karena peramban dan server sama-sama di `localhost`. Cookie dari sesi yang ditolak backend tetap tersimpan sampai pengguna masuk lagi (tertimpa) atau sampai route handler menerima 401 dari backend lalu menghapusnya. Proxy masih menghapus cookie yang isinya rusak atau kedaluwarsa, karena cookie itu memang tidak bisa dipakai. CSP penuh belum dipasang supaya Snap.js dan font tetap jalan; CSP khusus file nota datang dari backend.
 
 ## 9. Biaya, penutupan periode, dan distribusi
 

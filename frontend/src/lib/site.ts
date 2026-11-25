@@ -9,6 +9,11 @@ export const siteConfig = {
   complaintEmail: "pengaduan@kosbagi.test",
   /** Alamat repositori GitHub tim. Bila kosong, footer menampilkan teksnya tanpa tautan. */
   repositoryUrl: "https://github.com/AhsanDz/kosbagi" as string | undefined,
+  /**
+   * Pernyataan penggunaan AI (docs/pernyataan-ai.md) di cabang main repo GitHub.
+   * Bila kosong, footer menampilkan teksnya tanpa tautan.
+   */
+  aiStatementUrl: "https://github.com/AhsanDz/kosbagi/blob/main/docs/pernyataan-ai.md" as string | undefined,
 } as const;
 
 /** Navigasi publik (navbar dan menu ponsel). */
